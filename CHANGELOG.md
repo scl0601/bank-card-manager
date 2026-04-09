@@ -5,6 +5,92 @@
 
 ---
 
+## v1.6.0 (2026-04-09)
+
+### ✨ 功能新增
+- **日历计划模块（全新模块）**
+  - 日程事项的完整 CRUD 管理（新建/编辑/删除/状态变更）
+  - 月视图日历：展示当月所有日期，标记有日程的日期（分类颜色圆点），支持上月/下月切换和年份月份快速跳转
+  - 日视图列表：展示选中日期的所有日程事项，支持按状态快速筛选（全部/待办/进行中/已完成）
+  - 日程分类体系：工作 / 生活 / 学习 / 健康 / 其他，每种分类对应独立颜色标识
+  - 优先级管理：低 / 中 / 高三级优先级，通过左侧边框颜色区分
+  - 状态流转：待办 → 进行中 → 已完成，支持一键标记完成/还原为待办
+  - 提前提醒设置（按分钟数配置）
+
+#### 前端页面功能
+- **CalendarView 主页面**（左右双栏布局）
+  - 左栏：
+    - 统计卡片区：待办/进行中/已完成三项环形进度图 + 数量统计 + 进度条
+    - 月度日历网格：42格日历（6行×7列），支持今天高亮、周末标红、法定节假日标注、日期圆点标记
+    - 年份月份快速选择器（弹出面板）
+    - 分类筛选下拉 + 图例说明
+    - 快捷键提示面板
+  - 右栏：
+    - 选中日期信息头（大号日期数字 + 星期 + 相对时间描述）
+    - 状态快速筛选按钮组
+    - 日程卡片列表：时间轴 + 标题 + 分类标签 + 时长 + 备注 + 优先级标签
+    - 已完成折叠区域（可展开/收起）
+    - 底部本月完成率进度条
+  - 交互功能：
+    - 键盘快捷键：←→ 切换日期、↑↓ 切换月份、N 新建、T 回到今天、B 批量模式、Ctrl+F 搜索
+    - 双击日历格子快速创建当日日程
+    - 单击日程标题进入行内编辑模式
+    - 批量选择与操作（批量标记完成 / 批量删除）
+    - 事件排序上移/下移
+    - 关键词搜索（标题/备注模糊匹配）
+    - 导出当天/当月 CSV 文件
+    - 打印当天日程（新窗口打印预览）
+    - 加载骨架屏 + 错误重试机制
+
+- **EventDrawer 抽屉组件**
+  - 新建/编辑日程的侧边抽屉表单
+  - 表单字段：标题、描述内容、日期、开始时间、结束时间、分类、优先级、状态、提前提醒分钟数、备注
+
+#### 数据库变更
+- 新增 `calendar_event` 日程事项表
+  - 字段：title / description / eventDate(LocalDate) / startTime(LocalTime) / endTime(LocalTime) / category(0~4) / priority(0~2) / status(0~3) / remindBeforeMin / remark
+  - 包含标准审计字段（is_deleted / create_by / create_time / update_by / update_time）
+
+#### 后端接口
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/calendar/events/month` | 获取月度事项列表（日历标记用） |
+| GET | `/api/calendar/events/day` | 获取指定日期的事项列表 |
+| GET | `/api/calendar/events/{id}` | 获取事项详情 |
+| POST | `/api/calendar/events` | 新增日程事项 |
+| PUT | `/api/calendar/events/{id}` | 编辑日程事项 |
+| DELETE | `/api/calendar/events/{id}` | 删除日程事项 |
+| PUT | `/api/calendar/events/{id}/status` | 更新事项状态 |
+| GET | `/api/calendar/events/stats/month` | 获取月度统计数据 |
+
+#### 后端模块结构（calendar）
+```
+module/calendar/
+├── controller/CalendarEventController.java
+├── service/CalendarEventService.java
+├── serviceImpl/CalendarEventServiceImpl.java
+├── mapper/CalendarEventMapper.java
+├── entity/CalendarEvent.java
+├── dto/
+│   ├── CalendarEventQueryDTO.java
+│   └── CalendarEventSaveDTO.java
+└── vo/
+    ├── CalendarEventVO.java
+    └── CalendarStatsVO.java
+```
+
+#### 字典常量扩展
+- `dict.ts` 新增日程相关常量：
+  - `EVENT_CATEGORY_VALUE/OPTIONS/MAP/TAG_TYPE` — 日程分类（工作/生活/学习/健康/其他）
+  - `EVENT_PRIORITY_VALUE/OPTIONS/MAP/TAG_TYPE` — 优先级（低/中/高）
+  - `EVENT_STATUS_VALUE/OPTIONS/MAP/TAG_TYPE` — 状态（待办/进行中/已完成/已取消）
+
+#### 菜单与路由
+- 侧边栏新增「日历计划」菜单项（Calendar 图标）
+- 路由注册 `/calendar` → `CalendarView.vue`
+
+---
+
 ## v1.5.0 (2026-04-08)
 
 ### ✨ 功能新增
@@ -389,4 +475,4 @@
 ---
 
 > 维护者：amtf_fzby  
-> 最后更新：2026-04-08
+> 最后更新：2026-04-09

@@ -63,6 +63,12 @@ const router = createRouter({
           name: 'Logs',
           component: () => import('@/views/log/LogList.vue'),
           meta: { title: '系统日志', icon: 'Tickets' }
+        },
+        {
+          path: 'calendar',
+          name: 'Calendar',
+          component: () => import('@/views/calendar/CalendarView.vue'),
+          meta: { title: '日历计划', icon: 'Calendar' }
         }
       ]
     },

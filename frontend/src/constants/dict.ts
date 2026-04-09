@@ -235,6 +235,93 @@ export const PAGE_DEFAULTS = {
   PAGE_SIZES: [10, 20, 50, 100]
 } as const
 
+// ==================== 日程事项分类 ====================
+export const EVENT_CATEGORY_VALUE = {
+  WORK: 0,     // 工作
+  LIFE: 1,     // 生活
+  STUDY: 2,    // 学习
+  HEALTH: 3,   // 健康
+  OTHER: 4     // 其他
+} as const
+
+export const EVENT_CATEGORY_OPTIONS = [
+  { label: '工作', value: EVENT_CATEGORY_VALUE.WORK },
+  { label: '生活', value: EVENT_CATEGORY_VALUE.LIFE },
+  { label: '学习', value: EVENT_CATEGORY_VALUE.STUDY },
+  { label: '健康', value: EVENT_CATEGORY_VALUE.HEALTH },
+  { label: '其他', value: EVENT_CATEGORY_VALUE.OTHER }
+]
+
+export const EVENT_CATEGORY_MAP: Record<number, string> = {
+  [EVENT_CATEGORY_VALUE.WORK]: '工作',
+  [EVENT_CATEGORY_VALUE.LIFE]: '生活',
+  [EVENT_CATEGORY_VALUE.STUDY]: '学习',
+  [EVENT_CATEGORY_VALUE.HEALTH]: '健康',
+  [EVENT_CATEGORY_VALUE.OTHER]: '其他'
+}
+
+export const EVENT_CATEGORY_TAG_TYPE: Record<number, string> = {
+  [EVENT_CATEGORY_VALUE.WORK]: '',
+  [EVENT_CATEGORY_VALUE.LIFE]: 'success',
+  [EVENT_CATEGORY_VALUE.STUDY]: 'warning',
+  [EVENT_CATEGORY_VALUE.HEALTH]: 'danger',
+  [EVENT_CATEGORY_VALUE.OTHER]: 'info'
+}
+
+// ==================== 日程事项优先级 ====================
+export const EVENT_PRIORITY_VALUE = {
+  LOW: 0,      // 低
+  MEDIUM: 1,   // 中
+  HIGH: 2      // 高
+} as const
+
+export const EVENT_PRIORITY_OPTIONS = [
+  { label: '低', value: EVENT_PRIORITY_VALUE.LOW },
+  { label: '中', value: EVENT_PRIORITY_VALUE.MEDIUM },
+  { label: '高', value: EVENT_PRIORITY_VALUE.HIGH }
+]
+
+export const EVENT_PRIORITY_MAP: Record<number, string> = {
+  [EVENT_PRIORITY_VALUE.LOW]: '低',
+  [EVENT_PRIORITY_VALUE.MEDIUM]: '中',
+  [EVENT_PRIORITY_VALUE.HIGH]: '高'
+}
+
+export const EVENT_PRIORITY_TAG_TYPE: Record<number, string> = {
+  [EVENT_PRIORITY_VALUE.LOW]: 'info',
+  [EVENT_PRIORITY_VALUE.MEDIUM]: 'warning',
+  [EVENT_PRIORITY_VALUE.HIGH]: 'danger'
+}
+
+// ==================== 日程事项状态 ====================
+export const EVENT_STATUS_VALUE = {
+  TODO: 0,       // 待办
+  DOING: 1,      // 进行中
+  DONE: 2,       // 已完成
+  CANCELLED: 3   // 已取消
+} as const
+
+export const EVENT_STATUS_OPTIONS = [
+  { label: '待办', value: EVENT_STATUS_VALUE.TODO },
+  { label: '进行中', value: EVENT_STATUS_VALUE.DOING },
+  { label: '已完成', value: EVENT_STATUS_VALUE.DONE },
+  { label: '已取消', value: EVENT_STATUS_VALUE.CANCELLED }
+]
+
+export const EVENT_STATUS_MAP: Record<number, string> = {
+  [EVENT_STATUS_VALUE.TODO]: '待办',
+  [EVENT_STATUS_VALUE.DOING]: '进行中',
+  [EVENT_STATUS_VALUE.DONE]: '已完成',
+  [EVENT_STATUS_VALUE.CANCELLED]: '已取消'
+}
+
+export const EVENT_STATUS_TAG_TYPE: Record<number, string> = {
+  [EVENT_STATUS_VALUE.TODO]: 'warning',
+  [EVENT_STATUS_VALUE.DOING]: '',
+  [EVENT_STATUS_VALUE.DONE]: 'success',
+  [EVENT_STATUS_VALUE.CANCELLED]: 'info'
+}
+
 // ==================== 日期范围快捷选项 ====================
 export const DATE_RANGE_SHORTCUTS = [
   {

@@ -77,6 +77,7 @@ const menuItems = [
   { path: '/books',        title: '个人记账',   icon: 'Wallet' },
   { path: '/bills',        title: '账单管理',   icon: 'Document' },
   { path: '/reminders',    title: '提醒中心',   icon: 'Bell' },
+  { path: '/calendar',     title: '日历计划',   icon: 'Calendar' },
   { path: '/logs',         title: '系统日志',   icon: 'Tickets' }
 ]
 
