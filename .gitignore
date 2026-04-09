@@ -1,0 +1,29 @@
+# === IDE ===
+.idea/
+.vscode/
+*.iml
+
+# === OS ===
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# === Java / Spring Boot ===
+backend/target/
+*.class
+*.jar
+*.war
+*.log
+
+# === Node.js / Vue ===
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+frontend/.env.*.local
+
+# === Environment ===
+*.env
+!.env.example
+
+# === CodeBuddy ===
+.codebuddy/

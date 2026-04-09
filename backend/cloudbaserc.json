@@ -1,0 +1,6 @@
+{
+  "envId": "dev-4g1sv3870175b971",
+  "cloudrun": {
+    "name": "bank-admin-backend"
+  }
+}

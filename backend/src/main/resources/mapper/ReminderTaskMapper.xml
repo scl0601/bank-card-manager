@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bank.admin.module.reminder.mapper.ReminderTaskMapper">
+
+    <!-- 提醒任务分页查询（关联持卡人、银行卡、账单信息） -->
+    <select id="selectPageWithInfo"
+            resultType="com.bank.admin.module.reminder.vo.ReminderTaskVO">
+        SELECT
+            rt.id,
+            rt.owner_id,
+            co.name            AS owner_name,
+            rt.card_id,
+            bc.card_no_last4   AS card_no_last4,
+            bc.bank_name       AS bank_name,
+            rt.bill_id,
+            cb.bill_month      AS bill_month,
+            rt.reminder_type,
+            rt.reminder_date,
+            rt.content,
+            rt.status,
+            rt.handled_time,
+            rt.handled_by,
+            rt.create_time
+        FROM reminder_task rt
+        LEFT JOIN card_owner  co ON co.id  = rt.owner_id AND co.is_deleted = 0
+        LEFT JOIN bank_card   bc ON bc.id  = rt.card_id  AND bc.is_deleted = 0
+        LEFT JOIN card_bill   cb ON cb.id  = rt.bill_id  AND cb.is_deleted = 0
+        WHERE rt.is_deleted = 0
+        <if test="query.ownerName != null and query.ownerName != ''">
+            AND co.name LIKE CONCAT('%', #{query.ownerName}, '%')
+        </if>
+        <if test="query.reminderType != null">
+            AND rt.reminder_type = #{query.reminderType}
+        </if>
+        <if test="query.status != null">
+            AND rt.status = #{query.status}
+        </if>
+        <if test="query.reminderDateStart != null">
+            AND rt.reminder_date &gt;= #{query.reminderDateStart}
+        </if>
+        <if test="query.reminderDateEnd != null">
+            AND rt.reminder_date &lt;= #{query.reminderDateEnd}
+        </if>
+        ORDER BY
+            rt.status ASC,
+            rt.reminder_date ASC,
+            rt.create_time DESC
+    </select>
+
+</mapper>

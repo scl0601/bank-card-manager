@@ -1,0 +1,27 @@
+package com.bank.admin.module.bill.dto;
+
+import com.bank.admin.common.dto.PageDTO;
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+
+/**
+ * 账单分页查询DTO
+ */
+@Data
+@EqualsAndHashCode(callSuper = true)
+@Schema(description = "账单查询参数")
+public class CardBillQueryDTO extends PageDTO {
+
+    @Schema(description = "银行卡ID")
+    private Long cardId;
+
+    @Schema(description = "持卡人ID")
+    private Long ownerId;
+
+    @Schema(description = "账单月份（yyyy-MM）")
+    private String billMonth;
+
+    @Schema(description = "状态：0待还款 1已还清 2部分还款 3逾期")
+    private Integer status;
+}

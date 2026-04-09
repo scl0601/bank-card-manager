@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bank.admin.module.book.mapper.BookMapper">
+
+    <select id="selectPageWithInfo"
+            resultType="com.bank.admin.module.book.vo.BookVO">
+        SELECT
+            pb.id,
+            pb.book_date,
+            pb.book_type,
+            pb.amount,
+            pb.category_id,
+            bc.name       AS category_name,
+            pb.description,
+            pb.card_id,
+            c.card_no_last4,
+            c.bank_name,
+            pb.create_time
+        FROM personal_book pb
+        LEFT JOIN book_category bc ON bc.id = pb.category_id AND bc.is_deleted = 0
+        LEFT JOIN bank_card      c  ON c.id  = pb.card_id   AND c.is_deleted = 0
+        WHERE pb.is_deleted = 0
+        <if test="bookType != null">AND pb.book_type = #{bookType}</if>
+        <if test="categoryIds != null and categoryIds.size() > 0">
+            AND pb.category_id IN
+            <foreach collection="categoryIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        </if>
+        <if test="cardId != null">AND pb.card_id = #{cardId}</if>
+        <if test="bookDateStart != null">AND pb.book_date &gt;= #{bookDateStart}</if>
+        <if test="bookDateEnd != null">AND pb.book_date &lt;= #{bookDateEnd}</if>
+        ORDER BY pb.book_date DESC, pb.create_time DESC
+    </select>
+
+    <select id="sumByMonth" resultType="map">
+        SELECT
+            COALESCE(SUM(CASE WHEN book_type = 1 THEN amount ELSE 0 END), 0) AS totalIncome,
+            COALESCE(SUM(CASE WHEN book_type = 2 THEN amount ELSE 0 END), 0) AS totalExpense
+        FROM personal_book
+        WHERE is_deleted = 0 AND DATE_FORMAT(book_date, '%Y-%m') = #{yearMonth}
+    </select>
+
+</mapper>
