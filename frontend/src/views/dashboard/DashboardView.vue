@@ -36,6 +36,9 @@
         <el-button plain @click="router.push('/reminders')">
           <el-icon><Bell /></el-icon>提醒中心
         </el-button>
+        <el-button plain @click="router.push('/calendar')">
+          <el-icon><Calendar /></el-icon>日程计划
+        </el-button>
       </div>
     </div>
 
@@ -271,15 +274,15 @@ onMounted(async () => {
   }
 }
 .stat-icon { width: 52px; height: 52px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.stat-value { font-size: 28px; font-weight: 700; color: #1a1a1a; line-height: 1.2; }
-.stat-label { font-size: 13px; color: #8c8c8c; margin-top: 4px; }
+.stat-value { font-size: 28px; font-weight: 800; color: var(--color-text-primary); line-height: 1.2; }
+.stat-label { font-size: 13px; color: var(--color-text-secondary); margin-top: 4px; font-weight: 500; }
 
 .quick-actions {
   margin-bottom: 16px;
   .action-list { display: flex; gap: 12px; flex-wrap: wrap; }
 }
 
-.card-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; color: #1a1a1a; }
+.card-title { font-size: 15px; font-weight: 700; margin-bottom: 16px; color: var(--color-text-primary); }
 .no-top-margin { margin-top: 0 !important; }
 
 .finance-summary {
@@ -287,10 +290,10 @@ onMounted(async () => {
     display: flex; justify-content: space-between; align-items: center;
     padding: 12px 0; border-bottom: 1px solid var(--color-border);
     &:last-child { border-bottom: none; }
-    .finance-label { font-size: 14px; color: #666; }
+    .finance-label { font-size: 14px; color: var(--color-text-secondary); font-weight: 500; }
   }
-  .amount-positive { font-size: 16px; font-weight: 600; color: #52c41a; }
-  .amount-negative { font-size: 16px; font-weight: 600; color: #ff4d4f; }
+  .amount-positive { font-size: 16px; font-weight: 700; color: #389e0d; }
+  .amount-negative { font-size: 16px; font-weight: 700; color: #cf1322; }
 }
 
 .reminder-list {
@@ -299,9 +302,9 @@ onMounted(async () => {
     padding: 10px 0; border-bottom: 1px solid var(--color-border);
     &:last-child { border-bottom: none; }
     &.clickable { cursor: pointer; transition: background 0.2s;
-      &:hover { background: #f5f7fa; margin: 0 -20px; padding: 10px 20px; }
+      &:hover { background: #eef2fa; margin: 0 -20px; padding: 10px 20px; border-radius: 4px; }
     }
-    .reminder-count { font-size: 14px; font-weight: 500; color: #333; }
+    .reminder-count { font-size: 14px; font-weight: 600; color: var(--color-text-primary); }
   }
 }
 
@@ -310,8 +313,8 @@ onMounted(async () => {
   padding: 8px 0; border-bottom: 1px solid var(--color-border);
   &:last-child { border-bottom: none; }
   .log-main { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-  .log-operator { font-weight: 500; font-size: 13px; }
-  .log-desc { font-size: 12px; color: #666; }
-  .log-time { font-size: 11px; color: #999; margin-top: 2px; }
+  .log-operator { font-weight: 600; font-size: 13px; color: var(--color-text-primary); }
+  .log-desc { font-size: 12px; color: var(--color-text-secondary); }
+  .log-time { font-size: 11px; color: var(--color-text-placeholder); margin-top: 2px; }
 }
 </style>

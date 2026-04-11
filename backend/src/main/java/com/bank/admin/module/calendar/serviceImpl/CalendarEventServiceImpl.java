@@ -137,11 +137,16 @@ public class CalendarEventServiceImpl implements CalendarEventService {
         long doneCount = calendarEventMapper.selectCount(Wrappers.<CalendarEvent>lambdaQuery()
                 .between(CalendarEvent::getEventDate, start, end)
                 .eq(CalendarEvent::getStatus, 2));
+        // 已取消 (status=3)
+        long cancelledCount = calendarEventMapper.selectCount(Wrappers.<CalendarEvent>lambdaQuery()
+                .between(CalendarEvent::getEventDate, start, end)
+                .eq(CalendarEvent::getStatus, 3));
 
         CalendarStatsVO stats = new CalendarStatsVO();
         stats.setTodoCount(todoCount);
         stats.setDoingCount(doingCount);
         stats.setDoneCount(doneCount);
+        stats.setCancelledCount(cancelledCount);
         return stats;
     }
 

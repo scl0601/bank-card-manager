@@ -16,7 +16,10 @@
             <svg v-if="!eventId" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </span>
-          <span class="drawer-title-text">{{ eventId ? '编辑日程' : '新建日程' }}</span>
+          <div class="drawer-title-copy">
+            <span class="drawer-title-text">{{ eventId ? '编辑日程' : '新建日程' }}</span>
+            <span class="drawer-subtitle">{{ eventId ? '更新时间、状态与备注，保持日视图和月视图信息同步。' : '补充时间与优先级后，可在日视图快速执行、在月视图清晰总览。' }}</span>
+          </div>
         </div>
         <span v-if="form.eventDate" class="drawer-date-badge">{{ form.eventDate }}</span>
       </div>
@@ -140,23 +143,58 @@
         </el-select>
       </el-form-item>
 
-      <!-- 备注 -->
-      <el-form-item label="备注">
-        <el-input
-          v-model="form.remark"
-          type="textarea"
-          :rows="3"
-          placeholder="添加备注信息（选填）"
-          maxlength="500"
-          show-word-limit
-          resize="none"
-        />
+      <!-- 执行步骤 / 备注 -->
+      <el-form-item label="执行步骤">
+        <div class="step-editor">
+          <div
+            v-for="(step, idx) in remarkSteps"
+            :key="idx"
+            class="step-row"
+          >
+            <span class="step-index">{{ idx + 1 }}.</span>
+            <input
+              v-model="remarkSteps[idx]"
+              type="text"
+              class="step-input"
+              :placeholder="'步骤 ' + (idx + 1)"
+              maxlength="200"
+              @keydown.enter.prevent="addStep(idx)"
+              @keydown.backspace="removeStepIfEmpty(idx)"
+            />
+            <button
+              v-if="remarkSteps.length > 1"
+              class="step-delete-btn"
+              type="button"
+              @click="removeStep(idx)"
+              title="删除此步骤"
+            >&#x2715;</button>
+          </div>
+          <button
+            v-if="canAddMoreStep"
+            type="button"
+            class="step-add-btn"
+            @click="addStep()"
+          >
+            &#xff0b; 添加步骤
+          </button>
+          <div class="step-footer-hint">
+            <span>{{ currentRemarkLength }}/500</span>
+          </div>
+        </div>
       </el-form-item>
     </el-form>
 
     <template #footer>
       <div class="drawer-footer">
         <el-button @click="$emit('update:visible', false)" style="border-radius:8px">取消</el-button>
+        <el-button
+          v-if="eventId && form.status === EVENT_STATUS_VALUE.CANCELLED"
+          type="danger"
+          plain
+          :loading="deleting"
+          @click="handleDelete"
+          style="border-radius:8px"
+        >删除此日程</el-button>
         <el-button type="primary" :loading="saving" @click="handleSave" style="border-radius:8px;min-width:88px">
           {{ saving ? '保存中...' : (eventId ? '保存修改' : '创建日程') }}
         </el-button>
@@ -166,11 +204,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, h } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, reactive, watch, computed, h } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
-  getEventDetailApi, saveEventApi, updateEventApi
+  getEventDetailApi, saveEventApi, updateEventApi, deleteEventApi
 } from '@/api/calendar'
 import {
   EVENT_CATEGORY_OPTIONS, EVENT_STATUS_OPTIONS, EVENT_PRIORITY_OPTIONS,
@@ -184,7 +222,7 @@ const TitleIcon = { render: () => h('svg', { width: 14, height: 14, viewBox: '0 
 ]) }
 
 const categoryColor: Record<number, string> = {
-  0: '#1677ff', 1: '#52c41a', 2: '#fa8c16', 3: '#f5222d', 4: '#8c8c8c', 5: '#722ed1',
+  0: '#0958d9', 1: '#2f9e44', 2: '#d97706', 3: '#cf1322', 4: '#64748b', 5: '#6d28d9',
 }
 
 interface Props {
@@ -197,10 +235,12 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   (e: 'update:visible', val: boolean): void
   (e: 'saved'): void
+  (e: 'deleted'): void
 }>()
 
 const formRef = ref<FormInstance>()
 const saving = ref(false)
+const deleting = ref(false)
 
 const form = reactive({
   title: '',
@@ -219,6 +259,71 @@ const rules: FormRules = {
   eventDate: [{ required: true, message: '请选择日期', trigger: 'change' }],
   category: [{ required: true, message: '请选择分类', trigger: 'change' }]
 }
+
+/* ============ 步骤编辑器逻辑 ============ */
+const MAX_REMARK_LENGTH = 500
+const MAX_STEPS = 20
+
+const remarkSteps = ref<string[]>([''])
+
+// 计算当前所有步骤拼接后的总字符数（含换行符）
+const currentRemarkLength = computed(() => {
+  return remarkSteps.value.reduce((sum, s) => sum + s.length, 0) + Math.max(0, remarkSteps.value.length - 1)
+})
+
+// 是否还能继续添加步骤
+const canAddMoreStep = computed(() => {
+  return remarkSteps.value.length < MAX_STEPS && currentRemarkLength.value < MAX_REMARK_LENGTH
+})
+
+// 将 remark 字符串拆分为数组
+function parseRemarkToSteps(remark: string): string[] {
+  if (!remark || !remark.trim()) return ['']
+  const lines = remark.split('\n').filter(l => l !== '')
+  return lines.length > 0 ? lines : ['']
+}
+
+// 将步骤数组合并为 remark 字符串
+function stepsToRemark(steps: string[]): string {
+  return steps.filter(s => s.trim() !== '').join('\n')
+}
+
+// 监听 form.remark 变化 → 同步到 remarkSteps（外部赋值时触发）
+watch(() => form.remark, (val) => {
+  // 防止循环：如果是由 stepsToRemark 写入的，跳过
+  const fromSteps = stepsToRemark(remarkSteps.value)
+  if (val === fromSteps) return
+  remarkSteps.value = parseRemarkToSteps(val || '')
+}, { immediate: true })
+
+// 监听 remarkSteps 变化 → 同步回 form.remark
+watch(remarkSteps, (steps) => {
+  form.remark = stepsToRemark(steps)
+}, { deep: true })
+
+// 在指定索引位置后插入新步骤
+function addStep(afterIndex?: number) {
+  if (!canAddMoreStep.value) return
+  const idx = afterIndex !== undefined ? afterIndex + 1 : remarkSteps.value.length
+  remarkSteps.value.splice(idx, 0, '')
+}
+
+// 删除指定位置的步骤
+function removeStep(index: number) {
+  if (remarkSteps.value.length <= 1) {
+    remarkSteps.value[0] = ''
+    return
+  }
+  remarkSteps.value.splice(index, 1)
+}
+
+// 当内容为空且按 Backspace 时，删除该行
+function removeStepIfEmpty(index: number) {
+  if (!remarkSteps.value[index] && remarkSteps.value.length > 1) {
+    removeStep(index)
+  }
+}
+/* ============ 步骤编辑器逻辑结束 ============ */
 
 watch(
   () => props.visible,
@@ -287,6 +392,28 @@ async function handleSave() {
   }
 }
 
+async function handleDelete() {
+  if (!props.eventId) return
+  try {
+    await ElMessageBox.confirm(
+      '确定要删除此已取消的日程吗？删除后不可恢复。',
+      '删除确认',
+      { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning', confirmButtonClass: 'el-button--danger' }
+    )
+    deleting.value = true
+    try {
+      await deleteEventApi(props.eventId)
+      ElMessage.success('日程已删除')
+      emit('update:visible', false)
+      emit('deleted')
+    } finally {
+      deleting.value = false
+    }
+  } catch {
+    // 用户取消
+  }
+}
+
 function resetForm() {
   form.title = ''
   form.eventDate = ''
@@ -302,110 +429,182 @@ function resetForm() {
 </script>
 
 <style lang="scss">
-/* Drawer 全局样式覆盖（不用 scoped） */
 .event-drawer {
   .el-drawer__header {
     padding: 0 !important;
     margin-bottom: 0 !important;
-    border-bottom: 1px solid #e5e6eb;
+    border-bottom: 1px solid #dbe2ea;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   }
+
   .el-drawer__body {
     padding: 20px 24px 0;
     overflow-y: auto;
+    background: #f8fafc;
+
     &::-webkit-scrollbar { width: 4px; }
-    &::-webkit-scrollbar-thumb { background: #d0d3da; border-radius: 4px; }
+    &::-webkit-scrollbar-thumb { background: #d0d7e2; border-radius: 4px; }
   }
+
   .el-drawer__footer {
     padding: 14px 24px;
-    border-top: 1px solid #e5e6eb;
-    background: #fafbfc;
+    border-top: 1px solid #dbe2ea;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(8px);
   }
+
   .el-form-item__label {
     font-size: 12.5px !important;
     font-weight: 600 !important;
-    color: #4e5969 !important;
+    color: #5b6475 !important;
     padding-bottom: 6px !important;
     line-height: 1 !important;
   }
+
   .el-form-item {
     margin-bottom: 18px;
   }
-  .el-input__inner { font-size: 13.5px; }
-  .el-textarea__inner { font-size: 13.5px; line-height: 1.6; }
+
+  .el-input__wrapper,
+  .el-select__wrapper,
+  .el-textarea__inner,
+  .el-date-editor.el-input__wrapper,
+  .el-date-editor .el-input__wrapper {
+    background: #ffffff;
+    box-shadow: 0 0 0 1px #dbe2ea inset !important;
+    border-radius: 10px;
+    transition: box-shadow .18s ease, transform .18s ease;
+  }
+
+  .el-input__wrapper:hover,
+  .el-select__wrapper:hover,
+  .el-textarea__inner:hover,
+  .el-date-editor.el-input__wrapper:hover,
+  .el-date-editor .el-input__wrapper:hover {
+    box-shadow: 0 0 0 1px #bdd3f7 inset !important;
+  }
+
+  .is-focus .el-input__wrapper,
+  .is-focus.el-select__wrapper,
+  .el-textarea__inner:focus,
+  .el-date-editor.is-active,
+  .el-date-editor.is-active .el-input__wrapper {
+    box-shadow: 0 0 0 1.5px #0958d9 inset, 0 0 0 4px rgba(9, 88, 217, 0.08) !important;
+  }
+
+  .el-input__inner,
+  .el-textarea__inner {
+    font-size: 13.5px;
+    color: #1f2937;
+  }
+
+  .el-textarea__inner {
+    line-height: 1.6;
+    min-height: 96px !important;
+  }
 }
 </style>
 
 <style scoped lang="scss">
-$primary: #1677ff;
-$primary-light: #e6f4ff;
-$ink: #1d2129;
-$ink2: #4e5969;
-$sub: #86909c;
-$border: #e5e6eb;
-$bg: #f0f2f5;
-$danger: #f5222d;
-$warning: #fa8c16;
-$rs: 8px;
+$primary: #0958d9;
+$primary-light: #eaf2ff;
+$ink: #1f2937;
+$ink2: #5b6475;
+$sub: #7b8798;
+$border: #dbe2ea;
+$bg: #f5f7fb;
+$danger: #cf1322;
+$warning: #d97706;
+$rs: 10px;
 
-/* Drawer 头部 */
 .drawer-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 16px 24px;
   width: 100%;
+  gap: 16px;
 }
+
 .drawer-title-wrap {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  min-width: 0;
 }
+
+.drawer-title-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
 .drawer-icon {
-  width: 30px;
-  height: 30px;
-  border-radius: $rs;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  &.icon-add { background: #e6f4ff; color: $primary; }
-  &.icon-edit { background: #fff7e6; color: $warning; }
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+
+  &.icon-add { background: $primary-light; color: $primary; }
+  &.icon-edit { background: #fff4db; color: $warning; }
 }
+
 .drawer-title-text {
   font-size: 16px;
   font-weight: 700;
   color: $ink;
 }
+
+.drawer-subtitle {
+  font-size: 12px;
+  line-height: 1.5;
+  color: $sub;
+}
+
 .drawer-date-badge {
   font-size: 12px;
-  color: $sub;
-  background: $bg;
-  padding: 3px 10px;
-  border-radius: 20px;
-  font-weight: 500;
+  color: $primary;
+  background: $primary-light;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* 表单 */
-.event-form { padding-bottom: 8px; }
+.event-form {
+  padding-bottom: 8px;
+  padding-top: 6px;
+}
+
 .form-section-label {
   font-size: 11.5px;
   font-weight: 700;
-  color: $sub;
+  color: $ink2;
   letter-spacing: 1px;
   text-transform: uppercase;
   margin-bottom: 10px;
-  padding-left: 1px;
   border-left: 3px solid $primary;
   padding-left: 8px;
 }
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
   margin-bottom: 0;
 }
-.form-col { flex: 1; min-width: 0; }
+
+.form-col {
+  flex: 1;
+  min-width: 0;
+}
 
 /* 分类选项 */
 .cat-option {
@@ -443,6 +642,7 @@ $rs: 8px;
   gap: 6px;
   width: 100%;
 }
+
 .pri-btn {
   flex: 1;
   display: flex;
@@ -452,32 +652,188 @@ $rs: 8px;
   font-size: 12.5px;
   font-weight: 600;
   padding: 8px 6px;
-  border-radius: 7px;
+  border-radius: 8px;
   cursor: pointer;
   transition: all .18s;
-  border: 1.5px solid #e5e6eb;
-  background: #f7f8fa;
-  color: #86909c;
-  &:hover { border-color: currentColor; background: #fff; }
+  border: 1.5px solid $border;
+  background: #f8fafc;
+  color: $sub;
+
+  &:hover {
+    border-color: currentColor;
+    background: #fff;
+    transform: translateY(-1px);
+  }
+
   &.pri-0 {
-    &.active { border-color: #8c8c8c; background: #fafafa; color: #595959; }
+    &.active { border-color: #64748b; background: #f8fafc; color: #475569; }
   }
+
   &.pri-1 {
-    color: #fa8c16;
-    &.active { border-color: #fa8c16; background: #fff7e6; color: #fa8c16; }
+    color: $warning;
+    &.active { border-color: $warning; background: #fff4db; color: $warning; }
   }
+
   &.pri-2 {
-    color: #f5222d;
-    &.active { border-color: #f5222d; background: #fff1f0; color: #f5222d;
+    color: $danger;
+    &.active {
+      border-color: $danger;
+      background: #fff1f0;
+      color: $danger;
+      box-shadow: 0 8px 18px rgba(207, 19, 34, 0.08);
+
       svg { fill: currentColor; }
     }
   }
 }
 
-/* 底部按钮 */
 .drawer-footer {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
 }
+
+@media (max-width: 640px) {
+  .drawer-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .drawer-date-badge {
+    align-self: flex-start;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .priority-group {
+    flex-direction: column;
+  }
+}
+
+/* ============ 步骤编辑器 ============ */
+.step-editor {
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid $border;
+  border-radius: $rs;
+  padding: 12px 14px;
+  box-shadow: 0 0 0 1px #dbe2ea inset;
+  transition: box-shadow .18s ease;
+  box-sizing: border-box;
+
+  &:hover {
+    border-color: #bdd3f7;
+    box-shadow: 0 0 0 1px #bdd3f7 inset;
+  }
+
+  &:focus-within {
+    border-color: $primary;
+    box-shadow: 0 0 0 1.5px $primary inset, 0 0 0 4px rgba(9, 88, 217, 0.08);
+  }
+}
+
+.step-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+
+  &:last-of-type {
+    margin-bottom: 8px;
+  }
+}
+
+.step-index {
+  font-size: 13px;
+  font-weight: 700;
+  color: $primary;
+  min-width: 22px;
+  text-align: right;
+  flex-shrink: 0;
+  line-height: 32px;
+  user-select: none;
+}
+
+.step-input {
+  flex: 1;
+  height: 32px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13.5px;
+  color: $ink;
+  line-height: 32px;
+  padding: 0 4px;
+
+  &::placeholder {
+    color: #b0bac9;
+  }
+}
+
+.step-delete-btn {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: #f1f3f5;
+  border-radius: 50%;
+  color: #9ca3af;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: all .15s;
+
+  &:hover {
+    background: #fff1f0;
+    color: $danger;
+  }
+
+  .step-row:hover & {
+    opacity: 1;
+  }
+}
+
+.step-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1.5px dashed #c4d0e0;
+  background: transparent;
+  color: $sub;
+  font-size: 12.5px;
+  padding: 5px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all .15s;
+  width: auto;
+  letter-spacing: 0.3px;
+
+  &:hover {
+    border-color: $primary;
+    color: $primary;
+    background: $primary-light;
+  }
+}
+
+.step-footer-hint {
+  text-align: right;
+  padding-top: 2px;
+
+  span {
+    font-size: 11.5px;
+    color: #b0bac9;
+  }
+}
+
+@media (max-width: 640px) {
+  .step-index { min-width: 20px; font-size: 12px; }
+  .step-input { font-size: 13px; }
+}
+
 </style>

@@ -18,4 +18,7 @@ public class CalendarStatsVO {
 
     @Schema(description = "已完成数量")
     private Long doneCount;
+
+    @Schema(description = "已取消数量")
+    private Long cancelledCount;
 }
