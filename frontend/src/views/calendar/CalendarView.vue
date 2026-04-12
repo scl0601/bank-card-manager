@@ -6,12 +6,7 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         </span>
         <div class="header-title-group">
-          <h1 class="page-title">日历计划</h1>
-          <div class="header-meta">
-            <span class="meta-year">{{ currentYear }} 年</span>
-            <span class="meta-divider">·</span>
-            <span class="header-badge"><span class="badge-dot"></span>{{ totalEvents }} 个日程</span>
-          </div>
+          <h1 class="page-title">日历计划·{{ currentYear }}年{{ String(currentMonth).padStart(2,'0') }}月·{{ totalEvents }}个日程</h1>
         </div>
       </div>
       <div class="header-actions">
@@ -414,18 +409,22 @@
             <div class="cal-week-row">
               <span v-for="(w,wi) in weekDays" :key="w" :class="{'wk-end':wi>=5}">{{ w }}</span>
             </div>
-            <div class="cal-day-grid">
-              <div v-for="(cell,ci) in allCells" :key="cell.key||ci"
-                :class="['day-cell',{'other':cell.isOther,'today':cell.isToday,'active':isSelected(cell),'weekend':!cell.isOther&&cell.isWeekend,'holiday':!cell.isOther&&!!cell.holidayName,'has-events':!cell.isOther&&cell.dots.length>0}]"
+            <div class="cal-day-grid" :style="{ '--cal-row-count': String(dayCalendarRowCount) }">
+              <div v-for="(cell,ci) in dayCalendarCells" :key="cell.key||ci"
+                :class="['day-cell',{'other':cell.isOther,'today':cell.isToday,'active':isSelected(cell),'weekend':!cell.isOther&&cell.isWeekend,'holiday':!cell.isOther&&!!cell.holidayName,'has-events':!cell.isOther&&cell.eventCount>0}]"
                 @click="selectDate(cell)" @dblclick="openDrawer(null,cell.date)">
                 <div class="cell-inner">
                   <div class="cell-hd">
                     <b class="cell-num">{{ cell.day }}</b>
                     <small v-if="cell.holidayName&&!cell.isOther" :title="cell.holidayName">{{ cell.holidayName }}</small>
                   </div>
-                  <div v-if="cell.dots.length&&!cell.isOther" class="cell-dots">
-                    <i v-for="(dot,di) in cell.dots.slice(0,3)" :key="di" :style="{background:categoryColor[dot]}"></i>
-                    <i v-if="cell.eventCount>3" class="dot-more">{{ cell.eventCount }}</i>
+                  <div v-if="!cell.isOther&&cell.eventCount>0" class="cell-dots" :class="{ 'is-count': cell.eventCount > 10 }">
+                    <template v-if="cell.eventCount > 10">
+                      <span class="dot-more">{{ cell.eventCount }}</span>
+                    </template>
+                    <template v-else>
+                      <i v-for="(dot,di) in cell.dots" :key="`${cell.key}-dot-${di}`" :style="{background:categoryColor[dot]}"></i>
+                    </template>
                   </div>
                 </div>
               </div>
@@ -435,7 +434,7 @@
 
         <div class="toolbar">
           <div class="toolbar-right">
-            <el-select v-model="filterCategory" placeholder="分类筛选" clearable size="small" style="width:108px" @change="onFilterChange">
+            <el-select v-model="filterCategory" placeholder="分类筛选" clearable size="small" style="width:108px">
               <el-option v-for="c in EVENT_CATEGORY_OPTIONS" :key="c.value" :label="c.label" :value="c.value" />
             </el-select>
             <div class="legend">
@@ -545,7 +544,7 @@
             <el-button size="small" type="primary" plain @click="retryLoad">重新加载</el-button>
           </div>
           <template v-else>
-            <!-- 待办/进行中：按时段聚合，增强日视图执行感 -->
+            <!-- 按时段聚合，保留不同状态在原时间位置中的展示 -->
             <div v-if="dayAgendaSections.length" class="agenda-wrap">
               <section v-for="section in dayAgendaSections" :key="section.key" class="agenda-section">
                 <div class="agenda-section-head">
@@ -557,48 +556,76 @@
                 </div>
                 <transition-group name="ev-list" tag="div" class="ev-group">
                   <div v-for="ev in section.events" :key="ev.id"
-                    :class="['ev-card',`pri-${ev.priority}`,{'is-doing':ev.status===EVENT_STATUS_VALUE.DOING,'ev-selected':selectedIds.has(ev.id),'batch-mode':batchMode}]"
-                    @click="batchMode?toggleSelect(ev.id):openDrawer(ev)">
+                    :class="[
+                      'ev-card',
+                      `pri-${ev.priority}`,
+                      {
+                        'ev-card-todo': ev.status === EVENT_STATUS_VALUE.TODO,
+                        'ev-card-doing': ev.status === EVENT_STATUS_VALUE.DOING,
+                        'ev-card-done': ev.status === EVENT_STATUS_VALUE.DONE,
+                        'ev-card-cancelled': ev.status === EVENT_STATUS_VALUE.CANCELLED,
+                        'ev-selected': selectedIds.has(ev.id),
+                        'batch-mode': batchMode,
+                        'is-batch-disabled': batchMode && !canSelectEventInBatch(ev)
+                      }
+                    ]"
+                    @click="handleEventCardClick(ev)">
                     <div class="ev-left">
-                      <template v-if="batchMode">
+                      <template v-if="batchMode && canSelectEventInBatch(ev)">
                         <span class="ev-batch-check">
                           <span :class="['batch-cb',{checked:selectedIds.has(ev.id)}]">
                             <svg v-if="selectedIds.has(ev.id)" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                           </span>
                         </span>
                       </template>
-                      <template v-else>
-                        <span class="ev-time">{{ formatTime(ev.startTime) || '全天' }}</span>
-                        <label class="ev-check" @click.stop title="标记完成">
-                          <input type="checkbox" :checked="false" @change="onToggleDone(ev)" />
-                          <span class="check-box"></span>
-                        </label>
-                      </template>
+                      <span v-else-if="ev.status===EVENT_STATUS_VALUE.CANCELLED" class="ev-check ev-check-cancelled">&times;</span>
+                      <label v-else-if="ev.status===EVENT_STATUS_VALUE.DONE" class="ev-check checked" @click.stop>
+                        <input type="checkbox" checked @change="onUndo(ev)" />
+                        <span class="check-box"></span>
+                      </label>
+                      <label v-else class="ev-check" @click.stop title="标记完成">
+                        <input type="checkbox" :checked="false" @change="onToggleDone(ev)" />
+                        <span class="check-box"></span>
+                      </label>
                     </div>
                     <div class="ev-main">
                       <div class="ev-title-row">
-                        <i class="ev-cat-bar" :style="{background:categoryColor[ev.category]}"></i>
-                        <span v-if="inlineEditId!==ev.id||batchMode" class="ev-tit" @dblclick.stop="!batchMode&&startInlineEdit(ev)">{{ ev.title }}</span>
+                        <i class="ev-cat-bar" :class="{ faded: ev.status===EVENT_STATUS_VALUE.DONE || ev.status===EVENT_STATUS_VALUE.CANCELLED }" :style="{background:categoryColor[ev.category]}"></i>
+                        <span class="ev-inline-time" :class="{ 'is-muted': ev.status===EVENT_STATUS_VALUE.DONE || ev.status===EVENT_STATUS_VALUE.CANCELLED }">{{ formatEventTimeRange(ev.startTime, ev.endTime) }}</span>
+                        <span
+                          v-if="inlineEditId!==ev.id || batchMode || !canInlineEditEvent(ev)"
+                          class="ev-tit"
+                          :class="{ strike: ev.status===EVENT_STATUS_VALUE.DONE || ev.status===EVENT_STATUS_VALUE.CANCELLED }"
+                          @dblclick.stop="canInlineEditEvent(ev) && startInlineEdit(ev)"
+                        >{{ ev.title }}</span>
                         <input v-else class="ev-tit-input" v-model="inlineEditTitle" @blur="submitInlineEdit(ev)" @keydown.enter.stop="submitInlineEdit(ev)" @keydown.esc.stop="cancelInlineEdit" @click.stop />
                         <el-tag v-if="ev.priority===2" size="small" type="danger" effect="dark" round>紧急</el-tag>
                         <el-tag v-else-if="ev.priority===1" size="small" type="warning" effect="plain" round>重要</el-tag>
                         <span v-if="ev.status===EVENT_STATUS_VALUE.DOING" class="doing-pulse"></span>
                       </div>
                       <div class="ev-meta-row">
-                        <span class="ev-cat-tag" :style="{background:categoryColorLight[ev.category],color:categoryColor[ev.category]}">{{ EVENT_CATEGORY_MAP[ev.category] }}</span>
-                        <span v-if="ev.endTime" class="ev-duration"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>{{ formatTime(ev.startTime) }}–{{ formatTime(ev.endTime) }}</span>
-                        <span v-if="ev.remark" class="ev-remark">{{ ev.remark }}</span>
+                        <span
+                          class="ev-cat-tag"
+                          :class="{ 'done-tag': ev.status===EVENT_STATUS_VALUE.DONE, 'cancelled-tag': ev.status===EVENT_STATUS_VALUE.CANCELLED }"
+                          :style="ev.status===EVENT_STATUS_VALUE.TODO || ev.status===EVENT_STATUS_VALUE.DOING ? { background: categoryColorLight[ev.category], color: categoryColor[ev.category] } : undefined"
+                        >{{ EVENT_CATEGORY_MAP[ev.category] }}</span>
+                        <el-tooltip
+                          v-if="ev.remark"
+                          placement="bottom-start"
+                          effect="light"
+                          :show-after="200"
+                          :offset="6"
+                          :show-arrow="false"
+                          popper-class="calendar-remark-tooltip"
+                        >
+                          <template #content>
+                            <div class="calendar-remark-tooltip-content">{{ ev.remark }}</div>
+                          </template>
+                          <span class="ev-remark">{{ ev.remark }}</span>
+                        </el-tooltip>
                       </div>
                     </div>
                     <div v-if="!batchMode" class="ev-right">
-                      <div class="sort-btns">
-                        <button class="sort-btn" :disabled="getPendingEventIndex(ev.id)===0" @click.stop="moveEventUp(getPendingEventIndex(ev.id))" title="上移">
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
-                        </button>
-                        <button class="sort-btn" :disabled="getPendingEventIndex(ev.id)===filteredPendingEvents.length-1" @click.stop="moveEventDown(getPendingEventIndex(ev.id))" title="下移">
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                        </button>
-                      </div>
                       <el-dropdown trigger="click" @command="(cmd:string)=>handleEvAction(cmd,ev)">
                         <button class="ev-action-btn more-btn" @click.stop>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
@@ -606,8 +633,9 @@
                         <template #dropdown>
                           <el-dropdown-menu>
                             <el-dropdown-item command="edit">编辑</el-dropdown-item>
-                            <el-dropdown-item command="doing" v-if="ev.status===EVENT_STATUS_VALUE.TODO">开始进行</el-dropdown-item>
-                            <el-dropdown-item command="toggle" divided>{{ ev.status===EVENT_STATUS_VALUE.DONE?'标记未完成':'标记完成' }}</el-dropdown-item>
+                            <el-dropdown-item v-if="ev.status===EVENT_STATUS_VALUE.TODO" command="doing">开始进行</el-dropdown-item>
+                            <el-dropdown-item v-if="ev.status===EVENT_STATUS_VALUE.TODO || ev.status===EVENT_STATUS_VALUE.DOING" command="done" divided>标记完成</el-dropdown-item>
+                            <el-dropdown-item v-else-if="ev.status===EVENT_STATUS_VALUE.DONE" command="undo" divided>恢复待办</el-dropdown-item>
                             <el-dropdown-item command="delete" divided style="color:#f53f3f">删除</el-dropdown-item>
                           </el-dropdown-menu>
                         </template>
@@ -618,80 +646,7 @@
               </section>
             </div>
 
-            <!-- 已完成折叠 -->
-            <template v-if="filteredDoneEvents.length">
-              <div class="section-divider section-divider-toggle" @click="doneCollapsed=!doneCollapsed">
-                <span>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" :style="{display:'inline-block',verticalAlign:'middle',marginRight:'3px',transform:doneCollapsed?'rotate(-90deg)':'rotate(0deg)',transition:'transform .2s'}"><polyline points="6 9 12 15 18 9"/></svg>
-                  已完成 · {{ filteredDoneEvents.length }}
-                </span>
-              </div>
-              <transition name="done-fold">
-                <div v-show="!doneCollapsed" class="ev-group ev-group-done">
-                  <div v-for="ev in filteredDoneEvents" :key="ev.id"
-                    :class="['ev-card','ev-card-done',{'ev-selected':selectedIds.has(ev.id),'batch-mode':batchMode}]"
-                    @click="batchMode?toggleSelect(ev.id):openDrawer(ev)">
-                    <div class="ev-left">
-                      <template v-if="batchMode">
-                        <span class="ev-batch-check"><span :class="['batch-cb',{checked:selectedIds.has(ev.id)}]"><svg v-if="selectedIds.has(ev.id)" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></span>
-                      </template>
-                      <template v-else>
-                        <span class="ev-time muted">{{ formatTime(ev.startTime) }}</span>
-                        <label class="ev-check checked" @click.stop><input type="checkbox" checked @change="onUndo(ev)" /><span class="check-box"></span></label>
-                      </template>
-                    </div>
-                    <div class="ev-main">
-                      <div class="ev-title-row">
-                        <i class="ev-cat-bar faded" :style="{background:categoryColor[ev.category]}"></i>
-                        <span class="ev-tit strike">{{ ev.title }}</span>
-                      </div>
-                      <div class="ev-meta-row"><span class="ev-cat-tag done-tag">{{ EVENT_CATEGORY_MAP[ev.category] }}</span></div>
-                    </div>
-                    <div v-if="!batchMode" class="ev-right">
-                      <el-popconfirm title="确定删除该日程？" confirm-button-text="确定" cancel-button-text="取消" @confirm="onDelete(ev.id)">
-                        <template #reference><button class="ev-action-btn ev-del" @click.stop><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></template>
-                      </el-popconfirm>
-                    </div>
-                  </div>
-                </div>
-              </transition>
-            </template>
-
-            <!-- 已取消折叠 -->
-            <template v-if="filteredCancelledEvents.length">
-              <div class="section-divider section-divider-toggle section-cancelled" @click="cancelledCollapsed=!cancelledCollapsed">
-                <span>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" :style="{display:'inline-block',verticalAlign:'middle',marginRight:'3px',transform:cancelledCollapsed?'rotate(-90deg)':'rotate(0deg)',transition:'transform .2s'}"><polyline points="6 9 12 15 18 9"/></svg>
-                  已取消 · {{ filteredCancelledEvents.length }}
-                </span>
-              </div>
-              <transition name="done-fold">
-                <div v-show="!cancelledCollapsed" class="ev-group ev-group-cancelled">
-                  <div v-for="ev in filteredCancelledEvents" :key="ev.id"
-                    :class="['ev-card','ev-card-cancelled']"
-                    @click="openDrawer(ev)">
-                    <div class="ev-left">
-                      <span class="ev-time muted">{{ formatTime(ev.startTime) }}</span>
-                      <span class="ev-check ev-check-cancelled">&times;</span>
-                    </div>
-                    <div class="ev-main">
-                      <div class="ev-title-row">
-                        <i class="ev-cat-bar faded" :style="{background:categoryColor[ev.category]}"></i>
-                        <span class="ev-tit strike">{{ ev.title }}</span>
-                      </div>
-                      <div class="ev-meta-row"><span class="ev-cat-tag cancelled-tag">{{ EVENT_CATEGORY_MAP[ev.category] }}</span></div>
-                    </div>
-                    <div class="ev-right">
-                      <el-popconfirm title="删除该已取消日程？" confirm-button-text="确定" cancel-button-text="取消" @confirm="onDelete(ev.id)">
-                        <template #reference><button class="ev-action-btn ev-del" @click.stop><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></template>
-                      </el-popconfirm>
-                    </div>
-                  </div>
-                </div>
-              </transition>
-            </template>
-
-            <div v-if="events.length>0&&!filteredPendingEvents.length&&!filteredDoneEvents.length&&!filteredCancelledEvents.length" class="rp-empty rp-filter-empty">
+            <div v-if="events.length>0&&!filteredEvents.length" class="rp-empty rp-filter-empty">
               <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:#c9cdd4"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               <p>当前筛选条件下无结果</p>
               <el-button size="small" link type="primary" @click="resetFilters">清除筛选</el-button>
@@ -847,8 +802,6 @@ const monthData = ref<any[]>([])
 const events = ref<any[]>([])
 const stats = ref({ todoCount: 0, doingCount: 0, doneCount: 0, cancelledCount: 0 })
 
-const doneCollapsed = ref(true)
-const cancelledCollapsed = ref(true)
 const showMonthPicker = ref(false)
 const mpYear = ref(today.getFullYear())
 const monthPickerRef = ref<HTMLElement | null>(null)
@@ -1126,11 +1079,8 @@ const filteredEvents = computed(()=>{
 const filteredPendingEvents = computed(()=>
   filteredEvents.value.filter((e:any)=>e.status===EVENT_STATUS_VALUE.TODO||e.status===EVENT_STATUS_VALUE.DOING)
 )
-const filteredDoneEvents = computed(()=>
-  filteredEvents.value.filter((e:any)=>e.status===EVENT_STATUS_VALUE.DONE)
-)
-const filteredCancelledEvents = computed(()=>
-  filteredEvents.value.filter((e:any)=>e.status===EVENT_STATUS_VALUE.CANCELLED)
+const filteredSelectableEvents = computed(() =>
+  filteredEvents.value.filter((e:any)=>e.status!==EVENT_STATUS_VALUE.CANCELLED)
 )
 const dayAgendaSections = computed(() => {
   const sections = [
@@ -1140,11 +1090,12 @@ const dayAgendaSections = computed(() => {
     { key: 'evening', label: '晚间', hint: '18:00 - 23:59', events: [] as any[] },
   ]
 
-  const sortedEvents = [...filteredPendingEvents.value].sort((a: any, b: any) => {
+  const orderMap = new Map(events.value.map((event:any, index:number) => [event.id, index]))
+  const sortedEvents = [...filteredEvents.value].sort((a: any, b: any) => {
     const aMinutes = parseTimeMinutes(a.startTime)
     const bMinutes = parseTimeMinutes(b.startTime)
     if (aMinutes !== bMinutes) return aMinutes - bMinutes
-    return (b.priority ?? 0) - (a.priority ?? 0)
+    return (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0)
   })
 
   sortedEvents.forEach((event: any) => {
@@ -1154,11 +1105,35 @@ const dayAgendaSections = computed(() => {
   return sections.filter(section => section.events.length > 0)
 })
 const isAllSelected = computed(()=>{
-  const all=[...filteredPendingEvents.value,...filteredDoneEvents.value]
+  const all=filteredSelectableEvents.value
   return all.length>0&&all.every(e=>selectedIds.value.has(e.id))
 })
 const isSomeSelected = computed(()=>selectedIds.value.size>0)
 
+const dayViewMonthData = computed(()=>{
+  let list=monthData.value
+  if(quickFilter.value==='todo') list=list.filter((e:any)=>e.status===EVENT_STATUS_VALUE.TODO)
+  else if(quickFilter.value==='doing') list=list.filter((e:any)=>e.status===EVENT_STATUS_VALUE.DOING)
+  else if(quickFilter.value==='done') list=list.filter((e:any)=>e.status===EVENT_STATUS_VALUE.DONE)
+  else if(quickFilter.value==='cancelled') list=list.filter((e:any)=>e.status===EVENT_STATUS_VALUE.CANCELLED)
+  if(keyword.value.trim()){
+    const kw=keyword.value.trim().toLowerCase()
+    list=list.filter((e:any)=>(e.title||'').toLowerCase().includes(kw)||(e.remark||'').toLowerCase().includes(kw))
+  }
+  if(filterCategory.value!==undefined&&filterCategory.value!==null)
+    list=list.filter((e:any)=>e.category===filterCategory.value)
+  return list
+})
+const dayViewEventMap = computed<Record<string, any[]>>(()=>{
+  const map:Record<string, any[]> = {}
+  for(const event of dayViewMonthData.value){
+    const key=event.eventDate
+    if(!key) continue
+    if(!map[key]) map[key]=[]
+    map[key].push(event)
+  }
+  return map
+})
 const calendarRows = computed(()=>{
   const y=currentYear.value; const m=currentMonth.value
   const firstDay=new Date(y,m-1,1).getDay()
@@ -1180,6 +1155,21 @@ const calendarRows = computed(()=>{
   for(let i=0;i<6;i++) rows.push(cells.slice(i*7,(i+1)*7))
   return rows
 })
+const dayCalendarRows = computed(() => {
+  return calendarRows.value
+    .map((row:any[]) => row.map((cell:any) => {
+      if(cell.isOther || !cell.date) return cell
+      const dayEvents = dayViewEventMap.value[cell.date] || []
+      return {
+        ...cell,
+        dots: dayEvents.slice(0, 10).map((event:any) => event.category),
+        eventCount: dayEvents.length,
+      }
+    }))
+    .filter((row:any[]) => row.some((cell:any) => !cell.isOther))
+})
+const dayCalendarCells = computed(()=>dayCalendarRows.value.flat())
+const dayCalendarRowCount = computed(() => Math.max(dayCalendarRows.value.length, 1))
 const allCells = computed(()=>calendarRows.value.flat())
 const moCalendarRows = computed(() => {
   return calendarRows.value.filter((row: any[]) => row.some((cell: any) => !cell.isOther))
@@ -1338,7 +1328,13 @@ function formatDate(d:Date):string {
 }
 function formatMonth():string{ return `${currentYear.value}-${String(currentMonth.value).padStart(2,'0')}` }
 function formatTime(t:string):string{ if(!t)return''; return t.length>=5?t.slice(0,5):t }
-function parseTimeMinutes(t?: string): number {
+function formatEventTimeRange(startTime?: string, endTime?: string): string {
+  const start = formatTime(startTime || '')
+  const end = formatTime(endTime || '')
+  if (start && end) return `${start}–${end}`
+  return start || end || '全天'
+}
+function parseTimeMinutes(t?: string): number { 
   if (!t) return -1
   const [hourText, minuteText = '0'] = String(t).split(':')
   const hour = Number(hourText)
@@ -1353,8 +1349,18 @@ function getAgendaSectionIndex(t?: string): number {
   if (minutes < 18 * 60) return 2
   return 3
 }
-function getPendingEventIndex(id:number){
-  return filteredPendingEvents.value.findIndex((event:any) => event.id === id)
+function canSelectEventInBatch(ev:any){
+  return ev?.status !== EVENT_STATUS_VALUE.CANCELLED
+}
+function canInlineEditEvent(ev:any){
+  return ev?.status === EVENT_STATUS_VALUE.TODO || ev?.status === EVENT_STATUS_VALUE.DOING
+}
+function handleEventCardClick(ev:any){
+  if(batchMode.value){
+    if(canSelectEventInBatch(ev)) toggleSelect(ev.id)
+    return
+  }
+  openDrawer(ev)
 }
 function syncStatsFromMonthData(){
   stats.value = {
@@ -1458,7 +1464,6 @@ function setQuickFilter(val:'all'|'todo'|'doing'|'done'|'cancelled'){
   quickFilter.value=val
   filterStatus.value=val==='todo'?EVENT_STATUS_VALUE.TODO:val==='doing'?EVENT_STATUS_VALUE.DOING:val==='done'?EVENT_STATUS_VALUE.DONE:val==='cancelled'?EVENT_STATUS_VALUE.CANCELLED:undefined
 }
-function onFilterChange(){}
 function resetFilters(){ quickFilter.value='all'; filterCategory.value=undefined; filterStatus.value=undefined; keyword.value='' }
 function clearSearch(){ keyword.value='' }
 function openDrawer(event:any,date?:string){
@@ -1488,7 +1493,14 @@ async function handleEvAction(cmd:string,ev:any){
     await changeEventStatus(ev, EVENT_STATUS_VALUE.DOING, '已开始进行')
     return
   }
-  if(cmd==='toggle'){ev.status===EVENT_STATUS_VALUE.DONE?await onUndo(ev):await onToggleDone(ev);return}
+  if(cmd==='done'){
+    await onToggleDone(ev)
+    return
+  }
+  if(cmd==='undo'){
+    await onUndo(ev)
+    return
+  }
   if(cmd==='delete'){await onDelete(ev.id)}
 }
 function onSaved(){ refreshAll() }
@@ -1547,7 +1559,7 @@ function toggleSelect(id:number){
   selectedIds.value=s
 }
 function toggleSelectAll(){
-  const all=[...filteredPendingEvents.value,...filteredDoneEvents.value]
+  const all=filteredSelectableEvents.value
   if(isAllSelected.value) selectedIds.value=new Set()
   else selectedIds.value=new Set(all.map(e=>e.id))
 }
@@ -1572,24 +1584,6 @@ async function batchDelete(){
     ElMessage.success(`已删除 ${ids.length} 项日程`)
     exitBatchMode()
   }catch{}
-}
-
-// ---- [C] 排序上移/下移 ----
-function moveEventUp(idx:number){
-  if(idx<=0)return
-  const list=events.value
-  const pending=filteredPendingEvents.value
-  const ai=list.findIndex(e=>e.id===pending[idx].id)
-  const bi=list.findIndex(e=>e.id===pending[idx-1].id)
-  if(ai>=0&&bi>=0){ const tmp=list[ai];list[ai]=list[bi];list[bi]=tmp; events.value=[...list] }
-}
-function moveEventDown(idx:number){
-  if(idx>=filteredPendingEvents.value.length-1)return
-  const list=events.value
-  const pending=filteredPendingEvents.value
-  const ai=list.findIndex(e=>e.id===pending[idx].id)
-  const bi=list.findIndex(e=>e.id===pending[idx+1].id)
-  if(ai>=0&&bi>=0){ const tmp=list[ai];list[ai]=list[bi];list[bi]=tmp; events.value=[...list] }
 }
 
 // ---- [E] 导出 & 打印 ----
@@ -1759,22 +1753,17 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   flex-shrink:0; box-shadow:0 1px 0 rgba(0,0,0,.03);
 }
 .header-left { display:flex; align-items:center; gap:12px; }
-.header-title-group { display:flex; flex-direction:column; gap:3px; }
+.header-title-group { display:flex; align-items:center; min-width:0; }
 .page-title-icon {
   width:32px; height:32px; border-radius:$rs;
   background:$primary-light; color:$primary;
   display:flex; align-items:center; justify-content:center; flex-shrink:0;
 }
-.page-title { margin:0; font-size:18px; font-weight:700; color:$ink; letter-spacing:-.3px; }
-.header-meta { display:flex; align-items:center; gap:6px; }
-.meta-year { font-size:12px; color:$sub; font-weight:500; }
-.meta-divider { font-size:11px; color:$faint; }
-.header-badge {
-  display:flex; align-items:center; gap:4px;
-  font-size:12px; color:$sub; background:$bg;
-  padding:2px 9px 2px 7px; border-radius:20px; font-weight:500;
-  .badge-dot { width:6px; height:6px; border-radius:50%; background:$primary; }
+.page-title {
+  margin:0; font-size:18px; font-weight:700; color:$ink; letter-spacing:-.3px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
+
 .header-actions { display:flex; align-items:center; gap:10px; }
 .search-box {
   display:flex; align-items:center; gap:7px;
@@ -1796,9 +1785,13 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   &.icon-btn-active { border-color:$primary; color:$primary; background:$primary-light; }
 }
 .main-body { display:flex; flex:1; overflow:hidden; min-height:0; }
+.main-day {
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);
+}
 
 .left-panel {
-  flex:1.1; min-width:380px; max-width:640px;
+  flex:none; min-width:0; max-width:none;
   display:flex; flex-direction:column; gap:12px;
   padding:16px 20px; overflow-y:auto; overflow-x:hidden;
   &::-webkit-scrollbar { width:4px; }
@@ -1913,11 +1906,15 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   span { text-align:center; font-size:11.5px; font-weight:600; color:$sub; padding:4px 0 8px; letter-spacing:2px;
     &.wk-end { color:$danger; } }
 }
-.cal-day-grid { display:grid; grid-template-columns:repeat(7,1fr); grid-auto-rows:1fr; flex:1; gap:3px; }
+.cal-day-grid {
+  display:grid; grid-template-columns:repeat(7,minmax(0,1fr));
+  grid-template-rows:repeat(var(--cal-row-count, 6), minmax(56px, 1fr));
+  flex:1; gap:4px;
+}
 .day-cell {
-  border-radius:7px; cursor:pointer; transition:all .15s;
-  position:relative; border:1.5px solid transparent; min-height:48px;
-  .cell-inner { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:5px 2px 4px; }
+  border-radius:8px; cursor:pointer; transition:all .15s;
+  position:relative; border:1.5px solid transparent; min-height:56px;
+  .cell-inner { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:6px 4px 5px; box-sizing:border-box; }
   &:hover { background:$primary-light; border-color:rgba($primary,.2); }
   &.active { background:$primary-light; border-color:rgba($primary,.4); .cell-num { color:$primary; font-weight:700; } }
   &.today {
@@ -1936,9 +1933,14 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   white-space:nowrap; max-width:30px; overflow:hidden; text-overflow:ellipsis; display:block;
 }
 .cell-dots {
-  display:flex; justify-content:center; gap:2px; padding-top:2px;
-  i { width:5px; height:5px; border-radius:50%; display:inline-block; flex-shrink:0;
-    &.dot-more { width:auto; height:auto; font-size:8px; color:$sub; background:none !important; font-style:normal; line-height:1; font-weight:700; } }
+  display:grid; grid-template-columns:repeat(5,5px); grid-auto-rows:5px; gap:3px;
+  justify-content:center; align-content:start; min-height:13px; padding-top:4px;
+  i { width:5px; height:5px; border-radius:50%; display:block; }
+  &.is-count { display:flex; align-items:center; justify-content:center; min-height:16px; }
+}
+.dot-more {
+  display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:16px; padding:0 5px;
+  border-radius:999px; background:#edf4ff; color:$primary; font-size:10px; font-weight:700; line-height:1;
 }
 .cal-loading { position:absolute; inset:0; background:rgba(255,255,255,.8); display:flex; align-items:center; justify-content:center; z-index:10; border-radius:$rs; }
 .loading-spinner { width:28px; height:28px; border:3px solid $border; border-top-color:$primary; border-radius:50%; animation:spin .6s linear infinite; }
@@ -1980,7 +1982,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   kbd { display:inline-block; font-family:inherit; font-size:10px; font-weight:600; background:$bg; border:1px solid $border; border-radius:3px; padding:1px 5px; line-height:1.5; color:$ink2; box-shadow:0 1px 2px rgba(0,0,0,.06); }
 }
 
-.right-panel { flex:1.2; display:flex; flex-direction:column; min-width:340px; background:$surface; border-left:1px solid $border; overflow:hidden; }
+.right-panel { flex:none; display:flex; flex-direction:column; min-width:0; background:$surface; border-left:1px solid $border; overflow:hidden; }
 .rp-head {
   display:flex; align-items:center; justify-content:space-between;
   padding:12px 20px; border-bottom:1px solid $border; flex-shrink:0;
@@ -2096,10 +2098,9 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 }
 
 .rp-body {
-  flex:1; overflow-y:auto; padding:10px 0;
-  &::-webkit-scrollbar { width:4px; }
-  &::-webkit-scrollbar-thumb { background:#dde0e6; border-radius:4px; }
-  &::-webkit-scrollbar-track { background:transparent; }
+  flex:1; overflow-y:auto; padding:12px 0 14px;
+  scrollbar-width:none; -ms-overflow-style:none;
+  &::-webkit-scrollbar { width:0; height:0; display:none; }
 }
 .list-loading { padding:0 14px; }
 .loading-skeleton {
@@ -2120,14 +2121,14 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   p { font-size:13.5px; color:$sub; margin:0; }
 }
 .agenda-wrap {
-  display:flex; flex-direction:column; gap:12px;
+  display:flex; flex-direction:column; gap:14px; padding-bottom:2px;
 }
 .agenda-section {
-  display:flex; flex-direction:column; gap:8px;
+  display:flex; flex-direction:column; gap:10px;
 }
 .agenda-section-head {
   display:flex; align-items:center; justify-content:space-between;
-  gap:10px; padding:0 14px;
+  gap:10px; padding:0 14px; min-height:24px;
 }
 .agenda-section-title {
   font-size:12.5px; font-weight:700; color:$ink;
@@ -2139,33 +2140,39 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   font-size:11px; font-weight:700; color:$primary; background:$primary-light;
   border-radius:999px; padding:3px 8px;
 }
-.ev-group { padding:0 12px; display:flex; flex-direction:column; gap:4px; }
-.ev-group-done { opacity:.85; }
+.ev-group { padding:0 14px; display:flex; flex-direction:column; gap:8px; }
 .ev-card {
-  display:flex; align-items:stretch; gap:8px;
-  padding:11px 12px; border-radius:$rs; cursor:pointer;
+  width:100%; box-sizing:border-box;
+  display:grid; grid-template-columns:28px minmax(0,1fr) 28px; align-items:center; column-gap:10px;
+  padding:12px 12px; min-height:74px; border-radius:$rs; cursor:pointer;
   transition:all .15s; border:1px solid transparent; background:$surface; position:relative;
-  &:hover { background:#f7f8fa; border-color:$border; box-shadow:$shadow-sm; }
+  &:hover { box-shadow:$shadow-sm; }
   &.pri-0 { border-left:3px solid $faint; padding-left:10px; }
   &.pri-1 { border-left:3px solid $warning; padding-left:10px; }
-  &.pri-2 { border-left:3px solid $danger; padding-left:10px; background:#fffafa; &:hover { background:#fff5f5; border-color:rgba($danger,.15); } }
-  &.is-doing { background:linear-gradient(to right,#f0f7ff 0%,$surface 100%); border-left-color:$primary; &:hover { background:#e8f3ff; } }
-  /* [C] 批量选中态 */
+  &.pri-2 { border-left:3px solid $danger; padding-left:10px; }
+  &.ev-card-todo {
+    background:#fffaf2; border-color:rgba(217,119,6,.12);
+    &:hover { background:#fff4e6; border-color:rgba(217,119,6,.2); }
+  }
+  &.ev-card-doing {
+    background:#f0f7ff; border-color:rgba(9,88,217,.12);
+    &:hover { background:#e8f3ff; border-color:rgba(9,88,217,.22); }
+  }
+  &.ev-card-done {
+    background:#f6ffed; border-color:rgba(47,158,68,.14);
+    &:hover { background:#eef9e4; border-color:rgba(47,158,68,.22); }
+  }
+  &.ev-card-cancelled {
+    background:#f5f6f8; border-color:rgba(134,144,156,.18);
+    &:hover { background:#eef0f3; border-color:rgba(134,144,156,.28); }
+    .ev-title-row .strike { text-decoration:line-through; color:#86909c; }
+  }
   &.ev-selected { background:$primary-light !important; border-color:rgba($primary,.3) !important; }
   &.batch-mode { cursor:pointer; }
-}
-.ev-card-done { .ev-tit { text-decoration:line-through; color:$faint; font-weight:400; } }
-
-/* 已取消卡片 */
-.ev-card-cancelled {
-  opacity:.45;
-  .ev-title-row .strike { text-decoration:line-through; color:#86909c; }
-}
-.ev-group-cancelled {
-  border-left:3px solid #d0d3da;
+  &.is-batch-disabled { cursor:not-allowed; }
 }
 .ev-check-cancelled {
-  width:18px; height:18px; border-radius:50%; border:1.5px solid #d0d3da;
+  width:18px; height:18px; border-radius:50%; border:1.5px solid #c7ced8;
   display:flex; align-items:center; justify-content:center;
   color:#86909c; font-size:13px; line-height:1; flex-shrink:0;
   cursor:default;
@@ -2173,13 +2180,9 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .cancelled-tag {
   background:#f2f3f5 !important; color:#86909c !important;
 }
-.section-cancelled {
-  border-left-color: #86909c;
-  color: #86909c;
-}
 
 /* [C] 批量复选框 */
-.ev-batch-check { display:flex; align-items:center; justify-content:center; width:36px; flex-shrink:0; }
+.ev-batch-check { display:flex; align-items:center; justify-content:center; width:28px; flex-shrink:0; }
 .batch-cb {
   width:17px; height:17px; border-radius:5px; border:1.8px solid #c0c4cc;
   display:flex; align-items:center; justify-content:center; background:$surface;
@@ -2187,31 +2190,8 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   &.checked { background:$primary; border-color:$primary; color:#fff; }
 }
 
-/* [C] 排序按钮 */
-.sort-btns { display:flex; flex-direction:column; gap:1px; opacity:0; transition:opacity .15s; }
-.ev-card:hover .sort-btns { opacity:1; }
-.sort-btn {
-  width:20px; height:16px; border:none; background:transparent; cursor:pointer;
-  display:flex; align-items:center; justify-content:center; color:$faint; border-radius:3px; padding:0;
-  &:hover:not(:disabled) { color:$primary; background:$primary-light; }
-  &:disabled { opacity:.2; cursor:not-allowed; }
-}
 
-.section-divider {
-  padding:12px 12px 5px; text-align:center; position:relative;
-  &::before { content:''; position:absolute; left:12px; right:12px; top:50%; height:1px; background:$border; }
-  span { position:relative; background:$surface; padding:0 10px; font-size:11px; font-weight:600; color:$faint; letter-spacing:1px; }
-}
-.section-divider-toggle { cursor:pointer; &:hover span { color:$ink2; } }
-.done-fold-enter-active,.done-fold-leave-active { transition:opacity .22s,max-height .28s ease; max-height:1000px; overflow:hidden; }
-.done-fold-enter-from,.done-fold-leave-to { opacity:0; max-height:0; }
-
-.ev-left { display:flex; align-items:center; gap:6px; flex-shrink:0; padding-top:1px; }
-.ev-time {
-  width:44px; text-align:right; font-size:12px; color:$ink2;
-  font-variant-numeric:tabular-nums; font-weight:600; letter-spacing:-.3px;
-  &.muted { color:$faint; }
-}
+.ev-left { display:flex; align-items:center; justify-content:center; gap:6px; width:28px; min-width:28px; padding-top:1px; }
 .ev-check {
   flex-shrink:0; position:relative; cursor:pointer;
   input[type="checkbox"] { position:absolute; opacity:0; width:0; height:0; }
@@ -2220,9 +2200,14 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   &.checked .check-box { background:$success; border-color:$success;
     &::after { content:''; position:absolute; left:4.5px; top:1.5px; width:4.5px; height:8.5px; border:solid #fff; border-width:0 2px 2px 0; transform:rotate(45deg); } }
 }
-.ev-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; }
-.ev-title-row { display:flex; align-items:center; gap:6px; flex-wrap:nowrap; }
+.ev-main { min-width:0; display:flex; flex-direction:column; justify-content:center; gap:6px; min-height:48px; }
+.ev-title-row { display:flex; align-items:center; gap:8px; flex-wrap:nowrap; min-width:0; min-height:24px; }
 .ev-cat-bar { width:3px; height:14px; border-radius:2px; flex-shrink:0; &.faded { opacity:.35; } }
+.ev-inline-time {
+  flex-shrink:0; font-size:11px; font-weight:700; color:$ink2; font-variant-numeric:tabular-nums;
+  padding:2px 6px; border-radius:999px; background:#f3f6fa; white-space:nowrap;
+  &.is-muted { color:$faint; background:#f5f7fa; }
+}
 .ev-tit {
   font-size:13.5px; font-weight:600; color:$ink;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; flex:1; cursor:text;
@@ -2233,11 +2218,20 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   border:1.5px solid $primary; border-radius:5px; outline:none;
   padding:2px 7px; background:$primary-light; box-shadow:0 0 0 3px rgba($primary,.1);
 }
-.ev-meta-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.ev-meta-row { display:flex; align-items:center; gap:6px; flex-wrap:nowrap; min-width:0; min-height:18px; }
 .ev-cat-tag { display:inline-block; font-size:10.5px; font-weight:600; padding:1px 7px; border-radius:4px; white-space:nowrap;
-  &.done-tag { background:$bg !important; color:$sub !important; } }
-.ev-duration { display:flex; align-items:center; gap:3px; font-size:11px; color:$sub; svg { flex-shrink:0; } }
-.ev-remark { font-size:11.5px; color:$sub; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:180px; }
+  &.done-tag { background:#edf7eb !important; color:$success !important; } }
+.ev-remark {
+  flex:1; min-width:0; font-size:11.5px; color:$sub; line-height:1.4;
+  overflow:hidden; white-space:nowrap; text-overflow:ellipsis; cursor:help; display:block;
+}
+:deep(.calendar-remark-tooltip) {
+  max-width:300px; padding:0 !important; border-radius:8px !important; box-shadow:0 10px 28px rgba(15,23,42,.12);
+}
+.calendar-remark-tooltip-content {
+  max-width:300px; padding:10px 12px; white-space:pre-wrap; word-break:break-word; line-height:1.6; color:$ink2;
+}
+
 
 .doing-pulse {
   width:7px; height:7px; border-radius:50%; background:$primary;
@@ -2252,13 +2246,12 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   0%, 100% { transform:scale(1); }
   50% { transform:scale(.92); }
 }
-.ev-right { flex-shrink:0; display:flex; align-items:center; gap:4px; }
+.ev-right { width:28px; min-width:28px; display:flex; align-items:center; justify-content:flex-end; gap:4px; }
 .ev-action-btn {
   width:28px; height:28px; border:none; background:transparent;
   border-radius:7px; cursor:pointer; display:flex; align-items:center; justify-content:center;
   color:$sub; transition:all .15s;
   &:hover { background:#eff0f2; color:$ink; }
-  &.ev-del:hover { background:#fff1f0; color:$danger; }
   &.more-btn { opacity:0; }
 }
 .ev-card:hover .more-btn { opacity:1; }
@@ -2392,15 +2385,15 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 
 /* 响应式 */
 @media (max-width:1150px) {
-  .left-panel { min-width:340px; padding:14px 16px; }
+  .left-panel { padding:14px 16px; }
   .toolbar .legend { display:none; }
   .search-box { width:170px; }
   .kbd-hints-wrap { display:none; }
 }
 @media (max-width:900px) {
-  .main-body { flex-direction:column; }
-  .left-panel { min-width:unset; max-height:52vh; border-bottom:1px solid $border; padding:12px 14px; }
-  .right-panel { min-width:unset; }
+  .main-day { grid-template-columns:1fr; }
+  .left-panel { max-height:52vh; border-bottom:1px solid $border; padding:12px 14px; }
+  .right-panel { border-left:none; }
   .header-actions .search-box { display:none; }
   .rp-day-num { font-size:28px; }
   .rp-head { flex-wrap:wrap; gap:8px; }

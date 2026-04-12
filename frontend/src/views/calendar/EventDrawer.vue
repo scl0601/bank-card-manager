@@ -18,10 +18,8 @@
           </span>
           <div class="drawer-title-copy">
             <span class="drawer-title-text">{{ eventId ? '编辑日程' : '新建日程' }}</span>
-            <span class="drawer-subtitle">{{ eventId ? '更新时间、状态与备注，保持日视图和月视图信息同步。' : '补充时间与优先级后，可在日视图快速执行、在月视图清晰总览。' }}</span>
           </div>
         </div>
-        <span v-if="form.eventDate" class="drawer-date-badge">{{ form.eventDate }}</span>
       </div>
     </template>
 
@@ -127,58 +125,23 @@
         </el-form-item>
       </div>
 
-      <!-- 提醒 -->
-      <el-form-item label="提前提醒">
-        <el-select
-          v-model="form.remindBeforeMin"
-          placeholder="不设置提醒"
-          clearable
-          style="width: 100%"
-        >
-          <el-option label="提前 5 分钟" :value="5" />
-          <el-option label="提前 15 分钟" :value="15" />
-          <el-option label="提前 30 分钟" :value="30" />
-          <el-option label="提前 1 小时" :value="60" />
-          <el-option label="提前 1 天" :value="1440" />
-        </el-select>
-      </el-form-item>
-
-      <!-- 执行步骤 / 备注 -->
-      <el-form-item label="执行步骤">
+      <!-- 步骤详情 -->
+      <el-form-item label="步骤详情">
         <div class="step-editor">
-          <div
-            v-for="(step, idx) in remarkSteps"
-            :key="idx"
-            class="step-row"
-          >
-            <span class="step-index">{{ idx + 1 }}.</span>
-            <input
-              v-model="remarkSteps[idx]"
-              type="text"
-              class="step-input"
-              :placeholder="'步骤 ' + (idx + 1)"
-              maxlength="200"
-              @keydown.enter.prevent="addStep(idx)"
-              @keydown.backspace="removeStepIfEmpty(idx)"
-            />
-            <button
-              v-if="remarkSteps.length > 1"
-              class="step-delete-btn"
-              type="button"
-              @click="removeStep(idx)"
-              title="删除此步骤"
-            >&#x2715;</button>
-          </div>
-          <button
-            v-if="canAddMoreStep"
-            type="button"
-            class="step-add-btn"
-            @click="addStep()"
-          >
-            &#xff0b; 添加步骤
-          </button>
+          <el-input
+            v-model="form.remark"
+            type="textarea"
+            class="step-textarea"
+            :autosize="{ minRows: 6, maxRows: 10 }"
+            maxlength="500"
+            show-word-limit
+            resize="none"
+            placeholder="请输入步骤详情，每行一条，最多 10 行"
+            @input="limitRemarkLines"
+          />
           <div class="step-footer-hint">
-            <span>{{ currentRemarkLength }}/500</span>
+            <span>每行一条，最多 10 行</span>
+            <span>{{ remarkLineCount }}/10 行</span>
           </div>
         </div>
       </el-form-item>
@@ -196,7 +159,7 @@
           style="border-radius:8px"
         >删除此日程</el-button>
         <el-button type="primary" :loading="saving" @click="handleSave" style="border-radius:8px;min-width:88px">
-          {{ saving ? '保存中...' : (eventId ? '保存修改' : '创建日程') }}
+          {{ saving ? '处理中...' : (eventId ? '保存修改' : '完成') }}
         </el-button>
       </div>
     </template>
@@ -250,8 +213,7 @@ const form = reactive({
   category: EVENT_CATEGORY_VALUE.WORK,
   priority: EVENT_PRIORITY_VALUE.MEDIUM,
   status: EVENT_STATUS_VALUE.TODO,
-  remark: '',
-  remindBeforeMin: null as number | null
+  remark: ''
 })
 
 const rules: FormRules = {
@@ -260,70 +222,31 @@ const rules: FormRules = {
   category: [{ required: true, message: '请选择分类', trigger: 'change' }]
 }
 
-/* ============ 步骤编辑器逻辑 ============ */
+/* ============ 步骤详情逻辑 ============ */
 const MAX_REMARK_LENGTH = 500
-const MAX_STEPS = 20
+const MAX_REMARK_LINES = 10
 
-const remarkSteps = ref<string[]>([''])
-
-// 计算当前所有步骤拼接后的总字符数（含换行符）
-const currentRemarkLength = computed(() => {
-  return remarkSteps.value.reduce((sum, s) => sum + s.length, 0) + Math.max(0, remarkSteps.value.length - 1)
+const remarkLineCount = computed(() => {
+  if (!form.remark) return 0
+  return String(form.remark).split(/\r?\n/).length
 })
 
-// 是否还能继续添加步骤
-const canAddMoreStep = computed(() => {
-  return remarkSteps.value.length < MAX_STEPS && currentRemarkLength.value < MAX_REMARK_LENGTH
-})
-
-// 将 remark 字符串拆分为数组
-function parseRemarkToSteps(remark: string): string[] {
-  if (!remark || !remark.trim()) return ['']
-  const lines = remark.split('\n').filter(l => l !== '')
-  return lines.length > 0 ? lines : ['']
+function normalizeRemarkLines(remark: string): string {
+  return String(remark || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .slice(0, MAX_REMARK_LINES)
+    .join('\n')
+    .slice(0, MAX_REMARK_LENGTH)
 }
 
-// 将步骤数组合并为 remark 字符串
-function stepsToRemark(steps: string[]): string {
-  return steps.filter(s => s.trim() !== '').join('\n')
-}
-
-// 监听 form.remark 变化 → 同步到 remarkSteps（外部赋值时触发）
-watch(() => form.remark, (val) => {
-  // 防止循环：如果是由 stepsToRemark 写入的，跳过
-  const fromSteps = stepsToRemark(remarkSteps.value)
-  if (val === fromSteps) return
-  remarkSteps.value = parseRemarkToSteps(val || '')
-}, { immediate: true })
-
-// 监听 remarkSteps 变化 → 同步回 form.remark
-watch(remarkSteps, (steps) => {
-  form.remark = stepsToRemark(steps)
-}, { deep: true })
-
-// 在指定索引位置后插入新步骤
-function addStep(afterIndex?: number) {
-  if (!canAddMoreStep.value) return
-  const idx = afterIndex !== undefined ? afterIndex + 1 : remarkSteps.value.length
-  remarkSteps.value.splice(idx, 0, '')
-}
-
-// 删除指定位置的步骤
-function removeStep(index: number) {
-  if (remarkSteps.value.length <= 1) {
-    remarkSteps.value[0] = ''
-    return
-  }
-  remarkSteps.value.splice(index, 1)
-}
-
-// 当内容为空且按 Backspace 时，删除该行
-function removeStepIfEmpty(index: number) {
-  if (!remarkSteps.value[index] && remarkSteps.value.length > 1) {
-    removeStep(index)
+function limitRemarkLines(value: string) {
+  const nextRemark = normalizeRemarkLines(value)
+  if (nextRemark !== form.remark) {
+    form.remark = nextRemark
   }
 }
-/* ============ 步骤编辑器逻辑结束 ============ */
+/* ============ 步骤详情逻辑结束 ============ */
 
 watch(
   () => props.visible,
@@ -352,8 +275,7 @@ async function loadDetail(id: number) {
       category: d.category ?? EVENT_CATEGORY_VALUE.WORK,
       priority: d.priority ?? EVENT_PRIORITY_VALUE.MEDIUM,
       status: d.status ?? EVENT_STATUS_VALUE.TODO,
-      remark: d.remark || d.description || '',
-      remindBeforeMin: d.remindBeforeMin ?? null
+      remark: normalizeRemarkLines(d.remark || d.description || '')
     })
   } catch {}
 }
@@ -364,15 +286,17 @@ async function handleSave() {
 
   saving.value = true
   try {
+    const remark = normalizeRemarkLines(form.remark)
+    form.remark = remark
+
     const payload: any = {
       title: form.title,
       eventDate: form.eventDate,
       category: form.category,
       priority: form.priority,
       status: form.status,
-      remark: form.remark || null,
-      description: form.remark || null,
-      remindBeforeMin: form.remindBeforeMin,
+      remark: remark || null,
+      description: remark || null,
       startTime: form.startTime || null,
       endTime: form.endTime || null
     }
@@ -423,7 +347,6 @@ function resetForm() {
   form.priority = EVENT_PRIORITY_VALUE.MEDIUM
   form.status = EVENT_STATUS_VALUE.TODO
   form.remark = ''
-  form.remindBeforeMin = null
   formRef.value?.clearValidate()
 }
 </script>
@@ -438,7 +361,7 @@ function resetForm() {
   }
 
   .el-drawer__body {
-    padding: 20px 24px 0;
+    padding: 14px 20px 0;
     overflow-y: auto;
     background: #f8fafc;
 
@@ -447,7 +370,7 @@ function resetForm() {
   }
 
   .el-drawer__footer {
-    padding: 14px 24px;
+    padding: 12px 20px;
     border-top: 1px solid #dbe2ea;
     background: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(8px);
@@ -462,7 +385,7 @@ function resetForm() {
   }
 
   .el-form-item {
-    margin-bottom: 18px;
+    margin-bottom: 14px;
   }
 
   .el-input__wrapper,
@@ -521,22 +444,22 @@ $rs: 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 24px;
+  padding: 12px 20px;
   width: 100%;
-  gap: 16px;
+  gap: 12px;
 }
 
 .drawer-title-wrap {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
 }
 
 .drawer-title-copy {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
   min-width: 0;
 }
 
@@ -580,7 +503,7 @@ $rs: 10px;
 /* 表单 */
 .event-form {
   padding-bottom: 8px;
-  padding-top: 6px;
+  padding-top: 2px;
 }
 
 .form-section-label {
@@ -713,117 +636,31 @@ $rs: 10px;
   }
 }
 
-/* ============ 步骤编辑器 ============ */
+/* ============ 步骤详情 ============ */
 .step-editor {
   width: 100%;
-  background: #ffffff;
-  border: 1px solid $border;
-  border-radius: $rs;
-  padding: 12px 14px;
-  box-shadow: 0 0 0 1px #dbe2ea inset;
-  transition: box-shadow .18s ease;
-  box-sizing: border-box;
-
-  &:hover {
-    border-color: #bdd3f7;
-    box-shadow: 0 0 0 1px #bdd3f7 inset;
-  }
-
-  &:focus-within {
-    border-color: $primary;
-    box-shadow: 0 0 0 1.5px $primary inset, 0 0 0 4px rgba(9, 88, 217, 0.08);
-  }
-}
-
-.step-row {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
-  margin-bottom: 6px;
-
-  &:last-of-type {
-    margin-bottom: 8px;
-  }
 }
 
-.step-index {
-  font-size: 13px;
-  font-weight: 700;
-  color: $primary;
-  min-width: 22px;
-  text-align: right;
-  flex-shrink: 0;
-  line-height: 32px;
-  user-select: none;
+.step-textarea {
+  width: 100%;
 }
 
-.step-input {
-  flex: 1;
-  height: 32px;
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: 13.5px;
-  color: $ink;
-  line-height: 32px;
-  padding: 0 4px;
-
-  &::placeholder {
-    color: #b0bac9;
-  }
-}
-
-.step-delete-btn {
-  width: 22px;
-  height: 22px;
-  border: none;
-  background: #f1f3f5;
-  border-radius: 50%;
-  color: #9ca3af;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  flex-shrink: 0;
-  opacity: 0;
-  transition: all .15s;
-
-  &:hover {
-    background: #fff1f0;
-    color: $danger;
-  }
-
-  .step-row:hover & {
-    opacity: 1;
-  }
-}
-
-.step-add-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: 1.5px dashed #c4d0e0;
-  background: transparent;
-  color: $sub;
-  font-size: 12.5px;
-  padding: 5px 14px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all .15s;
-  width: auto;
-  letter-spacing: 0.3px;
-
-  &:hover {
-    border-color: $primary;
-    color: $primary;
-    background: $primary-light;
-  }
+.step-textarea :deep(.el-textarea__inner) {
+  min-height: 164px !important;
+  max-height: 260px;
+  line-height: 1.6;
+  padding: 10px 12px;
 }
 
 .step-footer-hint {
-  text-align: right;
-  padding-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px;
 
   span {
     font-size: 11.5px;
@@ -832,8 +669,10 @@ $rs: 10px;
 }
 
 @media (max-width: 640px) {
-  .step-index { min-width: 20px; font-size: 12px; }
-  .step-input { font-size: 13px; }
+  .step-textarea :deep(.el-textarea__inner) {
+    min-height: 152px !important;
+  }
 }
+
 
 </style>
