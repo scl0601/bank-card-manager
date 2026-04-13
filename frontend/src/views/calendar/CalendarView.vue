@@ -323,7 +323,7 @@
                           @click.stop="onDelete(ev.id); closeMoPopover()"
                         >删除</button>
                       </div>
-                      <div v-if="ev.remark" class="mdp-ev-remark">{{ ev.remark }}</div>
+                      <div v-if="getEventRemark(ev)" class="mdp-ev-remark">{{ getEventRemark(ev) }}</div>
                     </div>
                     <span class="mdp-ev-status-icon" :class="[`mdp-s-${ev.status}`, { 'is-loading': isEventStatusPending(ev.id) }]">
                       <svg v-if="ev.status===EVENT_STATUS_VALUE.DONE" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
@@ -353,30 +353,24 @@
     <!-- [M] 日视图（原有功能） -->
     <div v-show="viewMode === 'day'" class="main-body main-day">
       <div class="left-panel">
-        <div class="stats-row">
-          <div class="stat-card stat-todo" @click="setQuickFilter('todo')" :class="{ 'stat-active': quickFilter === 'todo' }">
-            <div class="stat-card-top">
-              <div class="stat-icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-              <div class="stat-ring"><svg width="38" height="38" viewBox="0 0 38 38"><circle cx="19" cy="19" r="15" fill="none" stroke="#f5e6c8" stroke-width="3"/><circle cx="19" cy="19" r="15" fill="none" stroke="#fa8c16" stroke-width="3" stroke-dasharray="94.2" :stroke-dashoffset="94.2*(1-statPercent('todo')/100)" stroke-linecap="round" transform="rotate(-90 19 19)" style="transition:stroke-dashoffset .6s"/><text x="19" y="23" text-anchor="middle" font-size="9" font-weight="700" fill="#fa8c16">{{ statPercent('todo') }}%</text></svg></div>
+        <div class="calendar-overview-card">
+          <div class="calendar-overview-top">
+            <div class="calendar-progress-inline">
+              <span class="calendar-progress-label">本月完成率</span>
+              <strong class="calendar-progress-pct">{{ statPercent('done') }}%</strong>
             </div>
-            <div class="stat-info"><em>{{ stats.todoCount }}</em><i>待办事项</i></div>
-            <div class="stat-bar"><div class="stat-bar-inner" :style="{ width: statPercent('todo') + '%' }"></div></div>
+            <div class="legend calendar-legend" v-if="EVENT_CATEGORY_OPTIONS.length > 0">
+              <span v-for="(cat,ci) in EVENT_CATEGORY_OPTIONS" :key="ci" class="leg-item">
+                <i :style="{background:categoryColor[cat.value]}"></i>{{ cat.label }}
+              </span>
+            </div>
           </div>
-          <div class="stat-card stat-doing" @click="setQuickFilter('doing')" :class="{ 'stat-active': quickFilter === 'doing' }">
-            <div class="stat-card-top">
-              <div class="stat-icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></div>
-              <div class="stat-ring"><svg width="38" height="38" viewBox="0 0 38 38"><circle cx="19" cy="19" r="15" fill="none" stroke="#c8dcf5" stroke-width="3"/><circle cx="19" cy="19" r="15" fill="none" stroke="#1677ff" stroke-width="3" stroke-dasharray="94.2" :stroke-dashoffset="94.2*(1-statPercent('doing')/100)" stroke-linecap="round" transform="rotate(-90 19 19)" style="transition:stroke-dashoffset .6s"/><text x="19" y="23" text-anchor="middle" font-size="9" font-weight="700" fill="#1677ff">{{ statPercent('doing') }}%</text></svg></div>
-            </div>
-            <div class="stat-info"><em>{{ stats.doingCount }}</em><i>进行中</i></div>
-            <div class="stat-bar"><div class="stat-bar-inner" :style="{ width: statPercent('doing') + '%' }"></div></div>
-          </div>
-          <div class="stat-card stat-done" @click="setQuickFilter('done')" :class="{ 'stat-active': quickFilter === 'done' }">
-            <div class="stat-card-top">
-              <div class="stat-icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
-              <div class="stat-ring"><svg width="38" height="38" viewBox="0 0 38 38"><circle cx="19" cy="19" r="15" fill="none" stroke="#c8f0d0" stroke-width="3"/><circle cx="19" cy="19" r="15" fill="none" stroke="#52c41a" stroke-width="3" stroke-dasharray="94.2" :stroke-dashoffset="94.2*(1-statPercent('done')/100)" stroke-linecap="round" transform="rotate(-90 19 19)" style="transition:stroke-dashoffset .6s"/><text x="19" y="23" text-anchor="middle" font-size="9" font-weight="700" fill="#52c41a">{{ statPercent('done') }}%</text></svg></div>
-            </div>
-            <div class="stat-info"><em>{{ stats.doneCount }}</em><i>已完成</i></div>
-            <div class="stat-bar"><div class="stat-bar-inner" :style="{ width: statPercent('done') + '%' }"></div></div>
+          <div class="foot-progress-track"><div class="foot-progress-fill" :style="{ width: statPercent('done') + '%' }"></div></div>
+          <div class="foot-progress-counts">
+            <span><em class="clr-warning">{{ stats.todoCount }}</em> 待办</span>
+            <span><em class="clr-primary">{{ stats.doingCount }}</em> 进行中</span>
+            <span><em class="clr-success">{{ stats.doneCount }}</em> 已完成</span>
+            <span><em class="clr-info">{{ stats.cancelledCount }}</em> 已取消</span>
           </div>
         </div>
 
@@ -432,19 +426,6 @@
           </div>
         </div>
 
-        <div class="toolbar">
-          <div class="toolbar-right">
-            <el-select v-model="filterCategory" placeholder="分类筛选" clearable size="small" style="width:108px">
-              <el-option v-for="c in EVENT_CATEGORY_OPTIONS" :key="c.value" :label="c.label" :value="c.value" />
-            </el-select>
-            <div class="legend">
-              <span v-for="(cat,ci) in EVENT_CATEGORY_OPTIONS" :key="ci" class="leg-item">
-                <i :style="{background:categoryColor[cat.value]}"></i>{{ cat.label }}
-              </span>
-            </div>
-          </div>
-        </div>
-
         <div class="kbd-hints-wrap">
           <div class="kbd-hints-toggle">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
@@ -474,12 +455,6 @@
             <el-tag v-if="filteredEvents.length>0" size="small" type="info" effect="plain" round>{{ filteredEvents.length }} 项</el-tag>
           </div>
           <div class="rp-head-right">
-            <div class="quick-filters">
-              <button :class="['qf-btn',{active:quickFilter==='all'}]" @click="setQuickFilter('all')">全部</button>
-              <el-tooltip v-for="item in statusFilterOptions" :key="item.key" :content="item.label" placement="bottom" :show-after="300">
-                <button :class="['qf-btn', `qf-${item.key}`, { active: quickFilter === item.key }]" @click="setQuickFilter(item.key)"><i class="qf-dot" :style="{ background: item.color }"></i>{{ item.label }}</button>
-              </el-tooltip>
-            </div>
             <!-- [C] 批量模式按钮 -->
             <button :class="['icon-btn',{'icon-btn-active':batchMode}]" @click="toggleBatchMode" title="批量选择 (B)">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="4" height="4" rx="1"/><rect x="3" y="11" width="4" height="4" rx="1"/><rect x="3" y="17" width="4" height="4" rx="1"/><line x1="10" y1="7" x2="21" y2="7"/><line x1="10" y1="13" x2="21" y2="13"/><line x1="10" y1="19" x2="21" y2="19"/></svg>
@@ -490,6 +465,20 @@
             </div>
           </div>
         </div>
+        <div class="rp-toolbar">
+          <div class="rp-toolbar-left">
+            <el-select v-model="filterCategory" placeholder="分类筛选" clearable size="small" style="width:124px">
+              <el-option v-for="c in EVENT_CATEGORY_OPTIONS" :key="c.value" :label="c.label" :value="c.value" />
+            </el-select>
+          </div>
+          <div class="quick-filters">
+            <button :class="['qf-btn',{active:quickFilter==='all'}]" @click="setQuickFilter('all')">全部</button>
+            <el-tooltip v-for="item in statusFilterOptions" :key="item.key" :content="item.label" placement="bottom" :show-after="300">
+              <button :class="['qf-btn', `qf-${item.key}`, { active: quickFilter === item.key }]" @click="setQuickFilter(item.key)"><i class="qf-dot" :style="{ background: item.color }"></i>{{ item.label }}</button>
+            </el-tooltip>
+          </div>
+        </div>
+
 
         <!-- [C] 批量操作栏 -->
         <transition name="batch-bar-slide">
@@ -513,23 +502,7 @@
           </div>
         </transition>
 
-        <div class="day-focus-strip">
-          <div class="dfs-main">
-            <div class="dfs-title">{{ selectedDate }} · {{ relativeDateText === '今天' ? '今日执行视图' : '当日执行视图' }}</div>
-            <div class="dfs-sub">
-              <span class="dfs-chip dfs-chip-primary">{{ filteredEvents.length }} 项可见</span>
-              <span class="dfs-chip">{{ filteredPendingEvents.length }} 项待执行</span>
-              <span class="dfs-chip dfs-chip-success">完成率 {{ dayCompletionPercent }}%</span>
-              <span v-if="activeDayFilterLabel" class="dfs-chip dfs-chip-status">状态：{{ activeDayFilterLabel }}</span>
-              <span v-if="filterCategory !== undefined" class="dfs-chip">分类：{{ EVENT_CATEGORY_MAP[filterCategory] }}</span>
-              <span v-if="keyword.trim()" class="dfs-chip dfs-chip-search">关键词：{{ keyword.trim() }}</span>
-            </div>
-          </div>
-          <div class="dfs-progress">
-            <span class="dfs-progress-text">{{ dayCompletionPercent }}%</span>
-            <div class="dfs-progress-track"><div class="dfs-progress-fill" :style="{ width: `${dayCompletionPercent}%` }"></div></div>
-          </div>
-        </div>
+
 
         <div class="rp-body">
           <div v-if="listLoading" class="list-loading">
@@ -590,7 +563,6 @@
                     </div>
                     <div class="ev-main">
                       <div class="ev-title-row">
-                        <i class="ev-cat-bar" :class="{ faded: ev.status===EVENT_STATUS_VALUE.DONE || ev.status===EVENT_STATUS_VALUE.CANCELLED }" :style="{background:categoryColor[ev.category]}"></i>
                         <span class="ev-inline-time" :class="{ 'is-muted': ev.status===EVENT_STATUS_VALUE.DONE || ev.status===EVENT_STATUS_VALUE.CANCELLED }">{{ formatEventTimeRange(ev.startTime, ev.endTime) }}</span>
                         <span
                           v-if="inlineEditId!==ev.id || batchMode || !canInlineEditEvent(ev)"
@@ -599,18 +571,10 @@
                           @dblclick.stop="canInlineEditEvent(ev) && startInlineEdit(ev)"
                         >{{ ev.title }}</span>
                         <input v-else class="ev-tit-input" v-model="inlineEditTitle" @blur="submitInlineEdit(ev)" @keydown.enter.stop="submitInlineEdit(ev)" @keydown.esc.stop="cancelInlineEdit" @click.stop />
-                        <el-tag v-if="ev.priority===2" size="small" type="danger" effect="dark" round>紧急</el-tag>
-                        <el-tag v-else-if="ev.priority===1" size="small" type="warning" effect="plain" round>重要</el-tag>
-                        <span v-if="ev.status===EVENT_STATUS_VALUE.DOING" class="doing-pulse"></span>
                       </div>
-                      <div class="ev-meta-row">
-                        <span
-                          class="ev-cat-tag"
-                          :class="{ 'done-tag': ev.status===EVENT_STATUS_VALUE.DONE, 'cancelled-tag': ev.status===EVENT_STATUS_VALUE.CANCELLED }"
-                          :style="ev.status===EVENT_STATUS_VALUE.TODO || ev.status===EVENT_STATUS_VALUE.DOING ? { background: categoryColorLight[ev.category], color: categoryColor[ev.category] } : undefined"
-                        >{{ EVENT_CATEGORY_MAP[ev.category] }}</span>
+                      <div class="ev-detail-row">
                         <el-tooltip
-                          v-if="ev.remark"
+                          v-if="getEventRemark(ev)"
                           placement="bottom-start"
                           effect="light"
                           :show-after="200"
@@ -619,28 +583,45 @@
                           popper-class="calendar-remark-tooltip"
                         >
                           <template #content>
-                            <div class="calendar-remark-tooltip-content">{{ ev.remark }}</div>
+                            <div class="calendar-remark-tooltip-content">{{ getEventRemark(ev) }}</div>
                           </template>
-                          <span class="ev-remark">{{ ev.remark }}</span>
+                          <span class="ev-remark">{{ getEventRemark(ev) }}</span>
                         </el-tooltip>
+                        <span v-else class="ev-remark ev-remark-empty">暂无步骤详情</span>
                       </div>
                     </div>
-                    <div v-if="!batchMode" class="ev-right">
-                      <el-dropdown trigger="click" @command="(cmd:string)=>handleEvAction(cmd,ev)">
-                        <button class="ev-action-btn more-btn" @click.stop>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                    <div class="ev-side" @click.stop>
+                      <div class="ev-side-top">
+                        <span
+                          class="ev-cat-tag"
+                          :class="{ 'done-tag': ev.status===EVENT_STATUS_VALUE.DONE, 'cancelled-tag': ev.status===EVENT_STATUS_VALUE.CANCELLED }"
+                          :style="ev.status===EVENT_STATUS_VALUE.TODO || ev.status===EVENT_STATUS_VALUE.DOING ? { background: categoryColorLight[ev.category], color: categoryColor[ev.category] } : undefined"
+                        >{{ EVENT_CATEGORY_MAP[ev.category] }}</span>
+                        <div class="ev-priority-slot">
+                          <el-tag v-if="ev.priority===2" size="small" type="danger" effect="dark" round>紧急</el-tag>
+                          <el-tag v-else-if="ev.priority===1" size="small" type="warning" effect="plain" round>重要</el-tag>
+                        </div>
+                        <div class="ev-status-line">
+                          <span class="ev-status-indicator">
+                            <span v-if="ev.status===EVENT_STATUS_VALUE.DOING" class="doing-pulse"></span>
+                          </span>
+                          <span :class="['ev-status-chip', `is-${ev.status}`, { 'is-loading': isEventStatusPending(ev.id) }]">{{ STATUS_LABEL[ev.status] }}</span>
+                        </div>
+                      </div>
+                      <div v-if="!batchMode" class="ev-status-actions">
+                        <button
+                          v-for="action in getDayQuickStatusActions(ev)"
+                          :key="`${ev.id}-${action.key}`"
+                          type="button"
+                          :class="['ev-status-btn', `is-${action.key}`, { 'is-pending': isEventStatusPending(ev.id) }]"
+                          :disabled="isEventStatusPending(ev.id)"
+                          @click.stop="onMoQuickStatusChange(ev, action.value)"
+                        >
+                          {{ action.shortLabel }}
                         </button>
-                        <template #dropdown>
-                          <el-dropdown-menu>
-                            <el-dropdown-item command="edit">编辑</el-dropdown-item>
-                            <el-dropdown-item v-if="ev.status===EVENT_STATUS_VALUE.TODO" command="doing">开始进行</el-dropdown-item>
-                            <el-dropdown-item v-if="ev.status===EVENT_STATUS_VALUE.TODO || ev.status===EVENT_STATUS_VALUE.DOING" command="done" divided>标记完成</el-dropdown-item>
-                            <el-dropdown-item v-else-if="ev.status===EVENT_STATUS_VALUE.DONE" command="undo" divided>恢复待办</el-dropdown-item>
-                            <el-dropdown-item command="delete" divided style="color:#f53f3f">删除</el-dropdown-item>
-                          </el-dropdown-menu>
-                        </template>
-                      </el-dropdown>
+                      </div>
                     </div>
+
                   </div>
                 </transition-group>
               </section>
@@ -664,20 +645,7 @@
         </div>
 
         <div class="rp-foot">
-          <div class="foot-progress-wrap" v-if="totalEvents>0">
-            <div class="foot-progress-labels">
-              <span class="foot-progress-title">本月完成率</span>
-              <span class="foot-progress-pct">{{ statPercent('done') }}%</span>
-            </div>
-            <div class="foot-progress-track"><div class="foot-progress-fill" :style="{width:statPercent('done')+'%'}"></div></div>
-            <div class="foot-progress-counts">
-              <span><em class="clr-warning">{{ stats.todoCount }}</em> 待办</span>
-              <span><em class="clr-primary">{{ stats.doingCount }}</em> 进行中</span>
-              <span><em class="clr-success">{{ stats.doneCount }}</em> 已完成</span>
-              <span><em class="clr-info">{{ stats.cancelledCount }}</em> 已取消</span>
-            </div>
-          </div>
-          <span v-else class="foot-hint">按 <kbd>N</kbd> 快捷新建 · 双击日期快速创建</span>
+          <span class="foot-hint">按 <kbd>N</kbd> 快捷新建 · 双击日期快速创建</span>
         </div>
       </div>
     </div>
@@ -785,8 +753,8 @@ const currentYear = ref(today.getFullYear())
 const currentMonth = ref(today.getMonth() + 1)
 const selectedDate = ref(formatDate(today))
 const filterCategory = ref<number | undefined>(undefined)
-const filterStatus = ref<number | undefined>(undefined)
 const keyword = ref('')
+
 const searchFocused = ref(false)
 const monthLoading = ref(false)
 const listLoading = ref(false)
@@ -801,8 +769,10 @@ const weekDays = ['一','二','三','四','五','六','日']
 const monthData = ref<any[]>([])
 const events = ref<any[]>([])
 const stats = ref({ todoCount: 0, doingCount: 0, doneCount: 0, cancelledCount: 0 })
+let dayEventsRequestToken = 0
 
 const showMonthPicker = ref(false)
+
 const mpYear = ref(today.getFullYear())
 const monthPickerRef = ref<HTMLElement | null>(null)
 const inlineEditId = ref<number | null>(null)
@@ -836,7 +806,21 @@ const moQuickStatusActions = [
   { key: 'cancelled', value: EVENT_STATUS_VALUE.CANCELLED, shortLabel: '取消' },
 ] as const
 
+function getQuickStatusAction(key: 'todo' | 'doing' | 'done' | 'cancelled') {
+  return moQuickStatusActions.find(action => action.key === key)!
+}
+function getDayQuickStatusActions(ev: any) {
+  const actionKeys: Array<'todo' | 'doing' | 'done' | 'cancelled'> =
+    ev.status === EVENT_STATUS_VALUE.TODO
+      ? ['doing', 'done', 'cancelled']
+      : ev.status === EVENT_STATUS_VALUE.DOING
+        ? ['todo', 'done', 'cancelled']
+        : ['todo', 'doing']
+  return actionKeys.map(getQuickStatusAction)
+}
+
 const moPopoverEvents = computed(() => {
+
   if (!moPopoverDate.value) return []
   return getMoDayEvents(moPopoverDate.value)
 })
@@ -1048,16 +1032,10 @@ const relDateClass = computed(()=>{
   if(diff===0)return'rel-today'; return diff>0?'rel-future':'rel-past'
 })
 const totalEvents = computed(()=>stats.value.todoCount+stats.value.doingCount+stats.value.doneCount+stats.value.cancelledCount)
-const activeDayFilterLabel = computed(() => statusFilterOptions.find(item => item.key === quickFilter.value)?.label || '')
 const activeMonthFilterLabel = computed(() => statusFilterOptions.find(item => item.value === moFilterStatus.value)?.label || '')
 const monthDonePercent = computed(() => monthPrintStats.value.total ? Math.round((monthPrintStats.value.doneCount / monthPrintStats.value.total) * 100) : 0)
-const dayCompletionPercent = computed(() => {
-  const total = events.value.filter((event: any) => event.status !== EVENT_STATUS_VALUE.CANCELLED).length
-  if (!total) return 0
-  const done = events.value.filter((event: any) => event.status === EVENT_STATUS_VALUE.DONE).length
-  return Math.round((done / total) * 100)
-})
 function statPercent(type:'todo'|'doing'|'done'):number {
+
   const total=totalEvents.value; if(!total)return 0
   const val=type==='todo'?stats.value.todoCount:type==='doing'?stats.value.doingCount:stats.value.doneCount
   return Math.round((val/total)*100)
@@ -1076,10 +1054,8 @@ const filteredEvents = computed(()=>{
     list=list.filter((e:any)=>e.category===filterCategory.value)
   return list
 })
-const filteredPendingEvents = computed(()=>
-  filteredEvents.value.filter((e:any)=>e.status===EVENT_STATUS_VALUE.TODO||e.status===EVENT_STATUS_VALUE.DOING)
-)
 const filteredSelectableEvents = computed(() =>
+
   filteredEvents.value.filter((e:any)=>e.status!==EVENT_STATUS_VALUE.CANCELLED)
 )
 const dayAgendaSections = computed(() => {
@@ -1328,7 +1304,11 @@ function formatDate(d:Date):string {
 }
 function formatMonth():string{ return `${currentYear.value}-${String(currentMonth.value).padStart(2,'0')}` }
 function formatTime(t:string):string{ if(!t)return''; return t.length>=5?t.slice(0,5):t }
+function getEventRemark(event:any):string {
+  return String(event?.remark || event?.description || '').trim()
+}
 function formatEventTimeRange(startTime?: string, endTime?: string): string {
+
   const start = formatTime(startTime || '')
   const end = formatTime(endTime || '')
   if (start && end) return `${start}–${end}`
@@ -1422,15 +1402,21 @@ async function loadMonthData(){
     syncStatsFromMonthData()
   }catch{}finally{ monthLoading.value=false }
 }
-async function loadDayEvents(){
-  listLoading.value=true; loadError.value=false
+async function loadDayEvents(targetDate = selectedDate.value){
+  const requestToken = ++dayEventsRequestToken
+  listLoading.value = true
+  loadError.value = false
   try{
-    const params:any={eventDate:selectedDate.value}
-    if(filterCategory.value!=null)params.category=filterCategory.value
-    if(filterStatus.value!=null)params.status=filterStatus.value
-    events.value=(await getDayEventsApi(params) as any).data||[]
-  }catch{ loadError.value=true }finally{ listLoading.value=false }
+    const res:any = await getDayEventsApi({ eventDate: targetDate })
+    if(requestToken!==dayEventsRequestToken || targetDate!==selectedDate.value) return
+    events.value = res.data || []
+  }catch{
+    if(requestToken===dayEventsRequestToken && targetDate===selectedDate.value) loadError.value = true
+  }finally{
+    if(requestToken===dayEventsRequestToken && targetDate===selectedDate.value) listLoading.value = false
+  }
 }
+
 async function loadStats(){
   try{ const res:any=await getCalendarStatsApi(formatMonth()); if(res.data)stats.value=res.data }catch{}
 }
@@ -1462,9 +1448,9 @@ function moveDay(dir:number){
 }
 function setQuickFilter(val:'all'|'todo'|'doing'|'done'|'cancelled'){
   quickFilter.value=val
-  filterStatus.value=val==='todo'?EVENT_STATUS_VALUE.TODO:val==='doing'?EVENT_STATUS_VALUE.DOING:val==='done'?EVENT_STATUS_VALUE.DONE:val==='cancelled'?EVENT_STATUS_VALUE.CANCELLED:undefined
 }
-function resetFilters(){ quickFilter.value='all'; filterCategory.value=undefined; filterStatus.value=undefined; keyword.value='' }
+function resetFilters(){ quickFilter.value='all'; filterCategory.value=undefined; keyword.value='' }
+
 function clearSearch(){ keyword.value='' }
 function openDrawer(event:any,date?:string){
   if(event){editingId.value=event.id;defaultNewDate.value=''}
@@ -1487,23 +1473,8 @@ async function onDelete(id:number){
     ElMessage.error('删除失败，请稍后重试')
   }
 }
-async function handleEvAction(cmd:string,ev:any){
-  if(cmd==='edit'){openDrawer(ev);return}
-  if(cmd==='doing'){
-    await changeEventStatus(ev, EVENT_STATUS_VALUE.DOING, '已开始进行')
-    return
-  }
-  if(cmd==='done'){
-    await onToggleDone(ev)
-    return
-  }
-  if(cmd==='undo'){
-    await onUndo(ev)
-    return
-  }
-  if(cmd==='delete'){await onDelete(ev.id)}
-}
 function onSaved(){ refreshAll() }
+
 async function refreshAll(){ await Promise.all([loadMonthData(),loadDayEvents(),loadStats()]) }
 
 function toggleMonthPicker(){
@@ -1787,66 +1758,67 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .main-body { display:flex; flex:1; overflow:hidden; min-height:0; }
 .main-day {
   display:grid;
-  grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:12px;
+  padding:12px 16px 16px;
+  min-height:0;
+  align-items:stretch;
 }
 
 .left-panel {
   flex:none; min-width:0; max-width:none;
-  display:flex; flex-direction:column; gap:12px;
-  padding:16px 20px; overflow-y:auto; overflow-x:hidden;
+  display:flex; flex-direction:column; gap:10px;
+  padding:0; overflow-y:auto; overflow-x:hidden;
   &::-webkit-scrollbar { width:4px; }
   &::-webkit-scrollbar-thumb { background:#d0d3da; border-radius:4px; }
   &::-webkit-scrollbar-track { background:transparent; }
 }
 
-/* 统计卡片 */
-.stats-row { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
-.stat-card {
-  background:$surface; border-radius:$rs-lg; padding:14px 14px 10px;
-  display:flex; flex-direction:column; gap:8px;
-  box-shadow:$shadow-sm; border:1.5px solid transparent;
-  cursor:pointer; transition:all .2s; position:relative; overflow:hidden;
-  &:hover { box-shadow:$shadow-md; transform:translateY(-2px); }
-  &.stat-active { border-color:currentColor; }
+.calendar-overview-card {
+  background:$surface; border-radius:$rs-lg; padding:11px 14px 9px;
+  box-shadow:$shadow-sm; border:1px solid rgba($primary,.08);
 }
-.stat-card-top { display:flex; align-items:center; justify-content:space-between; }
-.stat-icon-wrap { width:36px; height:36px; border-radius:$rs; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-.stat-ring { flex-shrink:0; line-height:0; }
-.stat-todo {
-  color:$warning;
-  .stat-icon-wrap { background:#fff7e6; }
-  &.stat-active { border-color:$warning; background:#fffbf0; }
-  .stat-bar-inner { background:$warning; }
+.calendar-overview-top {
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  margin-bottom:7px; flex-wrap:wrap;
 }
-.stat-doing {
-  color:$primary;
-  .stat-icon-wrap { background:$primary-light; }
-  &.stat-active { border-color:$primary; background:#f0f7ff; }
-  .stat-bar-inner { background:$primary; }
+
+.calendar-progress-inline {
+  display:flex; align-items:center; gap:8px; min-width:0;
 }
-.stat-done {
-  color:$success;
-  .stat-icon-wrap { background:#f6ffed; }
-  &.stat-active { border-color:$success; background:#f6ffed; }
-  .stat-bar-inner { background:$success; }
+.calendar-progress-label {
+  font-size:12px; font-weight:700; color:$ink2;
 }
-.stat-info {
-  em { display:block; font-style:normal; font-size:28px; font-weight:800; line-height:1; color:$ink; }
-  i { display:block; font-style:normal; font-size:11px; color:$sub; margin-top:2px; }
+.calendar-progress-pct {
+  font-size:18px; font-weight:800; color:$primary; line-height:1;
 }
-.stat-bar {
-  height:3px; background:$border; border-radius:2px; overflow:hidden;
-  .stat-bar-inner { height:100%; border-radius:2px; transition:width .6s cubic-bezier(.4,0,.2,1); min-width:4px; }
+.legend { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.calendar-legend { margin-left:auto; }
+.leg-item {
+  display:flex; align-items:center; gap:4px; font-size:11px; color:$sub; white-space:nowrap;
+  padding:2px 0;
+  i { width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
+}
+/* 图例分隔符 */
+.mo-legend .leg-divider {
+  display:inline-block; width:1px; height:12px; background:$border; margin:0 6px; vertical-align:middle;
 }
 
 /* 日历卡片 */
 .cal-card {
-  background:$surface; border-radius:$rs-lg; padding:16px 14px 12px;
-  box-shadow:$shadow-sm; border:1px solid rgba(0,0,0,.04); flex:1;
+  background:$surface; border-radius:$rs-lg; padding:12px;
+  box-shadow:$shadow-sm; border:1px solid rgba($primary,.08); flex:1;
   display:flex; flex-direction:column; min-height:0; position:relative;
 }
-.cal-nav { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-shrink:0; }
-.cal-nav-center { display:flex; align-items:center; gap:10px; flex:1; justify-content:center; position:relative; }
+.cal-nav {
+  display:grid; grid-template-columns:auto 1fr auto; align-items:center;
+  gap:8px; margin-bottom:10px; flex-shrink:0; padding:8px 10px;
+  border:1px solid rgba($primary,.08); border-radius:12px;
+  background:linear-gradient(180deg,#f8fbff 0%, #f3f7ff 100%);
+}
+
+.cal-nav-center { display:flex; align-items:center; gap:8px; flex:1; justify-content:center; position:relative; min-width:0; }
+
 .nav-btn {
   width:30px; height:30px; border:1px solid $border; background:$surface;
   border-radius:$rs; cursor:pointer; display:flex; align-items:center; justify-content:center;
@@ -1855,15 +1827,25 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   &:disabled { opacity:.3; cursor:not-allowed; }
 }
 .cal-month {
-  font-size:16px; font-weight:700; color:$ink; letter-spacing:.5px;
-  em { font-style:normal; font-size:13px; color:$sub; font-weight:400; }
+  font-size:15px; font-weight:700; color:$ink; letter-spacing:.3px;
+  em { font-style:normal; font-size:12px; color:$sub; font-weight:500; }
 }
 .cal-month-btn {
   display:inline-flex; align-items:center; gap:4px;
-  cursor:pointer; padding:4px 10px; border-radius:$rs; transition:all .15s; user-select:none;
+  cursor:pointer; padding:5px 12px; border-radius:999px; transition:all .15s; user-select:none;
+  background:rgba($primary,.05); border:1px solid rgba($primary,.08);
   &:hover { background:$primary-light; color:$primary; em { color:rgba($primary,.7); } .mp-arrow { color:$primary; } }
   .mp-arrow { color:$faint; transition:all .2s; &.open { transform:rotate(180deg); } }
 }
+.cal-nav .nav-btn {
+  width:28px; height:28px; background:#fff;
+  border-color:rgba($primary,.10);
+}
+.cal-nav .today-btn {
+  padding:5px 12px; border-radius:999px;
+  background:#fff; border:1px solid rgba($primary,.14);
+}
+
 .month-picker-popup {
   position:absolute; top:calc(100% + 8px); left:50%; transform:translateX(-50%);
   background:$surface; border:1px solid $border; border-radius:$rs-lg;
@@ -1900,65 +1882,57 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .month-fade-enter-from { opacity:0; transform:translateX(8px); }
 .month-fade-leave-to { opacity:0; transform:translateX(-8px); }
 
-.cal-grid-wrap { flex:1; display:flex; flex-direction:column; min-height:0; }
-.cal-week-row {
-  display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:4px;
-  span { text-align:center; font-size:11.5px; font-weight:600; color:$sub; padding:4px 0 8px; letter-spacing:2px;
-    &.wk-end { color:$danger; } }
+.cal-grid-wrap {
+  flex:1; display:flex; flex-direction:column; min-height:0;
+  background:linear-gradient(180deg,#f7faff 0%, #ffffff 22%);
+  border:1px solid rgba($primary,.08); border-radius:12px; padding:10px;
 }
+.cal-week-row {
+  display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:8px; gap:4px;
+  padding:3px; border:1px solid #edf2f7; border-radius:10px; background:#f8fafc;
+  span { text-align:center; font-size:11px; font-weight:700; color:$sub; padding:7px 0; letter-spacing:.8px; border-radius:7px; background:transparent;
+    &.wk-end { color:$danger; background:#fff4f4; } }
+}
+
 .cal-day-grid {
   display:grid; grid-template-columns:repeat(7,minmax(0,1fr));
-  grid-template-rows:repeat(var(--cal-row-count, 6), minmax(56px, 1fr));
-  flex:1; gap:4px;
+  grid-template-rows:repeat(var(--cal-row-count, 6), minmax(60px, 1fr));
+  flex:1; gap:6px;
 }
 .day-cell {
-  border-radius:8px; cursor:pointer; transition:all .15s;
-  position:relative; border:1.5px solid transparent; min-height:56px;
-  .cell-inner { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:6px 4px 5px; box-sizing:border-box; }
-  &:hover { background:$primary-light; border-color:rgba($primary,.2); }
-  &.active { background:$primary-light; border-color:rgba($primary,.4); .cell-num { color:$primary; font-weight:700; } }
+  border-radius:10px; cursor:pointer; transition:all .16s;
+  position:relative; border:1px solid #edf1f6; min-height:60px; background:#fbfcfe;
+  .cell-inner { width:100%; height:100%; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; padding:8px 7px 6px; box-sizing:border-box; }
+  &:hover { background:#f4f8ff; border-color:rgba($primary,.22); box-shadow:0 6px 14px rgba(15,23,42,.05); transform:translateY(-1px); }
+  &.active { background:$primary-light; border-color:rgba($primary,.38); .cell-num { color:$primary; font-weight:800; } }
   &.today {
-    background:rgba($primary,.04); border-color:rgba($primary,.18);
-    .cell-num { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:50%; background:$primary; color:#fff !important; font-weight:700; font-size:13px; box-shadow:0 0 0 4px rgba($primary,.14),0 2px 8px rgba($primary,.4); }
+    background:rgba($primary,.05); border-color:rgba($primary,.2);
+    .cell-num { display:inline-flex; align-items:center; justify-content:center; min-width:28px; height:28px; border-radius:50%; background:$primary; color:#fff !important; font-weight:700; font-size:13px; box-shadow:0 0 0 4px rgba($primary,.12),0 2px 8px rgba($primary,.24); }
   }
   &.other { opacity:.28; pointer-events:none; }
-  &.weekend .cell-num { color:$danger; font-weight:600; }
-  &.holiday .cell-num { color:#cf382a; font-weight:700; }
-  &.has-events { background:rgba($primary,.03); }
+  &.weekend .cell-num { color:$danger; font-weight:700; }
+  &.holiday .cell-num { color:#cf382a; font-weight:800; }
+  &.has-events { background:linear-gradient(180deg, rgba($primary,.03) 0%, rgba($primary,.01) 100%); }
 }
-.cell-hd { display:flex; flex-direction:column; align-items:center; gap:2px; width:100%; justify-content:center; min-height:32px; flex-shrink:0; }
-.cell-num { font-size:14px; font-weight:500; color:$ink; line-height:1.2; }
+.cell-hd { display:flex; flex-direction:column; align-items:flex-start; gap:4px; width:100%; justify-content:flex-start; min-height:34px; flex-shrink:0; }
+.cell-num { font-size:13.5px; font-weight:700; color:$ink; line-height:1.2; }
 .cell-hd small {
   font-size:9px; color:#cf382a; background:#ffe4df; border-radius:3px; padding:0 4px; line-height:15px; font-weight:700;
-  white-space:nowrap; max-width:30px; overflow:hidden; text-overflow:ellipsis; display:block;
+  white-space:nowrap; max-width:42px; overflow:hidden; text-overflow:ellipsis; display:block;
 }
 .cell-dots {
   display:grid; grid-template-columns:repeat(5,5px); grid-auto-rows:5px; gap:3px;
-  justify-content:center; align-content:start; min-height:13px; padding-top:4px;
+  justify-content:flex-start; align-content:start; min-height:13px; padding-top:4px;
   i { width:5px; height:5px; border-radius:50%; display:block; }
-  &.is-count { display:flex; align-items:center; justify-content:center; min-height:16px; }
+  &.is-count { display:flex; align-items:center; justify-content:flex-start; min-height:16px; }
 }
 .dot-more {
-  display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:16px; padding:0 5px;
+  display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:16px; padding:0 5px;
   border-radius:999px; background:#edf4ff; color:$primary; font-size:10px; font-weight:700; line-height:1;
 }
 .cal-loading { position:absolute; inset:0; background:rgba(255,255,255,.8); display:flex; align-items:center; justify-content:center; z-index:10; border-radius:$rs; }
 .loading-spinner { width:28px; height:28px; border:3px solid $border; border-top-color:$primary; border-radius:50%; animation:spin .6s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
-
-.toolbar { display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap; }
-.toolbar-right { display:flex; align-items:center; gap:8px; margin-left:auto; }
-.legend { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
-.leg-item {
-  display:flex; align-items:center; gap:3px; font-size:11px; color:$sub; white-space:nowrap;
-  i { width:7px; height:7px; border-radius:50%; display:inline-block; flex-shrink:0; }
-}
-/* 图例分隔符 */
-.mo-legend .leg-divider {
-  display:inline-block; width:1px; height:12px; background:$border; margin:0 6px; vertical-align:middle;
-}
-/* 图例含义提示字 */
-
 
 .kbd-hints-wrap {
   position:relative; flex-shrink:0; align-self:flex-start;
@@ -1982,29 +1956,42 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   kbd { display:inline-block; font-family:inherit; font-size:10px; font-weight:600; background:$bg; border:1px solid $border; border-radius:3px; padding:1px 5px; line-height:1.5; color:$ink2; box-shadow:0 1px 2px rgba(0,0,0,.06); }
 }
 
-.right-panel { flex:none; display:flex; flex-direction:column; min-width:0; background:$surface; border-left:1px solid $border; overflow:hidden; }
+
+.right-panel {
+  flex:none; display:flex; flex-direction:column; min-width:0; background:$surface;
+  border:1px solid rgba($primary,.08); border-radius:$rs-lg; overflow:hidden; box-shadow:$shadow-sm;
+}
 .rp-head {
   display:flex; align-items:center; justify-content:space-between;
-  padding:12px 20px; border-bottom:1px solid $border; flex-shrink:0;
+  padding:8px 12px 4px; flex-shrink:0;
   background:linear-gradient(to bottom,#fafbfc 0%,$surface 100%);
-  gap:12px; flex-wrap:wrap;
+  gap:7px; flex-wrap:wrap;
 }
-.rp-date-info { display:flex; align-items:center; gap:12px; }
-.rp-date-main { display:flex; align-items:center; gap:10px; }
-.rp-day-num { font-size:36px; font-weight:800; color:$ink; line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-1px; }
-.rp-date-sub { display:flex; flex-direction:column; gap:3px; }
-.rp-date-text { font-size:13px; font-weight:600; color:$ink2; }
+.rp-date-info { display:flex; align-items:center; gap:8px; min-width:0; }
+.rp-date-main { display:flex; align-items:center; gap:6px; min-width:0; }
+.rp-day-num { font-size:28px; font-weight:800; color:$ink; line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-.8px; }
+.rp-date-sub { display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0; }
+.rp-date-text { font-size:12px; font-weight:600; color:$ink2; }
 .rp-rel-date {
-  font-size:11px; font-weight:600; padding:1px 7px; border-radius:10px; display:inline-block; width:fit-content;
+  font-size:10px; font-weight:600; padding:0 7px; border-radius:999px; display:inline-flex; align-items:center; height:20px; width:fit-content;
   &.rel-today { background:#e6f4ff; color:$primary; }
   &.rel-future { background:#f6ffed; color:$success; }
   &.rel-past { background:$bg; color:$sub; }
 }
-.rp-head-right { display:flex; align-items:center; gap:8px; }
-.quick-filters { display:flex; gap:2px; background:$bg; padding:3px; border-radius:$rs; border:1px solid $border; }
+.rp-date-info :deep(.el-tag) {
+  height:20px; padding:0 7px; font-size:10px; line-height:18px;
+}
+.rp-head-right { display:flex; align-items:center; gap:4px; margin-left:auto; }
+.rp-toolbar {
+  display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;
+  padding:0 12px 8px; border-bottom:1px solid $border;
+  background:linear-gradient(to bottom,#fafbfc 0%,$surface 100%);
+}
+.rp-toolbar-left { display:flex; align-items:center; gap:8px; min-width:0; }
+.quick-filters { display:flex; gap:2px; background:$bg; padding:2px; border-radius:$rs; border:1px solid $border; flex-wrap:wrap; }
 .qf-btn {
-  font-size:11.5px; font-weight:500; padding:4px 10px;
-  border:1px solid transparent; border-radius:6px; background:transparent; cursor:pointer; color:$sub; transition:all .15s; white-space:nowrap;
+  font-size:10.5px; font-weight:500; padding:3px 7px;
+  border:1px solid transparent; border-radius:5px; background:transparent; cursor:pointer; color:$sub; transition:all .15s; white-space:nowrap;
   display:flex; align-items:center; gap:4px;
   &:hover:not(.active) { color:$ink; background:$surface; border-color:rgba($primary,.08); }
   &.active { background:$primary; color:#fff; font-weight:700; box-shadow:0 2px 8px rgba($primary,.24); }
@@ -2016,20 +2003,24 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .qf-dot {
   display:inline-block; width:7px; height:7px; border-radius:50%; flex-shrink:0;
 }
-.rp-nav-btns { display:flex; gap:5px; }
+.rp-nav-btns { display:flex; gap:3px; }
 .rp-arrow {
-  width:28px; height:28px; border:1px solid $border; background:$surface;
+  width:24px; height:24px; border:1px solid $border; background:$surface;
   border-radius:$rs; cursor:pointer; display:flex; align-items:center; justify-content:center;
   color:$sub; transition:all .18s;
   &:hover { border-color:$primary; color:$primary; background:$primary-light; }
 }
 
+
+
 /* [C] 批量操作栏 */
 .batch-bar {
   display:flex; align-items:center; justify-content:space-between;
-  padding:8px 20px; background:#fffbe6; border-bottom:1px solid #ffe58f;
-  flex-shrink:0; gap:12px;
+  padding:7px 15px; background:#fffbe6; border-bottom:1px solid #ffe58f;
+  flex-shrink:0; gap:9px;
 }
+
+
 .batch-check-all {
   display:flex; align-items:center; gap:8px; cursor:pointer;
   input[type="checkbox"] { position:absolute; opacity:0; width:0; height:0; }
@@ -2044,14 +2035,16 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
     &::after { content:''; position:absolute; left:3px; top:6px; width:8px; height:2px; background:#fff; border-radius:1px; }
   }
 }
-.batch-count { font-size:12.5px; color:$ink2; font-weight:600; }
+.batch-count { font-size:12px; color:$ink2; font-weight:600; }
 .batch-actions { display:flex; align-items:center; gap:6px; }
 .batch-action-btn {
   display:inline-flex; align-items:center; gap:4px;
-  font-size:12px; font-weight:600; padding:5px 12px; border-radius:6px;
+  font-size:11.5px; font-weight:600; padding:5px 10px; border-radius:6px;
   border:1px solid transparent; cursor:pointer; transition:all .15s;
   &:disabled { opacity:.4; cursor:not-allowed; }
 }
+
+
 .batch-done-btn { background:#f6ffed; color:$success; border-color:#b7eb8f; &:hover:not(:disabled) { background:$success; color:#fff; } }
 .batch-del-btn { background:#fff1f0; color:$danger; border-color:#ffa39e; &:hover:not(:disabled) { background:$danger; color:#fff; } }
 .batch-cancel-btn { background:$bg; color:$sub; border-color:$border; &:hover { color:$ink; background:$surface; } }
@@ -2061,36 +2054,31 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 
 .day-focus-strip {
   display:flex; align-items:center; justify-content:space-between;
-  gap:14px; padding:12px 20px; border-bottom:1px solid rgba($primary,.08);
+  gap:10px; padding:8px 16px; border-bottom:1px solid rgba($primary,.08);
   background:linear-gradient(135deg, rgba($primary,.05) 0%, rgba($primary,.015) 100%);
   flex-shrink:0;
 }
-.dfs-main {
-  display:flex; flex-direction:column; gap:8px; min-width:0;
-}
-.dfs-title {
-  font-size:13.5px; font-weight:700; color:$ink;
-}
+.dfs-main { flex:1; min-width:0; }
 .dfs-sub {
-  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
 }
 .dfs-chip {
-  display:inline-flex; align-items:center; gap:4px; padding:4px 10px;
+  display:inline-flex; align-items:center; gap:4px; padding:3px 9px;
   border-radius:999px; border:1px solid rgba($border,.95); background:#fff; color:$ink2;
-  font-size:11.5px; font-weight:600;
+  font-size:11px; font-weight:600;
   &.dfs-chip-primary { color:$primary; background:$primary-light; border-color:rgba($primary,.14); }
   &.dfs-chip-success { color:$success; background:#e8f7ed; border-color:rgba($success,.14); }
   &.dfs-chip-status { color:$warning; background:#fff4db; border-color:rgba($warning,.18); }
   &.dfs-chip-search { color:#9a6700; background:#fff8df; border-color:rgba(250,173,20,.2); }
 }
 .dfs-progress {
-  width:140px; display:flex; flex-direction:column; gap:6px; flex-shrink:0;
+  width:120px; display:flex; flex-direction:column; gap:4px; flex-shrink:0;
 }
 .dfs-progress-text {
-  font-size:16px; font-weight:800; color:$primary; text-align:right;
+  font-size:14px; font-weight:800; color:$primary; text-align:right;
 }
 .dfs-progress-track {
-  height:8px; border-radius:999px; overflow:hidden; background:rgba($primary,.1);
+  height:6px; border-radius:999px; overflow:hidden; background:rgba($primary,.1);
 }
 .dfs-progress-fill {
   height:100%; border-radius:999px; background:linear-gradient(90deg, $primary 0%, $success 100%);
@@ -2098,10 +2086,12 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 }
 
 .rp-body {
-  flex:1; overflow-y:auto; padding:12px 0 14px;
+  flex:1; overflow-y:auto; padding:7px 0 8px;
   scrollbar-width:none; -ms-overflow-style:none;
   &::-webkit-scrollbar { width:0; height:0; display:none; }
 }
+
+
 .list-loading { padding:0 14px; }
 .loading-skeleton {
   display:flex; align-items:center; gap:10px;
@@ -2121,109 +2111,136 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   p { font-size:13.5px; color:$sub; margin:0; }
 }
 .agenda-wrap {
-  display:flex; flex-direction:column; gap:14px; padding-bottom:2px;
+  display:flex; flex-direction:column; gap:8px; padding-bottom:0;
 }
 .agenda-section {
-  display:flex; flex-direction:column; gap:10px;
+  display:flex; flex-direction:column; gap:5px;
 }
 .agenda-section-head {
   display:flex; align-items:center; justify-content:space-between;
-  gap:10px; padding:0 14px; min-height:24px;
+  gap:8px; padding:0 12px; min-height:20px;
 }
 .agenda-section-title {
-  font-size:12.5px; font-weight:700; color:$ink;
+  font-size:12px; font-weight:700; color:$ink;
 }
 .agenda-section-hint {
-  margin-left:8px; font-size:11px; color:$faint;
+  margin-left:5px; font-size:10.5px; color:$faint;
 }
 .agenda-section-count {
-  font-size:11px; font-weight:700; color:$primary; background:$primary-light;
-  border-radius:999px; padding:3px 8px;
+  font-size:10.5px; font-weight:700; color:$primary; background:$primary-light;
+  border-radius:999px; padding:2px 7px;
 }
-.ev-group { padding:0 14px; display:flex; flex-direction:column; gap:8px; }
+.ev-group { padding:0 12px; display:flex; flex-direction:column; gap:5px; }
 .ev-card {
   width:100%; box-sizing:border-box;
-  display:grid; grid-template-columns:28px minmax(0,1fr) 28px; align-items:center; column-gap:10px;
-  padding:12px 12px; min-height:74px; border-radius:$rs; cursor:pointer;
+  display:grid; grid-template-columns:26px minmax(0,1fr) 228px; align-items:center; column-gap:10px;
+  padding:7px 9px; min-height:58px; border-radius:$rs; cursor:pointer;
   transition:all .15s; border:1px solid transparent; background:$surface; position:relative;
+
   &:hover { box-shadow:$shadow-sm; }
-  &.pri-0 { border-left:3px solid $faint; padding-left:10px; }
-  &.pri-1 { border-left:3px solid $warning; padding-left:10px; }
-  &.pri-2 { border-left:3px solid $danger; padding-left:10px; }
+  &.pri-0 { border-left:3px solid $faint; padding-left:7px; }
+  &.pri-1 { border-left:3px solid $warning; padding-left:7px; }
+  &.pri-2 { border-left:3px solid $danger; padding-left:7px; }
+
   &.ev-card-todo {
-    background:#fffaf2; border-color:rgba(217,119,6,.12);
-    &:hover { background:#fff4e6; border-color:rgba(217,119,6,.2); }
+    background:linear-gradient(180deg, #fffaf1 0%, #fff6eb 100%); border-color:rgba(217,119,6,.16);
+    &:hover { background:linear-gradient(180deg, #fff7e8 0%, #fff1df 100%); border-color:rgba(217,119,6,.24); }
   }
   &.ev-card-doing {
-    background:#f0f7ff; border-color:rgba(9,88,217,.12);
-    &:hover { background:#e8f3ff; border-color:rgba(9,88,217,.22); }
+    background:linear-gradient(180deg, #f4f8ff 0%, #eef4ff 100%); border-color:rgba(9,88,217,.16);
+    &:hover { background:linear-gradient(180deg, #edf4ff 0%, #e5efff 100%); border-color:rgba(9,88,217,.24); }
   }
   &.ev-card-done {
-    background:#f6ffed; border-color:rgba(47,158,68,.14);
-    &:hover { background:#eef9e4; border-color:rgba(47,158,68,.22); }
+    background:linear-gradient(180deg, #f5fcf6 0%, #eef8f0 100%); border-color:rgba(47,158,68,.16);
+    &:hover { background:linear-gradient(180deg, #eef9ef 0%, #e7f5e9 100%); border-color:rgba(47,158,68,.24); }
   }
   &.ev-card-cancelled {
-    background:#f5f6f8; border-color:rgba(134,144,156,.18);
-    &:hover { background:#eef0f3; border-color:rgba(134,144,156,.28); }
+    background:linear-gradient(180deg, #f7f8fa 0%, #f1f3f6 100%); border-color:rgba(134,144,156,.2);
+    &:hover { background:linear-gradient(180deg, #f1f3f6 0%, #eceff3 100%); border-color:rgba(134,144,156,.3); }
     .ev-title-row .strike { text-decoration:line-through; color:#86909c; }
   }
+
   &.ev-selected { background:$primary-light !important; border-color:rgba($primary,.3) !important; }
   &.batch-mode { cursor:pointer; }
   &.is-batch-disabled { cursor:not-allowed; }
 }
 .ev-check-cancelled {
-  width:18px; height:18px; border-radius:50%; border:1.5px solid #c7ced8;
+  width:16px; height:16px; border-radius:50%; border:1.5px solid #c7ced8;
   display:flex; align-items:center; justify-content:center;
-  color:#86909c; font-size:13px; line-height:1; flex-shrink:0;
+  color:#86909c; font-size:11px; line-height:1; flex-shrink:0;
   cursor:default;
 }
+
 .cancelled-tag {
   background:#f2f3f5 !important; color:#86909c !important;
 }
 
 /* [C] 批量复选框 */
-.ev-batch-check { display:flex; align-items:center; justify-content:center; width:28px; flex-shrink:0; }
+.ev-batch-check { display:flex; align-items:center; justify-content:center; width:26px; flex-shrink:0; }
 .batch-cb {
-  width:17px; height:17px; border-radius:5px; border:1.8px solid #c0c4cc;
+  width:16px; height:16px; border-radius:5px; border:1.6px solid #c0c4cc;
   display:flex; align-items:center; justify-content:center; background:$surface;
   transition:all .15s; flex-shrink:0;
   &.checked { background:$primary; border-color:$primary; color:#fff; }
 }
 
-
-.ev-left { display:flex; align-items:center; justify-content:center; gap:6px; width:28px; min-width:28px; padding-top:1px; }
+.ev-left { display:flex; align-items:center; justify-content:center; gap:4px; width:26px; min-width:26px; }
 .ev-check {
   flex-shrink:0; position:relative; cursor:pointer;
   input[type="checkbox"] { position:absolute; opacity:0; width:0; height:0; }
-  .check-box { display:block; width:17px; height:17px; border:1.8px solid #c0c4cc; border-radius:5px; transition:all .18s; position:relative; background:$surface; }
+  .check-box { display:block; width:16px; height:16px; border:1.6px solid #c0c4cc; border-radius:5px; transition:all .18s; position:relative; background:$surface; }
   &:hover .check-box { border-color:$primary; }
   &.checked .check-box { background:$success; border-color:$success;
-    &::after { content:''; position:absolute; left:4.5px; top:1.5px; width:4.5px; height:8.5px; border:solid #fff; border-width:0 2px 2px 0; transform:rotate(45deg); } }
+    &::after { content:''; position:absolute; left:4px; top:1.4px; width:4px; height:7.5px; border:solid #fff; border-width:0 2px 2px 0; transform:rotate(45deg); } }
 }
-.ev-main { min-width:0; display:flex; flex-direction:column; justify-content:center; gap:6px; min-height:48px; }
-.ev-title-row { display:flex; align-items:center; gap:8px; flex-wrap:nowrap; min-width:0; min-height:24px; }
-.ev-cat-bar { width:3px; height:14px; border-radius:2px; flex-shrink:0; &.faded { opacity:.35; } }
+.ev-main { min-width:0; display:flex; flex-direction:column; justify-content:center; gap:3px; min-height:38px; }
+.ev-title-row { display:flex; align-items:center; gap:5px; flex-wrap:nowrap; min-width:0; min-height:19px; }
 .ev-inline-time {
-  flex-shrink:0; font-size:11px; font-weight:700; color:$ink2; font-variant-numeric:tabular-nums;
-  padding:2px 6px; border-radius:999px; background:#f3f6fa; white-space:nowrap;
+  width:68px; min-width:68px; flex-shrink:0;
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:10.5px; font-weight:700; color:$ink2; font-variant-numeric:tabular-nums;
+  padding:1px 6px; border-radius:999px; background:#f3f6fa; white-space:nowrap; text-align:center;
   &.is-muted { color:$faint; background:#f5f7fa; }
 }
+
 .ev-tit {
-  font-size:13.5px; font-weight:600; color:$ink;
+  font-size:13px; font-weight:600; color:$ink;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; flex:1; cursor:text;
   &.strike { text-decoration:line-through; color:$faint; font-weight:400; }
 }
 .ev-tit-input {
-  flex:1; min-width:0; font-size:13.5px; font-weight:600; color:$ink;
+  flex:1; min-width:0; font-size:13px; font-weight:600; color:$ink;
   border:1.5px solid $primary; border-radius:5px; outline:none;
-  padding:2px 7px; background:$primary-light; box-shadow:0 0 0 3px rgba($primary,.1);
+  padding:2px 6px; background:$primary-light; box-shadow:0 0 0 3px rgba($primary,.1);
 }
-.ev-meta-row { display:flex; align-items:center; gap:6px; flex-wrap:nowrap; min-width:0; min-height:18px; }
-.ev-cat-tag { display:inline-block; font-size:10.5px; font-weight:600; padding:1px 7px; border-radius:4px; white-space:nowrap;
-  &.done-tag { background:#edf7eb !important; color:$success !important; } }
+.ev-side {
+  width:228px; min-width:228px; display:flex; flex-direction:column; align-items:flex-end; justify-content:center; gap:5px;
+}
+.ev-side-top {
+  width:100%; display:grid; grid-template-columns:repeat(3, 72px); align-items:center; justify-content:end; column-gap:6px;
+}
+.ev-cat-tag {
+  display:inline-flex; align-items:center; justify-content:center; width:72px; min-width:72px;
+  font-size:10px; font-weight:600; padding:2px 6px; border-radius:999px; white-space:nowrap; box-sizing:border-box;
+  &.done-tag { background:#edf7eb !important; color:$success !important; }
+}
+.ev-priority-slot {
+  width:72px; min-width:72px; min-height:20px; display:flex; align-items:center; justify-content:center;
+}
+.ev-priority-slot :deep(.el-tag) {
+  width:100%; margin:0; font-size:10px; justify-content:center; padding:0 4px;
+}
+
+.ev-detail-row { display:flex; align-items:center; min-height:16px; }
+
+
 .ev-remark {
-  flex:1; min-width:0; font-size:11.5px; color:$sub; line-height:1.4;
+  flex:1; min-width:0; font-size:11px; color:$sub; line-height:1.4;
   overflow:hidden; white-space:nowrap; text-overflow:ellipsis; cursor:help; display:block;
+}
+
+.ev-remark-empty {
+  visibility:hidden; pointer-events:none;
 }
 :deep(.calendar-remark-tooltip) {
   max-width:300px; padding:0 !important; border-radius:8px !important; box-shadow:0 10px 28px rgba(15,23,42,.12);
@@ -2232,11 +2249,12 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   max-width:300px; padding:10px 12px; white-space:pre-wrap; word-break:break-word; line-height:1.6; color:$ink2;
 }
 
-
 .doing-pulse {
-  width:7px; height:7px; border-radius:50%; background:$primary;
+  width:6px; height:6px; border-radius:50%; background:$primary;
   flex-shrink:0; display:inline-block; animation:pulse-dot 1.6s ease-out infinite;
 }
+
+
 @keyframes pulse-dot {
   0%   { box-shadow:0 0 0 0 rgba(22,119,255,.55); }
   70%  { box-shadow:0 0 0 7px rgba(22,119,255,0); }
@@ -2246,15 +2264,57 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   0%, 100% { transform:scale(1); }
   50% { transform:scale(.92); }
 }
-.ev-right { width:28px; min-width:28px; display:flex; align-items:center; justify-content:flex-end; gap:4px; }
-.ev-action-btn {
-  width:28px; height:28px; border:none; background:transparent;
-  border-radius:7px; cursor:pointer; display:flex; align-items:center; justify-content:center;
-  color:$sub; transition:all .15s;
-  &:hover { background:#eff0f2; color:$ink; }
-  &.more-btn { opacity:0; }
+.ev-status-line {
+  width:72px; min-width:72px; display:grid; grid-template-columns:8px minmax(0, 1fr); align-items:center; justify-content:end; column-gap:4px; min-height:19px;
 }
-.ev-card:hover .more-btn { opacity:1; }
+.ev-status-indicator {
+  width:8px; min-width:8px; display:flex; align-items:center; justify-content:center;
+}
+.ev-status-chip {
+  display:inline-flex; align-items:center; justify-content:center; width:100%; min-width:0; height:19px; padding:0 6px;
+  border-radius:999px; font-size:10.5px; font-weight:700; white-space:nowrap; border:1px solid transparent;
+
+  &.is-0 { background:#ffe7ba; border-color:#ffd591; color:#ad6800; }
+  &.is-1 { background:#dbeafe; border-color:#bfdbfe; color:#1d4ed8; }
+  &.is-2 { background:#dcfce7; border-color:#bbf7d0; color:#15803d; }
+  &.is-3 { background:#e5e7eb; border-color:#d1d5db; color:#475569; }
+  &.is-loading { opacity:.68; }
+}
+
+.ev-status-actions {
+  width:100%; display:flex; align-items:center; justify-content:flex-end; gap:5px; flex-wrap:wrap;
+}
+.ev-card.batch-mode .ev-side {
+  gap:0;
+}
+
+.ev-status-btn {
+  min-width:34px; height:22px; padding:0 8px; border-radius:999px; border:1px solid #dbe3ef;
+  background:#fff; color:$ink2; cursor:pointer; display:inline-flex; align-items:center; justify-content:center;
+  font-size:10px; font-weight:700; line-height:1; transition:all .15s; box-shadow:0 1px 2px rgba(15,23,42,.05);
+  &:hover:not(:disabled) { transform:translateY(-1px); }
+  &:disabled { cursor:wait; opacity:.64; }
+  &.is-pending { background:#f5f7fa; }
+
+  &.is-todo {
+    border-color:#f5c78a; color:#ad6800; background:#fffdf8;
+    &:hover:not(:disabled) { background:$warning; border-color:$warning; color:#fff; }
+  }
+  &.is-doing {
+    border-color:#93c5fd; color:#1d4ed8; background:#f8fbff;
+    &:hover:not(:disabled) { background:$primary; border-color:$primary; color:#fff; }
+  }
+  &.is-done {
+    border-color:#86efac; color:#15803d; background:#f8fffa;
+    &:hover:not(:disabled) { background:$success; border-color:$success; color:#fff; }
+  }
+  &.is-cancelled {
+    border-color:#cbd5e1; color:#475569; background:#fcfcfd;
+    &:hover:not(:disabled) { background:#64748b; border-color:#64748b; color:#fff; }
+  }
+}
+
+
 
 .rp-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 20px; }
 .rp-filter-empty { gap:10px; p { font-size:13px; } }
@@ -2265,12 +2325,15 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   kbd { display:inline-block; font-family:inherit; font-size:10px; font-weight:600; background:$surface; border:1px solid $border; border-radius:3px; padding:1px 5px; color:$ink2; }
 }
 
-.rp-foot { padding:12px 20px; border-top:1px solid $border; flex-shrink:0; background:#fafbfc; }
+.rp-foot { padding:9px 15px; border-top:1px solid $border; flex-shrink:0; background:#fafbfc; }
 .foot-hint {
-  font-size:12px; color:$faint;
+  font-size:11.5px; color:$faint;
+
   kbd { display:inline-block; font-family:inherit; font-size:10px; font-weight:600; background:$surface; border:1px solid $border; border-radius:3px; padding:1px 4px; color:$ink2; box-shadow:0 1px 2px rgba(0,0,0,.06); }
 }
-.foot-progress-wrap { display:flex; flex-direction:column; gap:6px; }
+
+.foot-progress-wrap { display:flex; flex-direction:column; gap:5px; }
+
 .foot-progress-labels { display:flex; align-items:center; justify-content:space-between; }
 .foot-progress-title { font-size:11.5px; font-weight:600; color:$ink2; }
 .foot-progress-pct { font-size:12px; font-weight:700; color:$primary; }
