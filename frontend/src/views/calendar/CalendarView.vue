@@ -96,7 +96,7 @@
               <button class="today-btn" @click="goToday">今天</button>
             </div>
             <div class="mo-filters">
-              <el-select v-model="moFilterCategory" placeholder="分类筛选" clearable size="small" style="width:110px">
+              <el-select v-model="moFilterCategory" placeholder="分类筛选" clearable size="small" style="width:100px">
                 <el-option v-for="c in EVENT_CATEGORY_OPTIONS" :key="c.value" :label="c.label" :value="c.value" />
               </el-select>
               <!-- [M] 状态筛选按钮组（每按钮含颜色圆点+tooltip说明） -->
@@ -121,10 +121,12 @@
         </div>
 
         <!-- 月视图网格 -->
+        <transition name="mo-grid-fade" mode="out-in">
         <div
           class="mo-grid"
           ref="moGridRef"
           :style="{ '--mo-row-count': String(moRowCount) }"
+          :key="`${currentYear}-${currentMonth}`"
         >
           <div
             v-for="(cell,ci) in moAllCells"
@@ -141,16 +143,16 @@
                 'mo-cell-selected': isMoCellSelected(cell.date),
                 'mo-cell-popover-active': isMoPopoverActiveCell(cell.date),
                 'mo-search-match': !cell.isOther && getMoDayMatchCount(cell.date) > 0,
-                'mo-cell-dimmed': moFilterStatus !== undefined && !cell.isOther && !getMoDayHasStatus(cell.date, moFilterStatus) && getMoDayEvents(cell.date).length > 0
+                'mo-cell-dimmed': moFilterStatus !== undefined && !cell.isOther && !getMoDayHasStatus(cell.date, moFilterStatus) && getMoDayEvents(cell.date).length > 0,
+                'mo-cell-flash': moCellFlash && cell.isToday
               }
             ]"
             @click.stop="onMoCellClick(cell, $event)"
           >
             <div class="mo-cell-hd">
-              <b class="mo-day-num">{{ cell.day }}</b>
+              <b class="mo-day-num" @click.stop="jumpToDayByDate(cell.date)">{{ cell.day }}</b>
               <small v-if="cell.holidayName && !cell.isOther" class="mo-holiday-tag" :title="cell.holidayName">{{ cell.holidayName }}</small>
               <div class="mo-cell-hd-right" v-if="!cell.isOther">
-                <span v-if="getMoDayMeta(cell.date)" class="mo-day-status-pill" :class="`is-${getMoDayMeta(cell.date)?.toneKey}`">{{ getMoDayMeta(cell.date)?.pillLabel }}</span>
                 <span v-if="getMoDayEvents(cell.date).length > 0" class="mo-day-badge">{{ getMoDayEvents(cell.date).length }}</span>
                 <button class="mo-cell-add-btn" @click.stop="openDrawer(null, cell.date)" title="快速新建日程">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -159,10 +161,7 @@
             </div>
 
             <template v-if="!cell.isOther && getMoDayEvents(cell.date).length > 0">
-              <div class="mo-cell-summary">
-                <span class="mo-cell-summary-main" :class="`is-${getMoDayMeta(cell.date)?.toneKey}`">{{ getMoDayMeta(cell.date)?.summaryLabel }}</span>
-                <span v-if="getMoDayMatchCount(cell.date) > 0" class="mo-cell-summary-hit">命中 {{ getMoDayMatchCount(cell.date) }}</span>
-              </div>
+              <span v-if="getMoDayMatchCount(cell.date) > 0" class="mo-cell-summary-hit">命中 {{ getMoDayMatchCount(cell.date) }}</span>
               <div class="mo-event-list">
                 <template v-for="row in getMoCellRows(cell.date)" :key="row.key">
                   <div
@@ -179,7 +178,7 @@
                   >
                     <span class="mo-ev-dot" :style="{ background: categoryColor[row.event.category] }"></span>
                     <span class="mo-ev-time">{{ row.event.startTime ? formatTime(row.event.startTime) : '全天' }}</span>
-                    <span class="mo-ev-title">{{ row.event.title }}</span>
+                    <span class="mo-ev-title" :title="row.event.title">{{ row.event.title }}</span>
                     <span v-if="row.event.status === EVENT_STATUS_VALUE.DOING" class="mo-ev-doing-dot"></span>
                     <span v-else-if="row.event.status === EVENT_STATUS_VALUE.CANCELLED" class="mo-ev-cancel-icon">&times;</span>
                   </div>
@@ -210,6 +209,7 @@
             </div>
           </div>
         </div>
+        </transition>
 
         <!-- 底部统计栏 -->
         <div class="mo-footer">
@@ -411,14 +411,11 @@
                   <div class="cell-hd">
                     <b class="cell-num">{{ cell.day }}</b>
                     <small v-if="cell.holidayName&&!cell.isOther" :title="cell.holidayName">{{ cell.holidayName }}</small>
+                    <span v-if="!cell.isOther&&cell.eventCount>0" class="dot-count-badge">{{ cell.eventCount }}</span>
                   </div>
-                  <div v-if="!cell.isOther&&cell.eventCount>0" class="cell-dots" :class="{ 'is-count': cell.eventCount > 10 }">
-                    <template v-if="cell.eventCount > 10">
-                      <span class="dot-more">{{ cell.eventCount }}</span>
-                    </template>
-                    <template v-else>
-                      <i v-for="(dot,di) in cell.dots" :key="`${cell.key}-dot-${di}`" :style="{background:categoryColor[dot]}"></i>
-                    </template>
+                  <div v-if="!cell.isOther&&cell.eventCount>0" class="cell-dots">
+                    <i v-for="(dot,di) in cell.visibleDots" :key="`${cell.key}-dot-${di}`" :style="{background:categoryColor[dot]}"></i>
+                    <span v-if="cell.eventCount > 10" class="dot-overflow">+{{ cell.eventCount - 10 }}</span>
                   </div>
                 </div>
               </div>
@@ -527,7 +524,7 @@
                   </div>
                   <span class="agenda-section-count">{{ section.events.length }} 项</span>
                 </div>
-                <transition-group name="ev-list" tag="div" class="ev-group">
+                <div class="ev-group">
                   <div v-for="ev in section.events" :key="ev.id"
                     :class="[
                       'ev-card',
@@ -623,7 +620,7 @@
                     </div>
 
                   </div>
-                </transition-group>
+                </div>
               </section>
             </div>
 
@@ -783,8 +780,9 @@ const viewMode = ref<'day'|'month'>('day')
 const moFilterCategory = ref<number | undefined>(undefined)
 // [M] 状态筛选（月视图工具栏按钮）
 const moFilterStatus = ref<number | undefined>(undefined)
-const moMaxEventsPerCell = 3
+const moMaxEventsPerCell = 5
 const moGridRef = ref<HTMLElement | null>(null)
+const moMonthChanging = ref(false)
 
 // ---- [M] 月视图 - 月份选择器 ----
 const moShowMonthPicker = ref(false)
@@ -798,6 +796,7 @@ const moPopoverDate = ref<string | null>(null)
 const moPopoverPlacement = ref<'top' | 'bottom'>('bottom')
 const moPopoverStyle = ref<Record<string,string>>({})
 const moPopoverRef = ref<HTMLElement | null>(null)
+const moCellFlash = ref(false)
 const eventStatusPendingIds = ref<Set<number>>(new Set())
 const moQuickStatusActions = [
   { key: 'todo', value: EVENT_STATUS_VALUE.TODO, shortLabel: '待办' },
@@ -876,34 +875,67 @@ function positionMoPopover(target: HTMLElement) {
   const rect = target.getBoundingClientRect()
   const popoverW = 356
   const popoverH = 476
-  const gap = 12
+  const gap = 16
   const vw = window.innerWidth
   const vh = window.innerHeight
   let left = rect.left + rect.width / 2 - popoverW / 2
   if (left + popoverW > vw - 12) left = vw - popoverW - 12
   if (left < 12) left = 12
 
-  let placement: 'top' | 'bottom' = 'bottom'
-  let top = rect.bottom + gap
-  if (top + popoverH > vh - 12) {
-    placement = 'top'
-    top = rect.top - popoverH - gap
-  }
-  if (top < 12) {
+  // 优先判断下方是否有足够空间（不遮挡当前格子）
+  const spaceBelow = vh - rect.bottom - gap
+  const spaceAbove = rect.top - gap
+
+  let placement: 'top' | 'bottom' | 'right' | 'left' = 'bottom'
+
+  if (spaceBelow >= popoverH) {
+    // 下方空间充足 → 放下方，完全不遮挡
     placement = 'bottom'
-    top = Math.min(vh - popoverH - 12, Math.max(12, rect.bottom + gap))
+  } else if (spaceAbove >= popoverH) {
+    // 上方空间充足 → 放上方，完全不遮挡
+    placement = 'top'
+  } else if (vw - rect.right >= popoverW + gap) {
+    // 右侧有空间 → 放右侧
+    placement = 'right'
+  } else if (rect.left >= popoverW + gap) {
+    // 左侧有空间 → 放左侧
+    placement = 'left'
+  } else {
+    // 空间都不够时，优先选遮挡更少的一侧
+    placement = spaceBelow > spaceAbove ? 'bottom' : 'top'
+  }
+
+  let top: number
+  if (placement === 'bottom') {
+    top = rect.bottom + gap
+  } else if (placement === 'top') {
+    top = rect.top - popoverH - gap
+  } else if (placement === 'right') {
+    top = Math.max(12, rect.top)
+  } else { // left
+    top = Math.max(12, rect.top)
+  }
+  if (placement !== 'right' && placement !== 'left') {
+    top = Math.max(12, Math.min(top, vh - popoverH - 12))
   }
   if (top < 12) top = 12
 
-  const anchorLeft = Math.min(popoverW - 30, Math.max(30, rect.left + rect.width / 2 - left))
-  moPopoverPlacement.value = placement
+  let finalLeft = left
+  if (placement === 'right') {
+    finalLeft = rect.right + gap
+  } else if (placement === 'left') {
+    finalLeft = rect.left - popoverW - gap
+  }
+
+  const anchorLeft = Math.min(popoverW - 30, Math.max(30, rect.left + rect.width / 2 - finalLeft))
+  moPopoverPlacement.value = placement as 'top' | 'bottom'
   moPopoverStyle.value = {
-    left: left + 'px',
+    left: finalLeft + 'px',
     top: top + 'px',
     width: popoverW + 'px',
     '--mdp-anchor-left': anchorLeft + 'px',
     '--mdp-origin-x': anchorLeft + 'px',
-    '--mdp-enter-offset': placement === 'bottom' ? '-10px' : '10px',
+    '--mdp-enter-offset': (placement === 'bottom' || placement === 'right') ? '-10px' : '10px',
   }
 }
 function onMoCellClick(cell: any, e: MouseEvent) {
@@ -946,12 +978,19 @@ function jumpToDay() {
   viewMode.value = 'day'
 }
 
+function jumpToDayByDate(date: string) {
+  if (!date) return
+  const cell = allCells.value.find(c => c.date === date)
+  if (cell) selectDate(cell)
+  closeMoPopover()
+  viewMode.value = 'day'
+}
+
 async function switchToTodayDayView() {
   if (viewMode.value === 'day') return
   moShowMonthPicker.value = false
   closeMoPopover()
   viewMode.value = 'day'
-  await goToday()
 }
 
 function toggleMoMonthPicker() {
@@ -961,9 +1000,19 @@ function toggleMoMonthPicker() {
 
 async function jumpMoToMonth(y: number, m: number) {
   moShowMonthPicker.value = false
-  currentYear.value = y
-  currentMonth.value = m
-  await refreshAll()
+  moMonthChanging.value = true
+  // 先预加载数据，再更新年月，避免过渡时显示空格子
+  const targetStr=`${y}-${String(m).padStart(2,'0')}`
+  try{
+    const preRes:any=await getMonthEventsApi(targetStr)
+    currentYear.value=y; currentMonth.value=m
+    monthData.value=preRes.data||[]; syncStatsFromMonthData()
+  }catch{
+    currentYear.value=y; currentMonth.value=m
+  }
+  if(viewMode.value === 'month'){ await Promise.all([loadDayEvents(),loadStats()]) }
+  else { await loadStats() }
+  setTimeout(() => { moMonthChanging.value = false }, 280)
 }
 function getMoDayDonePct(dateKey: string): number {
   const dayEvs = getMoDayEvents(dateKey)
@@ -1122,8 +1171,8 @@ const calendarRows = computed(()=>{
   for(let d=1;d<=daysInMonth;d++){
     const dateKey=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`
     const dayEvents=monthData.value.filter((e:any)=>e.eventDate===dateKey)
-    const dots=[...new Set(dayEvents.map((e:any)=>e.category))]
-    cells.push({day:d,date:dateKey,isToday:dateKey===todayStr,dots,eventCount:dayEvents.length,isWeekend:isWeekend(y,m,d),holidayName:getHolidayName(m,d),key:dateKey})
+    const dots=dayEvents.map((e:any)=>e.category)
+    cells.push({day:d,date:dateKey,isToday:dateKey===todayStr,dots,visibleDots:dots.slice(0,10),eventCount:dayEvents.length,isWeekend:isWeekend(y,m,d),holidayName:getHolidayName(m,d),key:dateKey})
   }
   const remaining=42-cells.length
   for(let d=1;d<=remaining;d++) cells.push({day:d,isOther:true,dots:[],key:`next-${d}`})
@@ -1138,7 +1187,8 @@ const dayCalendarRows = computed(() => {
       const dayEvents = dayViewEventMap.value[cell.date] || []
       return {
         ...cell,
-        dots: dayEvents.slice(0, 10).map((event:any) => event.category),
+        dots: dayEvents.map((event:any) => event.category),
+        visibleDots: dayEvents.map((event:any) => event.category).slice(0, 10),
         eventCount: dayEvents.length,
       }
     }))
@@ -1388,6 +1438,7 @@ function isSelected(cell:any):boolean{ return !cell.isOther&&cell.date===selecte
 async function selectDate(cell:any){
   if(!cell.date)return
   selectedDate.value=cell.date
+  quickFilter.value='all'
   const d=new Date(cell.date+'T00:00:00')
   if(d.getFullYear()!==currentYear.value||d.getMonth()+1!==currentMonth.value){
     currentYear.value=d.getFullYear(); currentMonth.value=d.getMonth()+1
@@ -1422,26 +1473,72 @@ async function loadStats(){
 }
 function retryLoad(){ refreshAll() }
 async function prevMonth(){
-  if(monthChanging.value)return
-  monthChanging.value=true
-  if(currentMonth.value===1){currentMonth.value=12;currentYear.value--}else{currentMonth.value--}
-  await refreshAll(); setTimeout(()=>{monthChanging.value=false},250)
+  if(monthChanging.value||moMonthChanging.value)return
+  monthChanging.value=true; moMonthChanging.value = true
+  let nextYear=currentYear.value
+  let nextMonth=currentMonth.value-1
+  if(nextMonth===0){nextMonth=12;nextYear--}
+  // 先预加载数据，再更新年月，避免过渡时显示空格子
+  const targetStr=`${nextYear}-${String(nextMonth).padStart(2,'0')}`
+  try{
+    const preRes:any=await getMonthEventsApi(targetStr)
+    currentYear.value=nextYear; currentMonth.value=nextMonth
+    monthData.value=preRes.data||[]; syncStatsFromMonthData()
+  }catch{
+    currentYear.value=nextYear; currentMonth.value=nextMonth
+  }
+  if(viewMode.value === 'month') await loadDayEvents()
+  await loadStats()
+  setTimeout(()=>{monthChanging.value=false; moMonthChanging.value=false},280)
 }
 async function nextMonth(){
-  if(monthChanging.value)return
-  monthChanging.value=true
-  if(currentMonth.value===12){currentMonth.value=1;currentYear.value++}else{currentMonth.value++}
-  await refreshAll(); setTimeout(()=>{monthChanging.value=false},250)
+  if(monthChanging.value||moMonthChanging.value)return
+  monthChanging.value=true; moMonthChanging.value = true
+  let nextYear=currentYear.value
+  let nextMonth=currentMonth.value+1
+  if(nextMonth===13){nextMonth=1;nextYear++}
+  // 先预加载数据，再更新年月，避免过渡时显示空格子
+  const targetStr=`${nextYear}-${String(nextMonth).padStart(2,'0')}`
+  try{
+    const preRes:any=await getMonthEventsApi(targetStr)
+    currentYear.value=nextYear; currentMonth.value=nextMonth
+    monthData.value=preRes.data||[]; syncStatsFromMonthData()
+  }catch{
+    currentYear.value=nextYear; currentMonth.value=nextMonth
+  }
+  if(viewMode.value === 'month') await loadDayEvents()
+  await loadStats()
+  setTimeout(()=>{monthChanging.value=false; moMonthChanging.value=false},280)
 }
 async function goToday(){
   const t=new Date()
-  currentYear.value=t.getFullYear(); currentMonth.value=t.getMonth()+1
+  const targetYear=t.getFullYear()
+  const targetMonth=t.getMonth()+1
   selectedDate.value=formatDate(t)
-  await refreshAll()
+  quickFilter.value='all'
+  moCellFlash.value = true
+  setTimeout(() => { moCellFlash.value = false }, 3000)
+  // 如果已在当前月份，只高亮今天格子，不触发网格过渡
+  if(currentYear.value===targetYear&&currentMonth.value===targetMonth){
+    return
+  }
+  moMonthChanging.value = true
+  // 先预加载数据，再更新年月，避免过渡时显示空格子
+  const targetMonthStr=`${targetYear}-${String(targetMonth).padStart(2,'0')}`
+  try{
+    const preRes:any=await getMonthEventsApi(targetMonthStr)
+    currentYear.value=targetYear; currentMonth.value=targetMonth
+    monthData.value=preRes.data||[]; syncStatsFromMonthData()
+  }catch{
+    currentYear.value=targetYear; currentMonth.value=targetMonth
+  }
+  await Promise.all([loadDayEvents(),loadStats()])
+  setTimeout(()=>{ moMonthChanging.value=false }, 280)
 }
 function moveDay(dir:number){
   const d=new Date(selectedDate.value+'T00:00:00'); d.setDate(d.getDate()+dir)
   selectedDate.value=formatDate(d)
+  quickFilter.value='all'
   if(d.getFullYear()!==currentYear.value||d.getMonth()+1!==currentMonth.value){
     currentYear.value=d.getFullYear(); currentMonth.value=d.getMonth()+1; refreshAll()
   }else{ loadDayEvents() }
@@ -1476,13 +1573,17 @@ async function onDelete(id:number){
 function onSaved(){ refreshAll() }
 
 async function refreshAll(){ await Promise.all([loadMonthData(),loadDayEvents(),loadStats()]) }
+/** 仅刷新月视图相关数据（日历格子、统计），不刷新右侧日程列表 */
+async function refreshMonthOnly(){ await Promise.all([loadMonthData(),loadStats()]) }
 
 function toggleMonthPicker(){
   if(!showMonthPicker.value)mpYear.value=currentYear.value
   showMonthPicker.value=!showMonthPicker.value
 }
 async function jumpToMonth(y:number,m:number){
-  showMonthPicker.value=false; currentYear.value=y; currentMonth.value=m; await refreshAll()
+  showMonthPicker.value=false; currentYear.value=y; currentMonth.value=m
+  if(viewMode.value === 'month') await refreshAll()
+  else await refreshMonthOnly()
 }
 function handleDocClick(e:MouseEvent){
   // 日视图选月器
@@ -1720,26 +1821,26 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 }
 .page-header {
   display:flex; align-items:center; justify-content:space-between;
-  padding:16px 28px; background:$surface; border-bottom:1px solid $border;
+  padding:8px 28px; background:$surface; border-bottom:1px solid $border;
   flex-shrink:0; box-shadow:0 1px 0 rgba(0,0,0,.03);
 }
-.header-left { display:flex; align-items:center; gap:12px; }
+.header-left { display:flex; align-items:center; gap:10px; }
 .header-title-group { display:flex; align-items:center; min-width:0; }
 .page-title-icon {
-  width:32px; height:32px; border-radius:$rs;
+  width:26px; height:26px; border-radius:$rs;
   background:$primary-light; color:$primary;
   display:flex; align-items:center; justify-content:center; flex-shrink:0;
 }
 .page-title {
-  margin:0; font-size:18px; font-weight:700; color:$ink; letter-spacing:-.3px;
+  margin:0; font-size:15px; font-weight:700; color:$ink; letter-spacing:-.3px;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 
-.header-actions { display:flex; align-items:center; gap:10px; }
+.header-actions { display:flex; align-items:center; gap:7px; }
 .search-box {
-  display:flex; align-items:center; gap:7px;
+  display:flex; align-items:center; gap:6px;
   background:$bg; border:1.5px solid transparent;
-  border-radius:$rs; padding:7px 12px; width:220px; transition:all .2s;
+  border-radius:$rs; padding:5px 9px; width:180px; transition:all .2s;
   .search-icon { color:$sub; flex-shrink:0; }
   input { border:none; outline:none; font-size:13px; color:$ink; background:transparent; width:100%; min-width:0;
     &::placeholder { color:$faint; } }
@@ -1749,7 +1850,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 }
 /* 通用图标按钮 */
 .icon-btn {
-  width:32px; height:32px; border:1px solid $border; background:$surface;
+  width:28px; height:28px; border:1px solid $border; background:$surface;
   border-radius:$rs; cursor:pointer; display:flex; align-items:center; justify-content:center;
   color:$sub; transition:all .18s; flex-shrink:0;
   &:hover { border-color:$primary; color:$primary; background:$primary-light; }
@@ -1820,7 +1921,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .cal-nav-center { display:flex; align-items:center; gap:8px; flex:1; justify-content:center; position:relative; min-width:0; }
 
 .nav-btn {
-  width:30px; height:30px; border:1px solid $border; background:$surface;
+  width:26px; height:26px; border:1px solid $border; background:$surface;
   border-radius:$rs; cursor:pointer; display:flex; align-items:center; justify-content:center;
   color:$sub; transition:all .18s; flex-shrink:0;
   &:hover:not(:disabled) { border-color:$primary; color:$primary; background:$primary-light; }
@@ -1873,9 +1974,9 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   &.active { background:$primary; color:#fff; border-color:$primary; font-weight:700; }
 }
 .today-btn {
-  font-size:12px; font-weight:600; color:$primary;
+  font-size:11px; font-weight:600; color:$primary;
   background:$primary-light; border:none; border-radius:6px;
-  padding:4px 12px; cursor:pointer; transition:all .18s;
+  padding:2px 9px; cursor:pointer; transition:all .18s;
   &:hover { background:$primary; color:#fff; }
 }
 .month-fade-enter-active,.month-fade-leave-active { transition:opacity .18s,transform .18s; }
@@ -1901,7 +2002,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 }
 .day-cell {
   border-radius:10px; cursor:pointer; transition:all .16s;
-  position:relative; border:1px solid #edf1f6; min-height:60px; background:#fbfcfe;
+  position:relative; border:1px solid #edf1f6; min-height:60px; background:#fbfcfe; overflow:hidden;
   .cell-inner { width:100%; height:100%; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; padding:8px 7px 6px; box-sizing:border-box; }
   &:hover { background:#f4f8ff; border-color:rgba($primary,.22); box-shadow:0 6px 14px rgba(15,23,42,.05); transform:translateY(-1px); }
   &.active { background:$primary-light; border-color:rgba($primary,.38); .cell-num { color:$primary; font-weight:800; } }
@@ -1914,21 +2015,32 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   &.holiday .cell-num { color:#cf382a; font-weight:800; }
   &.has-events { background:linear-gradient(180deg, rgba($primary,.03) 0%, rgba($primary,.01) 100%); }
 }
-.cell-hd { display:flex; flex-direction:column; align-items:flex-start; gap:4px; width:100%; justify-content:flex-start; min-height:34px; flex-shrink:0; }
+.cell-hd { display:flex; flex-direction:column; align-items:flex-start; gap:4px; width:100%; justify-content:flex-start; min-height:34px; flex-shrink:0; position:relative; }
 .cell-num { font-size:13.5px; font-weight:700; color:$ink; line-height:1.2; }
 .cell-hd small {
   font-size:9px; color:#cf382a; background:#ffe4df; border-radius:3px; padding:0 4px; line-height:15px; font-weight:700;
   white-space:nowrap; max-width:42px; overflow:hidden; text-overflow:ellipsis; display:block;
 }
 .cell-dots {
-  display:grid; grid-template-columns:repeat(5,5px); grid-auto-rows:5px; gap:3px;
-  justify-content:flex-start; align-content:start; min-height:13px; padding-top:4px;
-  i { width:5px; height:5px; border-radius:50%; display:block; }
-  &.is-count { display:flex; align-items:center; justify-content:flex-start; min-height:16px; }
+  display:flex; align-items:center; gap:2px; flex-wrap:wrap;
+  justify-content:flex-start; min-height:13px; padding-top:4px;
+  i { width:5px; height:5px; border-radius:50%; flex-shrink:0; }
+}
+.dot-overflow {
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:8.5px; font-weight:800; color:$primary; background:#edf4ff;
+  padding:0 3px; border-radius:4px; line-height:1; min-height:12px; flex-shrink:0;
 }
 .dot-more {
   display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:16px; padding:0 5px;
   border-radius:999px; background:#edf4ff; color:$primary; font-size:10px; font-weight:700; line-height:1;
+}
+.dot-count-badge {
+  position:absolute; top:0; right:0;
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:16px; height:14px; padding:0 4px;
+  border-radius:999px; background:#edf4ff; color:$primary;
+  font-size:9.5px; font-weight:800; line-height:1;
 }
 .cal-loading { position:absolute; inset:0; background:rgba(255,255,255,.8); display:flex; align-items:center; justify-content:center; z-index:10; border-radius:$rs; }
 .loading-spinner { width:28px; height:28px; border:3px solid $border; border-top-color:$primary; border-radius:50%; animation:spin .6s linear infinite; }
@@ -2473,11 +2585,11 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 
 /* 视图切换按钮组 */
 .view-mode-switch {
-  display:flex; background:$bg; border-radius:$rs; padding:2px; gap:1px; border:1px solid $border;
+  display:flex; background:$bg; border-radius:$rs; padding:1px; gap:1px; border:1px solid $border;
 }
 .vm-btn {
-  display:inline-flex; align-items:center; gap:4px;
-  font-size:12px; font-weight:500; padding:5px 10px;
+  display:inline-flex; align-items:center; gap:3px;
+  font-size:11px; font-weight:500; padding:3px 8px;
   border:none; border-radius:6px; background:transparent; cursor:pointer;
   color:$sub; transition:all .15s; white-space:nowrap;
   svg{flex-shrink:0;}
@@ -2496,35 +2608,35 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .month-overview {
   width:100%; height:100%;
   display:flex; flex-direction:column;
-  padding:2px 16px 8px; gap:0;
+  padding:0 14px 0px; gap:0;
   overflow:hidden;
 }
 
 /* 月视图工具栏 */
 .mo-toolbar {
   display:flex;
-  align-items:flex-start;
+  align-items:center;
   justify-content:flex-start;
-  padding:0 0 4px;
+  padding:1px 0 1px;
   flex-shrink:0;
 }
 .mo-toolbar-actions {
   display:flex;
   align-items:center;
   justify-content:flex-start;
-  gap:8px 12px;
+  gap:6px 10px;
   flex-wrap:wrap;
   width:100%;
 }
 .mo-nav {
-  display:flex; align-items:center; gap:8px;
+  display:flex; align-items:center; gap:6px;
 }
 
 /* 月份标题可点击 */
 .mo-nav-center { position:relative; display:flex; align-items:center; }
 .mo-title {
-  font-size:17px; font-weight:700; color:$ink; letter-spacing:.5px;
-  min-width:120px; text-align:center;
+  font-size:14.5px; font-weight:700; color:$ink; letter-spacing:.5px;
+  min-width:100px; text-align:center;
 }
 .mo-month-btn {
   display:inline-flex; align-items:center; gap:5px;
@@ -2542,18 +2654,38 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 }
 
 /* 月份切换动画 */
-.mo-month-fade-enter-active, .mo-month-fade-leave-active { transition:opacity .18s, transform .18s; }
-.mo-month-fade-enter-from { opacity:0; transform:translateX(10px); }
-.mo-month-fade-leave-to { opacity:0; transform:translateX(-10px); }
+.mo-month-fade-enter-active, .mo-month-fade-leave-active { transition:opacity .14s, transform .14s; }
+.mo-month-fade-enter-from { opacity:0; transform:translateX(2px); }
+.mo-month-fade-leave-to { opacity:0; transform:translateX(-2px); }
 
-.mo-filters { display:flex; align-items:center; gap:10px; margin-left:auto; }
+/* 月网格切换淡入淡出：避免先出格子骨架再填数据的闪烁 */
+.mo-grid-fade-enter-active {
+  transition: opacity .18s ease, transform .16s ease;
+}
+.mo-grid-fade-leave-active {
+  /* leave 时用更快的动画，减少等待感 */
+  transition: opacity .08s ease, transform .06s ease;
+  position: absolute;
+  width: 100%;
+  pointer-events: none;
+}
+.mo-grid-fade-enter-from {
+  opacity: 0;
+  transform: translateY(6px) scale(0.995);
+}
+.mo-grid-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.998);
+}
+
+.mo-filters { display:flex; align-items:center; gap:8px; margin-left:auto; }
 
 /* [M] 状态筛选按钮组 */
 .mo-status-filters {
-  display:flex; gap:2px; background:$bg; padding:2px; border-radius:6px; border:1px solid $border;
+  display:flex; gap:2px; background:$bg; padding:1px; border-radius:5px; border:1px solid $border;
 }
 .msf-btn {
-  font-size:11px; font-weight:500; padding:3px 9px;
+  font-size:10.5px; font-weight:500; padding:2px 7px;
   border:1px solid transparent; border-radius:5px; background:transparent; cursor:pointer;
   color:$sub; transition:all .15s; white-space:nowrap;
   &:hover:not(.active) { color:$ink; background:$surface; border-color:rgba($primary,.08); }
@@ -2571,7 +2703,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   display:inline-block; width:7px; height:7px; border-radius:50%; flex-shrink:0;
 }
 
-.mo-legend { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.mo-legend { display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
 
 /* 星期标题行 */
 .mo-week-header {
@@ -2581,8 +2713,8 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   border:1px solid $border; border-bottom:none; margin-bottom:0;
   flex-shrink:0;
   span {
-    text-align:center; font-size:11px; font-weight:700; color:$sub;
-    padding:6px 0 7px; letter-spacing:2px; text-transform:uppercase;
+    text-align:center; font-size:10px; font-weight:700; color:$sub;
+    padding:3px 0 4px; letter-spacing:2px; text-transform:uppercase;
     &.wk-end { color:rgba($danger,.8); }
   }
 }
@@ -2591,12 +2723,13 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .mo-grid {
   display:grid;
   grid-template-columns:repeat(7, minmax(0, 1fr));
-  grid-template-rows:repeat(var(--mo-row-count, 6), minmax(90px, 1fr));
+  grid-template-rows:repeat(var(--mo-row-count, 6), minmax(56px, 1fr));
   flex:1;
   min-height:0;
   border:1px solid $border;
   border-radius:0 0 $rs $rs;
   overflow:hidden;
+  position:relative;
 }
 
 /* 月视图单元格 */
@@ -2637,15 +2770,28 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   &:hover .mo-empty-add-hint { opacity:1 !important; color:$primary; }
 
   &.today {
-    background:linear-gradient(180deg, rgba($primary,.10) 0%, rgba($primary,.04) 100%);
-    box-shadow:inset 4px 0 0 $primary;
+    background:linear-gradient(180deg, rgba(#ff4d4f,.12) 0%, rgba(#ff4d4f,.05) 100%);
+    box-shadow:inset 4px 0 0 #ff4d4f, 0 0 0 1px #ff4d4f;
+    z-index:2;
+    position:relative;
     .mo-day-num {
       display:inline-flex; align-items:center; justify-content:center;
-      width:24px; height:24px; border-radius:50%;
-      background:$primary; color:#fff !important;
-      font-weight:900; font-size:12px;
-      box-shadow:0 2px 8px rgba($primary,.45);
+      width:26px; height:26px; border-radius:50%;
+      background:#ff4d4f; color:#fff !important;
+      font-weight:900; font-size:12.5px;
+      box-shadow:0 2px 10px rgba(255,77,79,.55), 0 0 0 3px rgba(255,77,79,.15);
+      cursor:pointer;
+      transition:transform .15s ease, box-shadow .15s ease;
+      &:hover {
+        transform:scale(1.12);
+        box-shadow:0 3px 14px rgba(255,77,79,.65), 0 0 0 4px rgba(255,77,79,.2);
+      }
     }
+  }
+
+  &.mo-cell-flash {
+    box-shadow:inset 4px 0 0 #ff4d4f, 0 0 0 1.5px #ff4d4f, 0 0 16px rgba(255,77,79,.5);
+    animation:mo-today-flash .8s ease-in-out infinite;
   }
 
   &.mo-cell-selected {
@@ -2657,6 +2803,8 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
     background:#edf4ff;
     transform:translateY(-1px);
     box-shadow:inset 0 0 0 2px rgba($primary,.42), 0 10px 22px rgba($primary,.10);
+    z-index:10;
+    isolation:isolate;
   }
 
   &.other {
@@ -2704,15 +2852,18 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 }
 
 .mo-cell-hd {
-  display:flex; align-items:center; padding:7px 8px 4px; flex-shrink:0; gap:6px; min-height:28px;
+  display:flex; align-items:center; padding:2px 5px 0; flex-shrink:0; gap:4px; min-height:18px;
 }
 .mo-day-num {
-  font-size:13px; font-weight:800; color:$ink; line-height:1;
+  font-size:11.5px; font-weight:800; color:$ink; line-height:1;
+  cursor:pointer; border-radius:50%; padding:1px 2px;
+  transition:color .15s ease, background .15s ease;
+  &:hover { color:$primary; background:rgba($primary,.08); }
 }
 .mo-holiday-tag {
-  font-size:10px; color:#c4380d; background:#fff0e6; border-radius:4px;
-  padding:1px 5px; line-height:16px; font-weight:800;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:34px;
+  font-size:9.5px; color:#c4380d; background:#fff0e6; border-radius:4px;
+  padding:1px 4px; line-height:14px; font-weight:800;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:32px;
   border:1px solid rgba(196,56,13,.25);
 }
 .mo-cell-hd-right {
@@ -2722,20 +2873,21 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .mo-cell-summary-main,
 .mo-cell-summary-hit {
   display:inline-flex; align-items:center; justify-content:center;
-  border-radius:999px; font-size:9.5px; font-weight:800; line-height:1; min-height:18px;
+  border-radius:999px; font-size:9px; font-weight:800; line-height:1; min-height:16px;
 }
 .mo-day-status-pill {
   padding:4px 7px; border:1px solid transparent; white-space:nowrap;
 }
 .mo-cell-summary {
   display:flex; align-items:center; justify-content:space-between;
-  gap:6px; padding:0 8px 6px; min-height:22px;
+  gap:4px; padding:0 6px 1px; min-height:14px;
 }
 .mo-cell-summary-main {
   padding:4px 8px; border:1px solid transparent; min-width:0;
 }
 .mo-cell-summary-hit {
-  padding:4px 7px; color:#9a6700; background:#fff8df; border:1px solid rgba(250,173,20,.24); flex-shrink:0;
+  display:inline-flex; align-items:center; font-size:8.5px; font-weight:700; line-height:1;
+  padding:1px 5px; color:#9a6700; background:#fff8df; border-radius:3px; border:1px solid rgba(250,173,20,.24); flex-shrink:0;
 }
 .mo-day-status-pill.is-todo,
 .mo-cell-summary-main.is-todo { color:$warning; background:#fff4db; border-color:rgba($warning,.18); }
@@ -2749,17 +2901,16 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .mo-cell-summary-main.is-mixed { color:#6d28d9; background:#f1eafe; border-color:rgba(109,40,217,.18); }
 
 .mo-day-badge {
-  font-size:9.5px; font-weight:800;
-  background:$primary; color:#fff;
-  min-width:16px; height:16px; border-radius:8px; padding:0 4px;
+  font-size:9px; font-weight:600;
+  background:rgba($primary,.12); color:$primary;
+  min-width:14px; height:15px; border-radius:7px; padding:0 4px;
   display:inline-flex; align-items:center; justify-content:center;
   flex-shrink:0; line-height:1;
-  box-shadow:0 2px 6px rgba($primary,.45);
 }
 
 /* 快速新建按钮（悬停显示） */
 .mo-cell-add-btn {
-  width:22px; height:22px;
+  width:20px; height:20px;
   border:1.5px solid rgba($primary,.4); background:rgba($primary,.08);
   border-radius:5px; cursor:pointer; color:$primary;
   display:inline-flex; align-items:center; justify-content:center;
@@ -2767,12 +2918,12 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   &:hover { background:$primary; border-color:$primary; color:#fff; box-shadow:0 2px 8px rgba($primary,.4); }
 }
 
-/* 日程列表 */
+/* 日程列表：每格展示 5 条 */
 .mo-event-list {
   display:grid;
-  grid-template-rows:repeat(3, minmax(0, 1fr));
-  gap:3px;
-  padding:0 8px 10px;
+  grid-template-rows:repeat(5, minmax(0, 1fr));
+  gap:1px;
+  padding:0 5px 2px;
   flex:1;
   min-height:0;
 }
@@ -2783,10 +2934,11 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   box-sizing:border-box;
 }
 .mo-event-item {
-  display:flex; align-items:center; gap:6px;
-  padding:0 4px 0 8px; border-radius:5px;
+  display:flex; align-items:center; gap:3px;
+  padding:0 2px 0 5px; border-radius:4px;
   border:1px solid transparent; transition:background .12s, border-color .12s, transform .12s;
   cursor:pointer; position:relative; background:transparent; min-width:0;
+  min-height:18px;
 
   &::before {
     content:''; position:absolute; left:0; top:50%; transform:translateY(-50%);
@@ -2836,15 +2988,15 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   border:1px solid transparent;
 }
 .mo-ev-dot {
-  width:6px; height:6px; border-radius:50%; flex-shrink:0;
+  width:5px; height:5px; border-radius:50%; flex-shrink:0;
 }
 .mo-ev-time {
-  width:34px; text-align:left;
-  font-size:10px; font-weight:700; color:$sub; letter-spacing:-.1px; flex-shrink:0;
+  width:32px; text-align:left;
+  font-size:9.5px; font-weight:700; color:$sub; letter-spacing:-.1px; flex-shrink:0;
   font-variant-numeric:tabular-nums;
 }
 .mo-ev-title {
-  font-size:11px; font-weight:700; color:$ink; line-height:1.2;
+  font-size:13px; font-weight:700; color:$ink; line-height:1.2;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; flex:1;
 }
 
@@ -2863,12 +3015,13 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 /* 超出数量提示 */
 .mo-more-tip {
   width:100%; border:none; outline:none;
-  display:inline-flex; align-items:center; justify-content:flex-start; gap:4px;
-  font-size:11px; font-weight:700; color:$primary;
-  padding:0 4px 0 8px; border-radius:5px; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:flex-start; gap:2px;
+  font-size:10px; font-weight:700; color:$primary;
+  padding:0 3px 0 6px; border-radius:4px; cursor:pointer;
   background:rgba($primary,.04);
   transition:all .15s; margin:0; line-height:1;
   white-space:nowrap; flex-shrink:0;
+  min-height:18px;
   &:hover { background:rgba($primary,.10); color:$primary; }
   svg { flex-shrink:0; transition:transform .2s ease; }
   &.mo-more-active {
@@ -2880,10 +3033,10 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 /* 今日完成率进度条：固定在单元格底部，不占用列表行高 */
 .mo-cell-progress {
   position:absolute;
-  left:8px;
-  right:8px;
-  bottom:6px;
-  height:3px; background:rgba($primary,.12); overflow:hidden;
+  left:6px;
+  right:6px;
+  bottom:3px;
+  height:2px; background:rgba($primary,.12); overflow:hidden;
   border-radius:999px; pointer-events:none;
 }
 .mo-cell-progress-fill {
@@ -2895,29 +3048,29 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 /* 空白格提示：常态显示浅灰提示，悬停变蓝 */
 .mo-empty-cell {
   flex:1; display:flex; align-items:center; justify-content:center;
-  padding-bottom:6px;
+  padding-bottom:4px;
 }
 .mo-empty-add-hint {
-  display:inline-flex; align-items:center; gap:4px;
-  font-size:11px; color:#c2c8d2; opacity:0.6; transition:all .18s;
+  display:inline-flex; align-items:center; gap:3px;
+  font-size:10.5px; color:#c2c8d2; opacity:0.6; transition:all .18s;
   background:none; border:1px dashed transparent; cursor:pointer;
-  padding:4px 9px; border-radius:5px;
+  padding:3px 8px; border-radius:5px;
   &:hover {
     opacity:1 !important; background:rgba($primary,.07);
     color:$primary; border-color:rgba($primary,.3);
   }
 }
 
-/* 底部统计栏 */
+/* 底部统计栏：更紧凑，让月网格居中 */
 .mo-footer {
   display:flex; align-items:center; justify-content:space-between;
-  padding:8px 2px 0; margin-top:6px;
-  border-top:1px solid $border; flex-shrink:0; flex-wrap:wrap; gap:8px;
+  padding:2px 2px 1px; margin-top:0;
+  border-top:1px solid $border; flex-shrink:0; flex-wrap:wrap; gap:4px;
 }
 .mo-footer-stats { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
 .mo-stat {
-  font-size:12.5px; color:$ink2; font-weight:500;
-  display:inline-flex; align-items:center; gap:4px;
+  font-size:10.5px; color:$ink2; font-weight:500;
+  display:inline-flex; align-items:center; gap:3px;
   strong { font-weight:800; }
 }
 .mo-stat::before {
@@ -2935,9 +3088,9 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 /* 共计数不加圆点 */
 .mo-footer-stats > .mo-stat:first-child::before { display:none; }
 .mo-footer-progress { display:flex; align-items:center; gap:8px; flex-shrink:0; }
-.mo-footer-pct-label { font-size:12px; color:$ink2; font-weight:600; white-space:nowrap; }
+.mo-footer-pct-label { font-size:11px; color:$ink2; font-weight:600; white-space:nowrap; }
 .mo-footer-track {
-  width:120px; height:6px;
+  width:110px; height:5px;
   background:rgba($primary,.12); border-radius:4px; overflow:hidden;
 }
 .mo-footer-fill {
@@ -2945,7 +3098,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   border-radius:4px; transition:width .6s cubic-bezier(.4,0,.2,1); min-width:4px;
   box-shadow:0 0 4px rgba($primary,.35);
 }
-.mo-footer-pct { font-size:13px; font-weight:800; color:$primary; white-space:nowrap; }
+.mo-footer-pct { font-size:12px; font-weight:800; color:$primary; white-space:nowrap; }
 
 /* ============================================================
   Day Popover
@@ -3271,5 +3424,9 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   .mo-footer { flex-direction:column; align-items:flex-start; gap:6px; }
   .mo-footer-progress { width:100%; }
   .mo-footer-track { flex:1; }
+}
+@keyframes mo-today-flash {
+  0%, 100% { box-shadow:inset 4px 0 0 #ff4d4f, 0 0 0 2px #ff4d4f, 0 0 14px rgba(255,77,79,.45); }
+  50% { box-shadow:inset 4px 0 0 #ff4d4f, 0 0 0 2.5px #ff4d4f, 0 0 24px rgba(255,77,79,.7), 0 0 48px rgba(255,77,79,.25); }
 }
 </style>

@@ -128,20 +128,21 @@
       <!-- 步骤详情 -->
       <el-form-item label="步骤详情">
         <div class="step-editor">
-          <el-input
-            v-model="form.remark"
-            type="textarea"
-            class="step-textarea"
-            :autosize="{ minRows: 6, maxRows: 10 }"
-            maxlength="500"
-            show-word-limit
-            resize="none"
-            placeholder="请输入步骤详情，每行一条，最多 10 行"
-            @input="limitRemarkLines"
-          />
+          <div class="step-textarea-wrap">
+            <el-input
+              v-model="form.remark"
+              type="textarea"
+              class="step-textarea"
+              :autosize="{ minRows: 6, maxRows: 20 }"
+              maxlength="500"
+              show-word-limit
+              resize="none"
+              placeholder="请输入步骤详情，每行一条"
+              @input="limitRemarkLines"
+            />
+          </div>
           <div class="step-footer-hint">
-            <span>每行一条，最多 10 行</span>
-            <span>{{ remarkLineCount }}/10 行</span>
+            <span>{{ remarkLineCount }} 行</span>
           </div>
         </div>
       </el-form-item>
@@ -224,7 +225,7 @@ const rules: FormRules = {
 
 /* ============ 步骤详情逻辑 ============ */
 const MAX_REMARK_LENGTH = 500
-const MAX_REMARK_LINES = 10
+const MAX_REMARK_LINES = 50
 
 const remarkLineCount = computed(() => {
   if (!form.remark) return 0
@@ -641,7 +642,12 @@ $rs: 10px;
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+}
+
+.step-textarea-wrap {
+  width: 100%;
+  overflow: visible;
 }
 
 .step-textarea {
@@ -649,10 +655,17 @@ $rs: 10px;
 }
 
 .step-textarea :deep(.el-textarea__inner) {
-  min-height: 164px !important;
-  max-height: 260px;
+  min-height: 120px !important;
   line-height: 1.6;
   padding: 10px 12px;
+  /* 完全自适应高度，不出现滚动条 */
+  overflow: hidden !important;
+
+  &::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
 }
 
 .step-footer-hint {
@@ -670,7 +683,7 @@ $rs: 10px;
 
 @media (max-width: 640px) {
   .step-textarea :deep(.el-textarea__inner) {
-    min-height: 152px !important;
+    min-height: 100px !important;
   }
 }
 
