@@ -9,8 +9,6 @@
           <h1 class="page-title">日历计划</h1>
           <div class="header-meta">
             <span class="meta-year">{{ currentYear }} 年</span>
-            <span class="meta-divider">·</span>
-            <span class="header-badge"><span class="badge-dot"></span>{{ stats.todoCount + stats.doingCount + stats.doneCount }} 个日程</span>
           </div>
         </div>
       </div>
@@ -325,7 +323,7 @@
                           type="button"
                           class="mdp-ev-action-chip is-delete"
                           :disabled="isEventStatusPending(ev.id)"
-                          @click.stop="onDelete(ev.id); closeMoPopover()"
+                          @click.stop="onDelete(ev.id)"
                         >删除</button>
                       </div>
                       <div v-if="getEventRemark(ev)" class="mdp-ev-remark">{{ getEventRemark(ev) }}</div>
@@ -359,6 +357,13 @@
     <div v-show="viewMode === 'day'" class="main-body main-day">
       <div class="left-panel">
         <div class="stats-row">
+          <div class="stat-card stat-all" @click="setQuickFilter('all')" :class="{ 'stat-active': quickFilter === 'all' }">
+            <div class="stat-card-top">
+              <div class="stat-icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></div>
+            </div>
+            <div class="stat-info"><em>{{ stats.todoCount + stats.doingCount + stats.doneCount }}</em><i>全部</i></div>
+            <div class="stat-bar"><div class="stat-bar-inner" :style="{ width: '100%' }"></div></div>
+          </div>
           <div class="stat-card stat-todo" @click="setQuickFilter('todo')" :class="{ 'stat-active': quickFilter === 'todo' }">
             <div class="stat-card-top">
               <div class="stat-icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
@@ -379,6 +384,13 @@
             </div>
             <div class="stat-info"><em>{{ stats.doneCount }}</em><i>已完成</i></div>
             <div class="stat-bar"><div class="stat-bar-inner" :style="{ width: statPercent('done') + '%' }"></div></div>
+          </div>
+          <div class="stat-card stat-cancelled" @click="setQuickFilter('cancelled')" :class="{ 'stat-active': quickFilter === 'cancelled' }">
+            <div class="stat-card-top">
+              <div class="stat-icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
+            </div>
+            <div class="stat-info"><em>{{ stats.cancelledCount }}</em><i>已取消</i></div>
+            <div class="stat-bar"><div class="stat-bar-inner" :style="{ width: statPercent('cancelled') + '%' }"></div></div>
           </div>
         </div>
 
@@ -411,8 +423,8 @@
             <div class="cal-week-row">
               <span v-for="(w,wi) in weekDays" :key="w" :class="{'wk-end':wi>=5}">{{ w }}</span>
             </div>
-            <div class="cal-day-grid">
-              <div v-for="(cell,ci) in allCells" :key="cell.key||ci"
+            <div class="cal-day-grid" :style="{ '--day-row-count': String(dayCalendarRowCount) }">
+              <div v-for="(cell,ci) in dayCalendarCells" :key="cell.key||ci"
                 :class="['day-cell',{'other':cell.isOther,'today':cell.isToday,'active':isSelected(cell),'weekend':!cell.isOther&&cell.isWeekend,'holiday':!cell.isOther&&!!cell.holidayName,'has-events':!cell.isOther&&cell.dots.length>0}]"
                 @click="selectDate(cell)" @dblclick="openDrawer(null,cell.date)">
                 <div class="cell-inner">
@@ -458,6 +470,7 @@
           </div>
         </div>
       </div>
+
 
       <div class="right-panel">
         <div class="rp-head">
@@ -633,9 +646,20 @@
                           :class="['ev-status-btn', `is-${action.key}`, { 'is-pending': isEventStatusPending(ev.id) }]"
                           :disabled="isEventStatusPending(ev.id)"
                           @click.stop="onMoQuickStatusChange(ev, action.value)"
+                          :title="action.label"
                         >
                           {{ action.shortLabel }}
                         </button>
+                        <el-tooltip content="删除" placement="top" :show-after="300">
+                          <button
+                            type="button"
+                            class="ev-status-btn is-delete"
+                            :disabled="isEventStatusPending(ev.id)"
+                            @click.stop="onDelete(ev.id)"
+                          >
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                          </button>
+                        </el-tooltip>
                       </div>
                     </div>
 
@@ -819,10 +843,10 @@ const moPopoverRef = ref<HTMLElement | null>(null)
 const moCellFlash = ref(false)
 const eventStatusPendingIds = ref<Set<number>>(new Set())
 const moQuickStatusActions = [
-  { key: 'todo', value: EVENT_STATUS_VALUE.TODO, shortLabel: '待办' },
-  { key: 'doing', value: EVENT_STATUS_VALUE.DOING, shortLabel: '进行' },
-  { key: 'done', value: EVENT_STATUS_VALUE.DONE, shortLabel: '完成' },
-  { key: 'cancelled', value: EVENT_STATUS_VALUE.CANCELLED, shortLabel: '取消' },
+  { key: 'todo', value: EVENT_STATUS_VALUE.TODO, shortLabel: '待办', label: '设为待办' },
+  { key: 'doing', value: EVENT_STATUS_VALUE.DOING, shortLabel: '进行', label: '设为进行中' },
+  { key: 'done', value: EVENT_STATUS_VALUE.DONE, shortLabel: '完成', label: '标记完成' },
+  { key: 'cancelled', value: EVENT_STATUS_VALUE.CANCELLED, shortLabel: '取消', label: '取消日程' },
 ] as const
 
 function getQuickStatusAction(key: 'todo' | 'doing' | 'done' | 'cancelled') {
@@ -1103,10 +1127,10 @@ const relDateClass = computed(()=>{
 const totalEvents = computed(()=>stats.value.todoCount+stats.value.doingCount+stats.value.doneCount+stats.value.cancelledCount)
 const activeMonthFilterLabel = computed(() => statusFilterOptions.find(item => item.value === moFilterStatus.value)?.label || '')
 const monthDonePercent = computed(() => monthPrintStats.value.total ? Math.round((monthPrintStats.value.doneCount / monthPrintStats.value.total) * 100) : 0)
-function statPercent(type:'todo'|'doing'|'done'):number {
+function statPercent(type:'todo'|'doing'|'done'|'cancelled'):number {
 
   const total=totalEvents.value; if(!total)return 0
-  const val=type==='todo'?stats.value.todoCount:type==='doing'?stats.value.doingCount:stats.value.doneCount
+  const val=type==='todo'?stats.value.todoCount:type==='doing'?stats.value.doingCount:type==='done'?stats.value.doneCount:stats.value.cancelledCount
   return Math.round((val/total)*100)
 }
 const filteredEvents = computed(()=>{
@@ -1583,11 +1607,23 @@ async function onUndo(ev:any){
 }
 async function onDelete(id:number){
   try{
+    await ElMessageBox.confirm(
+      '确定要删除此日程吗？删除后不可恢复。',
+      '删除确认',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+      }
+    )
     await deleteEventApi(id)
     removeEventLocally([id])
     ElMessage.success('已删除')
-  }catch{
-    ElMessage.error('删除失败，请稍后重试')
+  }catch(e: any){
+    if (e !== 'cancel') {
+      ElMessage.error('删除失败，请稍后重试')
+    }
   }
 }
 function onSaved(){ refreshAll() }
@@ -1885,7 +1921,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .main-body { display:flex; flex:1; overflow:hidden; min-height:0; }
 .main-day {
   display:grid;
-  grid-template-columns:minmax(380px, 640px) minmax(0, 1fr);
+  grid-template-columns:minmax(360px, 42%) minmax(0, 58%);
   gap:12px;
   padding:12px 16px 16px;
   min-height:0;
@@ -1903,17 +1939,17 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 
 
 
-.stats-row { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+.stats-row { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
 .stat-card {
-  background:$surface; border-radius:$rs-lg; padding:14px 14px 10px;
-  display:flex; flex-direction:column; gap:10px;
-  box-shadow:$shadow-sm; border:1.5px solid transparent;
-  cursor:pointer; transition:all .2s; position:relative; overflow:hidden;
-  &:hover { box-shadow:$shadow-md; transform:translateY(-2px); }
-  &.stat-active { border-color:currentColor; }
+  background:$surface; border-radius:$rs; padding:12px 10px 10px;
+  display:flex; flex-direction:column; gap:8px;
+  box-shadow:0 1px 3px rgba(15,23,42,.04); border:1px solid $border;
+  cursor:pointer; transition:all .2s ease;
+  &:hover { box-shadow:0 2px 6px rgba(15,23,42,.08); border-color:currentColor; }
+  &.stat-active { border-color:currentColor; box-shadow:0 2px 6px rgba(15,23,42,.1); }
 }
 .stat-card-top { display:flex; align-items:center; justify-content:flex-start; }
-.stat-icon-wrap { width:36px; height:36px; border-radius:$rs; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.stat-icon-wrap { width:28px; height:28px; border-radius:$rs; display:flex; align-items:center; justify-content:center; flex-shrink:0; svg { width:14px; height:14px; } }
 .stat-todo {
   color:$warning;
   .stat-icon-wrap { background:#fff7e6; }
@@ -1932,9 +1968,21 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   &.stat-active { border-color:$success; background:#f6ffed; }
   .stat-bar-inner { background:$success; }
 }
+.stat-all {
+  color:$ink;
+  .stat-icon-wrap { background:#f2f3f5; }
+  &.stat-active { border-color:$ink; background:#f7f8fa; }
+  .stat-bar-inner { background:$ink; }
+}
+.stat-cancelled {
+  color:#86909c;
+  .stat-icon-wrap { background:#f4f4f5; }
+  &.stat-active { border-color:#86909c; background:#f7f8fa; }
+  .stat-bar-inner { background:#86909c; }
+}
 .stat-info {
-  em { display:block; font-style:normal; font-size:28px; font-weight:800; line-height:1; color:$ink; }
-  i { display:block; font-style:normal; font-size:13px; color:$sub; margin-top:4px; }
+  em { display:block; font-style:normal; font-size:20px; font-weight:700; line-height:1; color:$ink; }
+  i { display:block; font-style:normal; font-size:11px; color:$sub; margin-top:3px; }
 }
 .stat-bar {
   height:3px; background:$border; border-radius:2px; overflow:hidden;
@@ -2086,9 +2134,9 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 }
 .rp-head {
   display:flex; align-items:center; justify-content:space-between;
-  padding:8px 12px 4px; flex-shrink:0;
+  padding:10px 14px 6px; flex-shrink:0;
   background:linear-gradient(to bottom,#fafbfc 0%,$surface 100%);
-  gap:7px; flex-wrap:wrap;
+  gap:8px; flex-wrap:nowrap;
 }
 .rp-date-info { display:flex; align-items:center; gap:8px; min-width:0; }
 .rp-date-main { display:flex; align-items:center; gap:6px; min-width:0; }
@@ -2104,20 +2152,20 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .rp-date-info :deep(.el-tag) {
   height:20px; padding:0 7px; font-size:10px; line-height:18px;
 }
-.rp-head-right { display:flex; align-items:center; gap:4px; margin-left:auto; }
+.rp-head-right { display:flex; align-items:center; gap:10px; margin-left:auto; }
 .rp-toolbar {
-  display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;
-  padding:0 12px 8px; border-bottom:1px solid $border;
+  display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:nowrap;
+  padding:8px 14px; border-bottom:1px solid $border;
   background:linear-gradient(to bottom,#fafbfc 0%,$surface 100%);
 }
 .rp-toolbar-left { display:flex; align-items:center; gap:8px; min-width:0; }
-.quick-filters { display:flex; gap:2px; background:$bg; padding:2px; border-radius:$rs; border:1px solid $border; flex-wrap:wrap; }
+.quick-filters { display:flex; gap:3px; background:$bg; padding:3px; border-radius:$rs; border:1px solid $border; flex-wrap:nowrap; }
 .qf-btn {
-  font-size:10.5px; font-weight:500; padding:3px 7px;
+  font-size:10.5px; font-weight:500; padding:4px 8px;
   border:1px solid transparent; border-radius:5px; background:transparent; cursor:pointer; color:$sub; transition:all .15s; white-space:nowrap;
   display:flex; align-items:center; gap:4px;
   &:hover:not(.active) { color:$ink; background:$surface; border-color:rgba($primary,.08); }
-  &.active { background:$primary; color:#fff; font-weight:700; box-shadow:0 2px 8px rgba($primary,.24); }
+  &.active { background:$primary; color:#fff; font-weight:600; box-shadow:0 1px 4px rgba($primary,.2); }
   &.qf-todo.active     { background:$warning; }
   &.qf-doing.active    { background:#2563eb; }
   &.qf-done.active     { background:$success; }
@@ -2126,9 +2174,9 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .qf-dot {
   display:inline-block; width:7px; height:7px; border-radius:50%; flex-shrink:0;
 }
-.rp-nav-btns { display:flex; gap:3px; }
+.rp-nav-btns { display:flex; gap:5px; }
 .rp-arrow {
-  width:24px; height:24px; border:1px solid $border; background:$surface;
+  width:26px; height:26px; border:1px solid $border; background:$surface;
   border-radius:$rs; cursor:pointer; display:flex; align-items:center; justify-content:center;
   color:$sub; transition:all .18s;
   &:hover { border-color:$primary; color:$primary; background:$primary-light; }
@@ -2209,7 +2257,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 }
 
 .rp-body {
-  flex:1; overflow-y:auto; padding:7px 0 8px;
+  flex:1; overflow-y:auto; padding:10px 0 12px;
   scrollbar-width:none; -ms-overflow-style:none;
   &::-webkit-scrollbar { width:0; height:0; display:none; }
 }
@@ -2234,7 +2282,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   p { font-size:13.5px; color:$sub; margin:0; }
 }
 .agenda-wrap {
-  display:flex; flex-direction:column; gap:8px; padding-bottom:0;
+  display:flex; flex-direction:column; gap:6px; padding-bottom:0;
 }
 .agenda-section {
   display:flex; flex-direction:column; gap:5px;
@@ -2253,11 +2301,11 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   font-size:10.5px; font-weight:700; color:$primary; background:$primary-light;
   border-radius:999px; padding:2px 7px;
 }
-.ev-group { padding:0 12px; display:flex; flex-direction:column; gap:5px; }
+.ev-group { padding:0 14px; display:flex; flex-direction:column; gap:4px; }
 .ev-card {
   width:100%; box-sizing:border-box;
-  display:grid; grid-template-columns:26px minmax(0,1fr) 228px; align-items:center; column-gap:10px;
-  padding:7px 9px; min-height:58px; border-radius:$rs; cursor:pointer;
+  display:grid; grid-template-columns:26px minmax(0,1fr) 200px; align-items:center; column-gap:10px;
+  padding:8px 10px; min-height:56px; border-radius:$rs; cursor:pointer;
   transition:all .15s; border:1px solid transparent; background:$surface; position:relative;
 
   &:hover { box-shadow:$shadow-sm; }
@@ -2337,18 +2385,18 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   padding:2px 6px; background:$primary-light; box-shadow:0 0 0 3px rgba($primary,.1);
 }
 .ev-side {
-  width:228px; min-width:228px; display:flex; flex-direction:column; align-items:flex-end; justify-content:center; gap:5px;
+  width:200px; min-width:200px; display:flex; flex-direction:column; align-items:flex-end; justify-content:center; gap:6px;
 }
 .ev-side-top {
-  width:100%; display:grid; grid-template-columns:repeat(3, 72px); align-items:center; justify-content:end; column-gap:6px;
+  width:100%; display:grid; grid-template-columns:60px 56px 72px; align-items:center; justify-content:end; column-gap:6px;
 }
 .ev-cat-tag {
-  display:inline-flex; align-items:center; justify-content:center; width:72px; min-width:72px;
-  font-size:10px; font-weight:600; padding:2px 6px; border-radius:999px; white-space:nowrap; box-sizing:border-box;
+  display:inline-flex; align-items:center; justify-content:center; width:60px; min-width:60px;
+  font-size:10px; font-weight:600; padding:2px 4px; border-radius:999px; white-space:nowrap; box-sizing:border-box;
   &.done-tag { background:#edf7eb !important; color:$success !important; }
 }
 .ev-priority-slot {
-  width:72px; min-width:72px; min-height:20px; display:flex; align-items:center; justify-content:center;
+  width:56px; min-width:56px; min-height:20px; display:flex; align-items:center; justify-content:center;
 }
 .ev-priority-slot :deep(.el-tag) {
   width:100%; margin:0; font-size:10px; justify-content:center; padding:0 4px;
@@ -2405,17 +2453,17 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 }
 
 .ev-status-actions {
-  width:100%; display:flex; align-items:center; justify-content:flex-end; gap:5px; flex-wrap:wrap;
+  width:100%; display:flex; align-items:center; justify-content:flex-end; gap:6px;
 }
 .ev-card.batch-mode .ev-side {
   gap:0;
 }
 
 .ev-status-btn {
-  min-width:34px; height:22px; padding:0 8px; border-radius:999px; border:1px solid #dbe3ef;
+  width:48px; height:24px; padding:0; border-radius:999px; border:1px solid #dbe3ef;
   background:#fff; color:$ink2; cursor:pointer; display:inline-flex; align-items:center; justify-content:center;
-  font-size:10px; font-weight:700; line-height:1; transition:all .15s; box-shadow:0 1px 2px rgba(15,23,42,.05);
-  &:hover:not(:disabled) { transform:translateY(-1px); }
+  font-size:10.5px; font-weight:500; line-height:1; transition:all .15s; box-shadow:0 1px 2px rgba(15,23,42,.04);
+  &:hover:not(:disabled) { transform:none; box-shadow:0 1px 3px rgba(15,23,42,.08); }
   &:disabled { cursor:wait; opacity:.64; }
   &.is-pending { background:#f5f7fa; }
 
@@ -2434,6 +2482,11 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   &.is-cancelled {
     border-color:#cbd5e1; color:#475569; background:#fcfcfd;
     &:hover:not(:disabled) { background:#64748b; border-color:#64748b; color:#fff; }
+  }
+  &.is-delete {
+    width:48px; padding:0;
+    border-color:#fecaca; color:#dc2626; background:#fef2f2;
+    &:hover:not(:disabled) { background:#ef4444; border-color:#ef4444; color:#fff; }
   }
 }
 
