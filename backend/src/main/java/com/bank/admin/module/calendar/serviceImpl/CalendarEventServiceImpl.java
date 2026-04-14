@@ -1,6 +1,7 @@
 package com.bank.admin.module.calendar.serviceImpl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.bank.admin.common.exception.BusinessException;
 import com.bank.admin.module.calendar.dto.CalendarEventQueryDTO;
@@ -90,10 +91,21 @@ public class CalendarEventServiceImpl implements CalendarEventService {
         if (exist == null) {
             throw new BusinessException(404, "事项不存在");
         }
+
         CalendarEvent entity = new CalendarEvent();
-        BeanUtils.copyProperties(dto, entity);
-        entity.setId(id);
-        calendarEventMapper.updateById(entity);
+        LambdaUpdateWrapper<CalendarEvent> updateWrapper = Wrappers.lambdaUpdate();
+        updateWrapper.eq(CalendarEvent::getId, id)
+                .set(CalendarEvent::getTitle, dto.getTitle())
+                .set(CalendarEvent::getDescription, dto.getDescription())
+                .set(CalendarEvent::getEventDate, dto.getEventDate())
+                .set(CalendarEvent::getStartTime, dto.getStartTime())
+                .set(CalendarEvent::getEndTime, dto.getEndTime())
+                .set(CalendarEvent::getCategory, dto.getCategory())
+                .set(CalendarEvent::getPriority, dto.getPriority())
+                .set(CalendarEvent::getStatus, dto.getStatus())
+                .set(CalendarEvent::getRemindBeforeMin, dto.getRemindBeforeMin())
+                .set(CalendarEvent::getRemark, dto.getRemark());
+        calendarEventMapper.update(entity, updateWrapper);
     }
 
     @Override

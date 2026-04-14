@@ -7,9 +7,6 @@
         </span>
         <div class="header-title-group">
           <h1 class="page-title">日历计划</h1>
-          <div class="header-meta">
-            <span class="meta-year">{{ currentYear }} 年</span>
-          </div>
         </div>
       </div>
       <div class="header-actions">
@@ -118,117 +115,124 @@
           </div>
         </div>
 
-        <!-- 星期标题行 -->
-        <div class="mo-week-header">
-          <span v-for="(w,wi) in weekDays" :key="w" :class="{'wk-end':wi>=5}">{{ w }}</span>
-        </div>
-
-        <!-- 月视图网格 -->
-        <transition name="mo-grid-fade" mode="out-in">
-        <div
-          class="mo-grid"
-          ref="moGridRef"
-          :style="{ '--mo-row-count': String(moRowCount) }"
-          :key="`${currentYear}-${currentMonth}`"
-        >
-          <div
-            v-for="(cell,ci) in moAllCells"
-            :key="cell.key||ci"
-            :class="[
-              'mo-cell',
-              !cell.isOther ? getMoCellToneClass(cell.date) : '',
-              {
-                'other': cell.isOther,
-                'today': cell.isToday,
-                'weekend': !cell.isOther && cell.isWeekend,
-                'holiday': !cell.isOther && !!cell.holidayName,
-                'mo-has-events': !cell.isOther && getMoDayEvents(cell.date).length > 0,
-                'mo-cell-selected': isMoCellSelected(cell.date),
-                'mo-cell-popover-active': isMoPopoverActiveCell(cell.date),
-                'mo-search-match': !cell.isOther && getMoDayMatchCount(cell.date) > 0,
-                'mo-cell-dimmed': moFilterStatus !== undefined && !cell.isOther && !getMoDayHasStatus(cell.date, moFilterStatus) && getMoDayEvents(cell.date).length > 0,
-                'mo-cell-flash': moCellFlash && cell.isToday
-              }
-            ]"
-            @click.stop="onMoCellClick(cell, $event)"
-          >
-            <div class="mo-cell-hd">
-              <b class="mo-day-num" @click.stop="jumpToDayByDate(cell.date)">{{ cell.day }}</b>
-              <small v-if="cell.holidayName && !cell.isOther" class="mo-holiday-tag" :title="cell.holidayName">{{ cell.holidayName }}</small>
-              <div class="mo-cell-hd-right" v-if="!cell.isOther">
-                <span v-if="getMoDayEvents(cell.date).length > 0" class="mo-day-badge">{{ getMoDayEvents(cell.date).length }}</span>
-                <button class="mo-cell-add-btn" @click.stop="openDrawer(null, cell.date)" title="快速新建日程">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                </button>
-              </div>
+        <div class="mo-calendar-stage">
+          <div class="mo-calendar-panel">
+            <!-- 星期标题行 -->
+            <div class="mo-week-header">
+              <span v-for="(w,wi) in weekDays" :key="w" :class="{'wk-end':wi>=5}">{{ w }}</span>
             </div>
 
-            <template v-if="!cell.isOther && getMoDayEvents(cell.date).length > 0">
-              <span v-if="getMoDayMatchCount(cell.date) > 0" class="mo-cell-summary-hit">命中 {{ getMoDayMatchCount(cell.date) }}</span>
-              <div class="mo-event-list">
-                <template v-for="row in getMoCellRows(cell.date)" :key="row.key">
-                  <div
-                    v-if="row.type === 'event'"
-                    :class="['mo-event-item', {
-                      'mo-todo': row.event.status === EVENT_STATUS_VALUE.TODO,
-                      'mo-doing': row.event.status === EVENT_STATUS_VALUE.DOING,
-                      'mo-done': row.event.status === EVENT_STATUS_VALUE.DONE,
-                      'mo-cancelled': row.event.status === EVENT_STATUS_VALUE.CANCELLED,
-                      'mo-ev-hit': !!keyword.trim()
-                    }]"
-                    @click.stop="openDrawer(row.event)"
-                    :style="{ '--cat-color': categoryColor[row.event.category] }"
-                  >
-                    <span class="mo-ev-dot" :style="{ background: categoryColor[row.event.category] }"></span>
-                    <span class="mo-ev-time">{{ row.event.startTime ? formatTime(row.event.startTime) : '全天' }}</span>
-                    <span class="mo-ev-title" :title="row.event.title">{{ row.event.title }}</span>
-                    <span v-if="row.event.status === EVENT_STATUS_VALUE.DOING" class="mo-ev-doing-dot"></span>
-                    <span v-else-if="row.event.status === EVENT_STATUS_VALUE.CANCELLED" class="mo-ev-cancel-icon">&times;</span>
-                  </div>
-                  <button
-                    v-else-if="row.type === 'more'"
-                    type="button"
-                    :class="['mo-more-tip', { 'mo-more-active': moPopoverDate === cell.date && moPopoverVisible }]"
-                    @click.stop="toggleMoPopover(cell, $event)"
-                  >
-                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline :points="moPopoverDate === cell.date && moPopoverVisible ? '18 9 12 15 6 9' : '6 9 12 15 18 9'"/></svg>
-                    {{ moPopoverDate === cell.date && moPopoverVisible ? '收起' : '还有' }} {{ row.remaining }} 项
-                  </button>
-                  <div v-else class="mo-event-placeholder" aria-hidden="true"></div>
-                </template>
-              </div>
-              <div v-if="cell.isToday" class="mo-cell-progress">
-                <div class="mo-cell-progress-fill" :style="{ width: getMoDayDonePct(cell.date) + '%' }"></div>
-              </div>
-            </template>
-
-            <div v-else-if="!cell.isOther" class="mo-empty-cell"
-              @click.stop="onMoCellClick(cell, $event)"
+            <!-- 月视图网格 -->
+            <transition name="mo-grid-fade" mode="out-in">
+            <div
+              class="mo-grid"
+              ref="moGridRef"
+              :style="{ '--mo-row-count': String(moRowCount) }"
+              :key="`${currentYear}-${currentMonth}`"
             >
-              <button class="mo-empty-add-hint" @click.stop="openDrawer(null, cell.date)" title="快速新建日程">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                新建
-              </button>
-            </div>
-          </div>
-        </div>
-        </transition>
+              <div
+                v-for="(cell,ci) in moAllCells"
+                :key="cell.key||ci"
+                :class="[
+                  'mo-cell',
+                  !cell.isOther ? getMoCellToneClass(cell.date) : '',
+                  {
+                    'other': cell.isOther,
+                    'today': !cell.isOther && cell.isToday && shouldShowMoTodayState(cell.date),
+                    'weekend': !cell.isOther && cell.isWeekend,
+                    'holiday': !cell.isOther && !!cell.holidayName,
+                    'mo-has-events': !cell.isOther && getMoDayEvents(cell.date).length > 0,
+                    'mo-cell-selected': isMoCellSelected(cell.date),
+                    'mo-cell-popover-active': isMoPopoverActiveCell(cell.date),
+                    'mo-cell-filter-match': !cell.isOther && isMoCellFilteredMatch(cell.date),
+                    'mo-search-match': !cell.isOther && getMoDayMatchCount(cell.date) > 0,
+                    'mo-cell-dimmed': !cell.isOther && isMoCellFilteredOut(cell.date),
+                    'mo-cell-flash': moCellFlash && !cell.isOther && cell.isToday && shouldShowMoTodayState(cell.date)
+                  }
+                ]"
+                @click.stop="onMoCellClick(cell, $event)"
+              >
+                <div class="mo-cell-hd">
+                  <b class="mo-day-num" @click.stop="jumpToDayByDate(cell.date)">{{ cell.day }}</b>
+                  <small v-if="cell.holidayName && !cell.isOther" class="mo-holiday-tag" :title="cell.holidayName">{{ cell.holidayName }}</small>
+                  <div class="mo-cell-hd-right" v-if="!cell.isOther">
+                    <span v-if="getMoDayEvents(cell.date).length > 0" class="mo-day-badge">{{ getMoDayEvents(cell.date).length }}</span>
+                    <button class="mo-cell-add-btn" @click.stop="openDrawer(null, cell.date)" title="快速新建日程">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                  </div>
+                </div>
 
-        <!-- 底部统计栏 -->
-        <div class="mo-footer">
-          <div class="mo-footer-stats">
-            <span class="mo-stat">共 <strong>{{ totalEvents }}</strong> 个日程</span>
-            <span class="mo-stat mo-stat-todo">待办 <strong>{{ stats.todoCount }}</strong></span>
-            <span class="mo-stat mo-stat-doing">进行中 <strong>{{ stats.doingCount }}</strong></span>
-            <span class="mo-stat mo-stat-done">已完成 <strong>{{ stats.doneCount }}</strong></span>
-            <span class="mo-stat mo-stat-cancelled">已取消 <strong>{{ stats.cancelledCount }}</strong></span>
-          </div>
-          <div v-if="monthData.length > 0" class="mo-footer-progress">
-            <span class="mo-footer-pct-label">本月完成率</span>
-            <div class="mo-footer-track">
-              <div class="mo-footer-fill" :style="{ width: statPercent('done') + '%' }"></div>
+                <template v-if="!cell.isOther && getMoDayEvents(cell.date).length > 0">
+                  <span v-if="getMoDayMatchCount(cell.date) > 0" class="mo-cell-summary-hit">命中 {{ getMoDayMatchCount(cell.date) }}</span>
+                  <div class="mo-event-list">
+                    <template v-for="row in getMoCellRows(cell.date)" :key="row.key">
+                      <div
+                        v-if="row.type === 'event'"
+                        :class="['mo-event-item', {
+                          'mo-todo': row.event.status === EVENT_STATUS_VALUE.TODO,
+                          'mo-doing': row.event.status === EVENT_STATUS_VALUE.DOING,
+                          'mo-done': row.event.status === EVENT_STATUS_VALUE.DONE,
+                          'mo-cancelled': row.event.status === EVENT_STATUS_VALUE.CANCELLED,
+                          'mo-ev-hit': !!keyword.trim()
+                        }]"
+                        @click.stop="openDrawer(row.event)"
+                        :style="{ '--cat-color': categoryColor[row.event.category] }"
+                      >
+                        <span class="mo-ev-dot" :style="{ background: categoryColor[row.event.category] }"></span>
+                        <span class="mo-ev-time">{{ row.event.startTime ? formatTime(row.event.startTime) : '全天' }}</span>
+                        <span class="mo-ev-title" :title="row.event.title">{{ row.event.title }}</span>
+                        <span v-if="row.event.status === EVENT_STATUS_VALUE.DOING" class="mo-ev-doing-dot"></span>
+                        <span v-else-if="row.event.status === EVENT_STATUS_VALUE.CANCELLED" class="mo-ev-cancel-icon">&times;</span>
+                      </div>
+                      <button
+                        v-else-if="row.type === 'more'"
+                        type="button"
+                        :class="['mo-more-tip', { 'mo-more-active': moPopoverDate === cell.date && moPopoverVisible }]"
+                        @click.stop="toggleMoPopover(cell, $event)"
+                      >
+                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline :points="moPopoverDate === cell.date && moPopoverVisible ? '18 9 12 15 6 9' : '6 9 12 15 18 9'"/></svg>
+                        {{ moPopoverDate === cell.date && moPopoverVisible ? '收起' : '还有' }} {{ row.remaining }} 项
+                      </button>
+                      <div v-else class="mo-event-placeholder" aria-hidden="true"></div>
+                    </template>
+                  </div>
+                  <div v-if="cell.isToday" class="mo-cell-progress">
+                    <div class="mo-cell-progress-fill" :style="{ width: getMoDayDonePct(cell.date) + '%' }"></div>
+                  </div>
+                </template>
+
+                <div
+                  v-else-if="!cell.isOther && !isMoCellFilteredOut(cell.date) && (!cell.isToday || shouldShowMoTodayState(cell.date))"
+                  class="mo-empty-cell"
+                  @click.stop="onMoCellClick(cell, $event)"
+                >
+                  <button class="mo-empty-add-hint" @click.stop="openDrawer(null, cell.date)" title="快速新建日程">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    新建
+                  </button>
+                </div>
+              </div>
             </div>
-            <span class="mo-footer-pct">{{ statPercent('done') }}%</span>
+            </transition>
+
+            <!-- 底部统计栏 -->
+            <div class="mo-footer">
+              <div class="mo-footer-stats">
+                <span class="mo-stat">共 <strong>{{ totalEvents }}</strong> 个日程</span>
+                <span class="mo-stat mo-stat-todo">待办 <strong>{{ stats.todoCount }}</strong></span>
+                <span class="mo-stat mo-stat-doing">进行中 <strong>{{ stats.doingCount }}</strong></span>
+                <span class="mo-stat mo-stat-done">已完成 <strong>{{ stats.doneCount }}</strong></span>
+                <span class="mo-stat mo-stat-cancelled">已取消 <strong>{{ stats.cancelledCount }}</strong></span>
+              </div>
+              <div v-if="monthData.length > 0" class="mo-footer-progress">
+                <span class="mo-footer-pct-label">本月完成率</span>
+                <div class="mo-footer-track">
+                  <div class="mo-footer-fill" :style="{ width: statPercent('done') + '%' }"></div>
+                </div>
+                <span class="mo-footer-pct">{{ statPercent('done') }}%</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1288,6 +1292,22 @@ function sortMonthEvents(list:any[]){
     return String(a.startTime||'99:99').localeCompare(String(b.startTime||'99:99'))
   })
 }
+const hasMoMonthFilter = computed(() => (
+  (moFilterCategory.value !== undefined && moFilterCategory.value !== null) ||
+  (moFilterStatus.value !== undefined && moFilterStatus.value !== null) ||
+  !!keyword.value.trim()
+))
+const moSourceDayEventsMap = computed<Record<string, any[]>>(()=>{
+  const map:Record<string, any[]> = {}
+  for(const event of monthData.value){
+    const key=event.eventDate
+    if(!key)continue
+    if(!map[key]) map[key]=[]
+    map[key].push(event)
+  }
+  Object.keys(map).forEach((key)=>{ map[key]=sortMonthEvents(map[key]) })
+  return map
+})
 const moDayEventsMap = computed<Record<string, any[]>>(()=>{
   const map:Record<string, any[]> = {}
   for(const event of moFilteredMonthData.value){
@@ -1299,6 +1319,9 @@ const moDayEventsMap = computed<Record<string, any[]>>(()=>{
   Object.keys(map).forEach((key)=>{ map[key]=sortMonthEvents(map[key]) })
   return map
 })
+function getMoDaySourceEvents(dateKey:string):any[] {
+  return moSourceDayEventsMap.value[dateKey] || []
+}
 function getMoDayEvents(dateKey:string):any[] {
   return moDayEventsMap.value[dateKey] || []
 }
@@ -1375,6 +1398,18 @@ function getMoCellToneClass(dateKey:string):string {
 function getMoDayMatchCount(dateKey:string):number {
   return getMoDayMeta(dateKey)?.matchCount ?? 0
 }
+function getMoDayHasVisibleData(dateKey:string):boolean {
+  return getMoDayEvents(dateKey).length > 0
+}
+function shouldShowMoTodayState(dateKey?: string | null):boolean {
+  return !!dateKey && getMoDayHasVisibleData(dateKey)
+}
+function isMoCellFilteredMatch(dateKey:string):boolean {
+  return hasMoMonthFilter.value && getMoDayHasVisibleData(dateKey)
+}
+function isMoCellFilteredOut(dateKey:string):boolean {
+  return hasMoMonthFilter.value && getMoDaySourceEvents(dateKey).length > 0 && !getMoDayHasVisibleData(dateKey)
+}
 function getMoCellRows(dateKey:string):Array<{ key:string; type:'event'|'more'|'empty'; event?:any; remaining?:number }> {
   const dayEvents = getMoDayEvents(dateKey)
   if (!dayEvents.length) return []
@@ -1396,12 +1431,6 @@ function getMoCellRows(dateKey:string):Array<{ key:string; type:'event'|'more'|'
   }
 
   return rows
-}
-/** 判断某天是否有指定状态的日程（用于单元格淡化/高亮） */
-function getMoDayHasStatus(dateKey:string, status:number):boolean {
-  return monthData.value.some(
-    (e:any)=>e.eventDate===dateKey && e.status===status
-  )
 }
 // [M] end
 
@@ -1904,15 +1933,20 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 }
 .page-header {
   display:flex; align-items:center; justify-content:space-between;
-  padding:16px 28px; background:$surface; border-bottom:1px solid $border;
-  flex-shrink:0; box-shadow:0 1px 0 rgba(0,0,0,.03);
+  padding:16px 28px;
+  background:linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(248,250,253,.98) 100%);
+  border-bottom:1px solid rgba(211,223,238,.92);
+  flex-shrink:0;
+  box-shadow:0 10px 24px rgba(15,23,42,.04);
 }
 .header-left { display:flex; align-items:center; gap:12px; }
-.header-title-group { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.header-title-group { display:flex; flex-direction:column; gap:0; min-width:0; }
 .page-title-icon {
-  width:32px; height:32px; border-radius:$rs;
-  background:$primary-light; color:$primary;
+  width:34px; height:34px; border-radius:12px;
+  background:linear-gradient(180deg, rgba($primary,.12) 0%, rgba($primary,.06) 100%);
+  color:$primary;
   display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  box-shadow:0 8px 18px rgba(9,88,217,.08);
 }
 .page-title { margin:0; font-size:18px; font-weight:700; color:$ink; letter-spacing:-.3px; }
 .header-meta { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
@@ -1966,55 +2000,146 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 
 
 
-.stats-row { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
+.stats-row { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; }
 .stat-card {
-  background:$surface; border-radius:$rs; padding:12px 10px 10px;
-  display:flex; flex-direction:column; gap:8px;
-  box-shadow:0 1px 3px rgba(15,23,42,.04); border:1px solid $border;
-  cursor:pointer; transition:all .2s ease;
-  &:hover { box-shadow:0 2px 6px rgba(15,23,42,.08); border-color:currentColor; }
-  &.stat-active { border-color:currentColor; box-shadow:0 2px 6px rgba(15,23,42,.1); }
+  --stat-accent: #7b8ba2;
+  --stat-number: #5f6f86;
+  --stat-label: #7d8ca3;
+  --stat-soft: rgba(123, 139, 162, .08);
+  --stat-soft-strong: rgba(123, 139, 162, .16);
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(255,255,255,.99) 0%, rgba(248,250,253,.97) 100%);
+  border-radius: 18px;
+  padding: 13px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 8px 20px rgba(15,23,42,.045);
+  border: 1px solid rgba(218,226,236,.9);
+  cursor: pointer;
+  transition: all .2s ease;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 50px;
+    background: linear-gradient(180deg, var(--stat-soft-strong) 0%, transparent 100%);
+    opacity: .75;
+    pointer-events: none;
+  }
+
+  &:hover {
+    transform: translateY(-2px);
+    border-color: var(--stat-soft-strong);
+    box-shadow: 0 14px 26px rgba(15,23,42,.07);
+  }
+
+  &.stat-active {
+    transform: translateY(-2px);
+    border-color: transparent;
+    background: linear-gradient(180deg, rgba(255,255,255,.99) 0%, var(--stat-soft) 180%);
+    box-shadow: inset 0 0 0 1.5px var(--stat-soft-strong), 0 14px 28px rgba(15,23,42,.08);
+  }
 }
-.stat-card-top { display:flex; align-items:center; justify-content:flex-start; }
-.stat-icon-wrap { width:28px; height:28px; border-radius:$rs; display:flex; align-items:center; justify-content:center; flex-shrink:0; svg { width:14px; height:14px; } }
-.stat-todo {
-  color:$warning;
-  .stat-icon-wrap { background:#fff7e6; }
-  &.stat-active { border-color:$warning; background:#fffbf0; }
-  .stat-bar-inner { background:$warning; }
+.stat-card-top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
 }
-.stat-doing {
-  color:$primary;
-  .stat-icon-wrap { background:$primary-light; }
-  &.stat-active { border-color:$primary; background:#f0f7ff; }
-  .stat-bar-inner { background:$primary; }
-}
-.stat-done {
-  color:$success;
-  .stat-icon-wrap { background:#f6ffed; }
-  &.stat-active { border-color:$success; background:#f6ffed; }
-  .stat-bar-inner { background:$success; }
+.stat-icon-wrap {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--stat-accent);
+  background: linear-gradient(180deg, var(--stat-soft) 0%, rgba(255,255,255,.96) 100%);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.62), 0 6px 14px rgba(15,23,42,.04);
+
+  svg { width: 15px; height: 15px; }
 }
 .stat-all {
-  color:$ink;
-  .stat-icon-wrap { background:#f2f3f5; }
-  &.stat-active { border-color:$ink; background:#f7f8fa; }
-  .stat-bar-inner { background:$ink; }
+  --stat-accent: #5f86c9;
+  --stat-number: #4169ae;
+  --stat-label: #6f8fbe;
+  --stat-soft: rgba(95, 134, 201, .10);
+  --stat-soft-strong: rgba(95, 134, 201, .18);
+}
+
+.stat-todo {
+  --stat-accent: #e39a32;
+  --stat-number: #c98217;
+  --stat-label: #c9974f;
+  --stat-soft: rgba(227, 154, 50, .10);
+  --stat-soft-strong: rgba(227, 154, 50, .18);
+}
+.stat-doing {
+  --stat-accent: #4b84f2;
+  --stat-number: #2d6fe8;
+  --stat-label: #5c8ff0;
+  --stat-soft: rgba(75, 132, 242, .10);
+  --stat-soft-strong: rgba(75, 132, 242, .18);
+}
+.stat-done {
+  --stat-accent: #4ab56a;
+  --stat-number: #2d9a4f;
+  --stat-label: #5ea976;
+  --stat-soft: rgba(74, 181, 106, .10);
+  --stat-soft-strong: rgba(74, 181, 106, .18);
 }
 .stat-cancelled {
-  color:#86909c;
-  .stat-icon-wrap { background:#f4f4f5; }
-  &.stat-active { border-color:#86909c; background:#f7f8fa; }
-  .stat-bar-inner { background:#86909c; }
+  --stat-accent: #96a0af;
+  --stat-number: #748092;
+  --stat-label: #96a0af;
+  --stat-soft: rgba(150, 160, 175, .09);
+  --stat-soft-strong: rgba(150, 160, 175, .17);
 }
 .stat-info {
-  em { display:block; font-style:normal; font-size:20px; font-weight:700; line-height:1; color:$ink; }
-  i { display:block; font-style:normal; font-size:11px; color:$sub; margin-top:3px; }
+  position: relative;
+  z-index: 1;
+
+  em {
+    display: block;
+    font-style: normal;
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--stat-number);
+    letter-spacing: -.4px;
+  }
+
+  i {
+    display: block;
+    font-style: normal;
+    font-size: 11px;
+    color: var(--stat-label);
+    margin-top: 4px;
+  }
 }
 .stat-bar {
-  height:3px; background:$border; border-radius:2px; overflow:hidden;
-  .stat-bar-inner { height:100%; border-radius:2px; transition:width .6s cubic-bezier(.4,0,.2,1); min-width:4px; }
+  position: relative;
+  z-index: 1;
+  height: 4px;
+  background: rgba(148, 163, 184, .14);
+  border-radius: 999px;
+  overflow: hidden;
+
+  .stat-bar-inner {
+    height: 100%;
+    border-radius: 999px;
+    transition: width .6s cubic-bezier(.4,0,.2,1);
+    min-width: 4px;
+    background: linear-gradient(90deg, var(--stat-accent) 0%, var(--stat-accent) 100%);
+  }
 }
+
+
 .legend { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .calendar-legend { margin-left:auto; }
 .leg-item {
@@ -2030,34 +2155,36 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 /* 日历卡片 */
 /* 日历卡片 */
 .cal-card {
-  background:$surface; border-radius:$rs-lg; padding:16px 14px 12px;
-  box-shadow:$shadow-sm; border:1px solid rgba(0,0,0,.04); flex:1;
+  background:linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(247,250,254,.98) 100%);
+  border-radius:18px; padding:14px 12px 12px;
+  box-shadow:0 12px 28px rgba(15,23,42,.06); border:1px solid rgba(211,223,238,.94); flex:1;
   display:flex; flex-direction:column; min-height:0; position:relative;
 }
-.cal-nav { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-shrink:0; }
+.cal-nav { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; padding:0 2px; flex-shrink:0; }
 .cal-nav-center { display:flex; align-items:center; gap:10px; flex:1; justify-content:center; position:relative; }
 .nav-btn {
-  width:30px; height:30px; border:1px solid $border; background:$surface;
-  border-radius:$rs; cursor:pointer; display:flex; align-items:center; justify-content:center;
-  color:$sub; transition:all .18s; flex-shrink:0;
-  &:hover:not(:disabled) { border-color:$primary; color:$primary; background:$primary-light; }
+  width:32px; height:32px; border:1px solid rgba(211,223,238,.96); background:rgba(255,255,255,.95);
+  border-radius:10px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  color:$sub; transition:all .18s; flex-shrink:0; box-shadow:0 4px 12px rgba(15,23,42,.04);
+  &:hover:not(:disabled) { border-color:$primary; color:$primary; background:$primary-light; box-shadow:0 8px 16px rgba(9,88,217,.08); }
   &:disabled { opacity:.3; cursor:not-allowed; }
 }
 .cal-month {
-  font-size:16px; font-weight:700; color:$ink; letter-spacing:.5px;
-  em { font-style:normal; font-size:13px; color:$sub; font-weight:400; }
+  font-size:16px; font-weight:700; color:$ink; letter-spacing:.2px;
+  em { font-style:normal; font-size:13px; color:$sub; font-weight:500; }
 }
 .cal-month-btn {
   display:inline-flex; align-items:center; gap:4px;
-  cursor:pointer; padding:4px 10px; border-radius:$rs; transition:all .15s; user-select:none;
-  &:hover { background:$primary-light; color:$primary; em { color:rgba($primary,.7); } .mp-arrow { color:$primary; } }
+  cursor:pointer; padding:6px 12px; border-radius:999px; transition:all .15s; user-select:none;
+  background:rgba(255,255,255,.84); border:1px solid rgba(211,223,238,.9);
+  &:hover { background:$primary-light; color:$primary; border-color:rgba($primary,.18); em { color:rgba($primary,.7); } .mp-arrow { color:$primary; } }
   .mp-arrow { color:$faint; transition:all .2s; &.open { transform:rotate(180deg); } }
 }
 .month-picker-popup {
-  position:absolute; top:calc(100% + 8px); left:50%; transform:translateX(-50%);
-  background:$surface; border:1px solid $border; border-radius:$rs-lg;
-  box-shadow:$shadow-lg; padding:14px; z-index:200; width:216px;
-  animation:popup-in .15s ease;
+  position:absolute; top:calc(100% + 10px); left:50%; transform:translateX(-50%);
+  background:rgba(255,255,255,.98); border:1px solid rgba(211,223,238,.96); border-radius:16px;
+  box-shadow:0 20px 40px rgba(15,23,42,.12); padding:14px; z-index:200; width:216px;
+  backdrop-filter:blur(10px); animation:popup-in .15s ease;
 }
 @keyframes popup-in {
   from { opacity:0; transform:translateX(-50%) translateY(-6px); }
@@ -2066,24 +2193,24 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .mp-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
 .mp-yr-label { font-size:14px; font-weight:700; color:$ink; }
 .mp-yr-btn {
-  width:26px; height:26px; border:1px solid $border; background:$surface;
-  border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  width:28px; height:28px; border:1px solid rgba(211,223,238,.96); background:$surface;
+  border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center;
   color:$sub; transition:all .15s;
   &:hover { border-color:$primary; color:$primary; background:$primary-light; }
 }
-.mp-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:5px; }
+.mp-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
 .mp-m-btn {
-  font-size:12.5px; font-weight:500; padding:6px 0; border-radius:6px;
+  font-size:12.5px; font-weight:500; padding:7px 0; border-radius:8px;
   border:1px solid transparent; background:transparent; cursor:pointer;
   color:$ink2; text-align:center; transition:all .15s;
   &:hover { background:$primary-light; color:$primary; }
-  &.active { background:$primary; color:#fff; border-color:$primary; font-weight:700; }
+  &.active { background:$primary; color:#fff; border-color:$primary; font-weight:700; box-shadow:0 8px 16px rgba(9,88,217,.2); }
 }
 .today-btn {
-  font-size:12px; font-weight:600; color:$primary;
-  background:$primary-light; border:none; border-radius:6px;
-  padding:4px 12px; cursor:pointer; transition:all .18s;
-  &:hover { background:$primary; color:#fff; }
+  font-size:12px; font-weight:700; color:$primary;
+  background:$primary-light; border:none; border-radius:999px;
+  padding:6px 14px; cursor:pointer; transition:all .18s; box-shadow:inset 0 0 0 1px rgba($primary,.08);
+  &:hover { background:$primary; color:#fff; box-shadow:0 8px 16px rgba(9,88,217,.22); }
 }
 .month-fade-enter-active,.month-fade-leave-active { transition:opacity .18s,transform .18s; }
 .month-fade-enter-from { opacity:0; transform:translateX(8px); }
@@ -2091,36 +2218,44 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 
 .cal-grid-wrap { flex:1; display:flex; flex-direction:column; min-height:0; }
 .cal-week-row {
-  display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:4px;
-  span { text-align:center; font-size:11.5px; font-weight:600; color:$sub; padding:4px 0 8px; letter-spacing:2px;
-    &.wk-end { color:$danger; } }
+  display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:6px;
+  span { text-align:center; font-size:11px; font-weight:700; color:#7b8798; padding:4px 0 8px; letter-spacing:1.5px;
+    &.wk-end { color:#cf5b2d; } }
 }
-.cal-day-grid { display:grid; grid-template-columns:repeat(7,1fr); grid-auto-rows:1fr; flex:1; gap:3px; }
+.cal-day-grid {
+  display:grid; grid-template-columns:repeat(7,1fr); grid-auto-rows:1fr; flex:1; gap:6px;
+  padding:8px; border-radius:16px; background:linear-gradient(180deg, rgba(244,247,252,.82) 0%, rgba(255,255,255,.82) 100%);
+  box-shadow:inset 0 0 0 1px rgba(220,228,239,.72);
+}
 .day-cell {
-  border-radius:7px; cursor:pointer; transition:all .15s;
-  position:relative; border:1.5px solid transparent; min-height:48px;
-  .cell-inner { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:5px 2px 4px; }
-  &:hover { background:$primary-light; border-color:rgba($primary,.2); }
-  &.active { background:$primary-light; border-color:rgba($primary,.4); .cell-num { color:$primary; font-weight:700; } }
+  border-radius:12px; cursor:pointer; transition:all .18s ease;
+  position:relative; border:1px solid transparent; min-height:54px;
+  background:linear-gradient(180deg, rgba(255,255,255,.94) 0%, rgba(250,252,255,.96) 100%);
+  box-shadow:inset 0 0 0 1px rgba(229,236,244,.72);
+  .cell-inner { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:7px 3px 5px; }
+  &:hover { background:linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%); border-color:rgba($primary,.16); box-shadow:inset 0 0 0 1px rgba($primary,.16), 0 8px 16px rgba(9,88,217,.05); }
+  &.active { background:linear-gradient(180deg, #eef5ff 0%, #e8f0ff 100%); border-color:rgba($primary,.28); box-shadow:inset 0 0 0 1px rgba($primary,.22), 0 10px 18px rgba(9,88,217,.08); .cell-num { color:$primary; font-weight:800; } }
   &.today {
-    background:rgba($primary,.04); border-color:rgba($primary,.18);
-    .cell-num { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:50%; background:$primary; color:#fff !important; font-weight:700; font-size:13px; box-shadow:0 0 0 4px rgba($primary,.14),0 2px 8px rgba($primary,.4); }
+    background:linear-gradient(180deg, rgba(#ff7875,.14) 0%, rgba(#fff1f0,.86) 100%);
+    box-shadow:inset 4px 0 0 #ff4d4f, inset 0 0 0 1px rgba(#ff4d4f,.16), 0 10px 18px rgba(255,77,79,.08);
+    .cell-num { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:50%; background:#ff4d4f; color:#fff !important; font-weight:800; font-size:13px; box-shadow:0 2px 10px rgba(255,77,79,.38), 0 0 0 3px rgba(255,77,79,.12); }
   }
-  &.other { opacity:.28; pointer-events:none; }
-  &.weekend .cell-num { color:$danger; font-weight:600; }
-  &.holiday .cell-num { color:#cf382a; font-weight:700; }
-  &.has-events { background:rgba($primary,.03); }
+  &.other { background:#f7f8fa; opacity:.52; pointer-events:none; filter:saturate(.8); box-shadow:none; }
+  &.weekend:not(.other) { background:linear-gradient(180deg, rgba(255,247,237,.55) 0%, rgba(255,255,255,.96) 100%); }
+  &.weekend .cell-num { color:#cf5b2d; font-weight:700; }
+  &.holiday .cell-num { color:#b8290e; font-weight:800; }
+  &.has-events { background:linear-gradient(180deg, rgba(238,245,255,.78) 0%, rgba(255,255,255,.98) 100%); }
 }
-.cell-hd { display:flex; flex-direction:column; align-items:center; gap:2px; width:100%; justify-content:center; min-height:32px; flex-shrink:0; }
-.cell-num { font-size:14px; font-weight:500; color:$ink; line-height:1.2; }
+.cell-hd { display:flex; flex-direction:column; align-items:center; gap:3px; width:100%; justify-content:center; min-height:34px; flex-shrink:0; }
+.cell-num { font-size:14px; font-weight:700; color:$ink; line-height:1.2; }
 .cell-hd small {
-  font-size:9px; color:#cf382a; background:#ffe4df; border-radius:3px; padding:0 4px; line-height:15px; font-weight:700;
-  white-space:nowrap; max-width:30px; overflow:hidden; text-overflow:ellipsis; display:block;
+  font-size:9px; color:#c4380d; background:#fff0e6; border-radius:4px; padding:0 4px; line-height:15px; font-weight:800;
+  white-space:nowrap; max-width:32px; overflow:hidden; text-overflow:ellipsis; display:block; border:1px solid rgba(196,56,13,.18);
 }
 .cell-dots {
-  display:flex; justify-content:center; gap:2px; padding-top:2px;
-  i { width:5px; height:5px; border-radius:50%; display:inline-block; flex-shrink:0;
-    &.dot-more { width:auto; height:auto; font-size:8px; color:$sub; background:none !important; font-style:normal; line-height:1; font-weight:700; } }
+  display:flex; justify-content:center; gap:3px; padding-top:4px;
+  i { width:6px; height:6px; border-radius:50%; display:inline-block; flex-shrink:0; box-shadow:0 0 0 2px rgba(255,255,255,.8);
+    &.dot-more { width:auto; height:auto; font-size:8px; color:$sub; background:none !important; font-style:normal; line-height:1; font-weight:800; box-shadow:none; } }
 }
 .dot-more {
   display:inline-flex; align-items:center; justify-content:center;
@@ -2129,8 +2264,14 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .loading-spinner { width:28px; height:28px; border:3px solid $border; border-top-color:$primary; border-radius:50%; animation:spin .6s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
 
-.toolbar { display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap; }
-.toolbar-right { display:flex; align-items:center; gap:8px; margin-left:auto; }
+.toolbar {
+  display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap;
+  margin-top:2px; padding:4px 2px 0;
+}
+.toolbar-right {
+  display:flex; align-items:center; gap:8px; margin-left:auto;
+  padding:8px 10px; border-radius:14px; background:rgba(255,255,255,.76); border:1px solid rgba(219,226,234,.88);
+}
 
 .kbd-hints-wrap {
   position:relative; flex-shrink:0; align-self:flex-start;
@@ -2156,37 +2297,38 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 
 
 .right-panel {
-  flex:none; display:flex; flex-direction:column; min-width:0; background:$surface;
-  border:1px solid rgba($primary,.08); border-radius:$rs-lg; overflow:hidden; box-shadow:$shadow-sm;
+  flex:none; display:flex; flex-direction:column; min-width:0;
+  background:linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(247,250,254,.98) 100%);
+  border:1px solid rgba(211,223,238,.94); border-radius:18px; overflow:hidden; box-shadow:0 12px 28px rgba(15,23,42,.06);
 }
 .rp-head {
   display:flex; align-items:center; justify-content:space-between;
-  padding:10px 14px 6px; flex-shrink:0;
-  background:linear-gradient(to bottom,#fafbfc 0%,$surface 100%);
-  gap:8px; flex-wrap:nowrap;
+  padding:12px 16px 8px; flex-shrink:0;
+  background:linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(244,248,253,.95) 100%);
+  gap:8px; flex-wrap:nowrap; border-bottom:1px solid rgba(223,231,241,.84);
 }
 .rp-date-info { display:flex; align-items:center; gap:8px; min-width:0; }
-.rp-date-main { display:flex; align-items:center; gap:6px; min-width:0; }
-.rp-day-num { font-size:28px; font-weight:800; color:$ink; line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-.8px; }
+.rp-date-main { display:flex; align-items:center; gap:8px; min-width:0; }
+.rp-day-num { font-size:30px; font-weight:900; color:$ink; line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-1px; }
 .rp-date-sub { display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0; }
-.rp-date-text { font-size:12px; font-weight:600; color:$ink2; }
+.rp-date-text { font-size:12px; font-weight:700; color:$ink2; }
 .rp-rel-date {
-  font-size:10px; font-weight:600; padding:0 7px; border-radius:999px; display:inline-flex; align-items:center; height:20px; width:fit-content;
+  font-size:10px; font-weight:700; padding:0 8px; border-radius:999px; display:inline-flex; align-items:center; height:21px; width:fit-content;
   &.rel-today { background:#e6f4ff; color:$primary; }
-  &.rel-future { background:#f6ffed; color:$success; }
-  &.rel-past { background:$bg; color:$sub; }
+  &.rel-future { background:#edf8ef; color:$success; }
+  &.rel-past { background:#f3f5f8; color:$sub; }
 }
 .rp-date-info :deep(.el-tag) {
-  height:20px; padding:0 7px; font-size:10px; line-height:18px;
+  height:21px; padding:0 8px; font-size:10px; line-height:19px;
 }
 .rp-head-right { display:flex; align-items:center; gap:10px; margin-left:auto; }
 .rp-toolbar {
   display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:nowrap;
-  padding:8px 14px; border-bottom:1px solid $border;
-  background:linear-gradient(to bottom,#fafbfc 0%,$surface 100%);
+  padding:10px 16px; border-bottom:1px solid rgba(223,231,241,.84);
+  background:linear-gradient(180deg, rgba(250,252,255,.92) 0%, rgba(255,255,255,.96) 100%);
 }
 .rp-toolbar-left { display:flex; align-items:center; gap:8px; min-width:0; }
-.quick-filters { display:flex; gap:3px; background:$bg; padding:3px; border-radius:$rs; border:1px solid $border; flex-wrap:nowrap; }
+.quick-filters { display:flex; gap:3px; background:#f5f7fb; padding:4px; border-radius:12px; border:1px solid rgba(219,226,234,.96); flex-wrap:nowrap; box-shadow:inset 0 1px 0 rgba(255,255,255,.8); }
 .qf-btn {
   font-size:10.5px; font-weight:500; padding:4px 8px;
   border:1px solid transparent; border-radius:5px; background:transparent; cursor:pointer; color:$sub; transition:all .15s; white-space:nowrap;
@@ -2309,56 +2451,57 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   p { font-size:13.5px; color:$sub; margin:0; }
 }
 .agenda-wrap {
-  display:flex; flex-direction:column; gap:6px; padding-bottom:0;
+  display:flex; flex-direction:column; gap:10px; padding:2px 0 0;
 }
 .agenda-section {
-  display:flex; flex-direction:column; gap:5px;
+  display:flex; flex-direction:column; gap:6px;
 }
 .agenda-section-head {
   display:flex; align-items:center; justify-content:space-between;
-  gap:8px; padding:0 12px; min-height:20px;
+  gap:8px; padding:0 16px; min-height:24px;
 }
 .agenda-section-title {
-  font-size:12px; font-weight:700; color:$ink;
+  font-size:12px; font-weight:800; color:$ink;
 }
 .agenda-section-hint {
   margin-left:5px; font-size:10.5px; color:$faint;
 }
 .agenda-section-count {
-  font-size:10.5px; font-weight:700; color:$primary; background:$primary-light;
-  border-radius:999px; padding:2px 7px;
+  font-size:10.5px; font-weight:800; color:$primary; background:rgba($primary,.08);
+  border-radius:999px; padding:3px 8px; border:1px solid rgba($primary,.12);
 }
-.ev-group { padding:0 14px; display:flex; flex-direction:column; gap:4px; }
+.ev-group { padding:0 16px; display:flex; flex-direction:column; gap:6px; }
 .ev-card {
   width:100%; box-sizing:border-box;
   display:grid; grid-template-columns:26px minmax(0,1fr) 200px; align-items:center; column-gap:10px;
-  padding:8px 10px; min-height:56px; border-radius:$rs; cursor:pointer;
-  transition:all .15s; border:1px solid transparent; background:$surface; position:relative;
+  padding:10px 12px; min-height:60px; border-radius:14px; cursor:pointer;
+  transition:all .18s ease; border:1px solid rgba(219,226,234,.72); background:rgba(255,255,255,.92); position:relative;
+  box-shadow:0 6px 16px rgba(15,23,42,.04);
 
-  &:hover { box-shadow:$shadow-sm; }
-  &.pri-0 { border-left:3px solid $faint; padding-left:7px; }
-  &.pri-1 { border-left:3px solid $warning; padding-left:7px; }
-  &.pri-2 { border-left:3px solid $danger; padding-left:7px; }
+  &:hover { transform:translateY(-1px); box-shadow:0 12px 24px rgba(15,23,42,.08); }
+  &.pri-0 { border-left:3px solid $faint; padding-left:9px; }
+  &.pri-1 { border-left:3px solid $warning; padding-left:9px; }
+  &.pri-2 { border-left:3px solid $danger; padding-left:9px; }
 
   &.ev-card-todo {
-    background:linear-gradient(180deg, #fffaf1 0%, #fff6eb 100%); border-color:rgba(217,119,6,.16);
-    &:hover { background:linear-gradient(180deg, #fff7e8 0%, #fff1df 100%); border-color:rgba(217,119,6,.24); }
+    background:linear-gradient(180deg, #fffaf1 0%, #fff6eb 100%); border-color:rgba(217,119,6,.18);
+    &:hover { background:linear-gradient(180deg, #fff7e8 0%, #fff1df 100%); border-color:rgba(217,119,6,.26); }
   }
   &.ev-card-doing {
-    background:linear-gradient(180deg, #f4f8ff 0%, #eef4ff 100%); border-color:rgba(9,88,217,.16);
-    &:hover { background:linear-gradient(180deg, #edf4ff 0%, #e5efff 100%); border-color:rgba(9,88,217,.24); }
+    background:linear-gradient(180deg, #f4f8ff 0%, #eef4ff 100%); border-color:rgba(9,88,217,.18);
+    &:hover { background:linear-gradient(180deg, #edf4ff 0%, #e5efff 100%); border-color:rgba(9,88,217,.26); }
   }
   &.ev-card-done {
-    background:linear-gradient(180deg, #f5fcf6 0%, #eef8f0 100%); border-color:rgba(47,158,68,.16);
-    &:hover { background:linear-gradient(180deg, #eef9ef 0%, #e7f5e9 100%); border-color:rgba(47,158,68,.24); }
+    background:linear-gradient(180deg, #f5fcf6 0%, #eef8f0 100%); border-color:rgba(47,158,68,.18);
+    &:hover { background:linear-gradient(180deg, #eef9ef 0%, #e7f5e9 100%); border-color:rgba(47,158,68,.26); }
   }
   &.ev-card-cancelled {
-    background:linear-gradient(180deg, #f7f8fa 0%, #f1f3f6 100%); border-color:rgba(134,144,156,.2);
-    &:hover { background:linear-gradient(180deg, #f1f3f6 0%, #eceff3 100%); border-color:rgba(134,144,156,.3); }
+    background:linear-gradient(180deg, #f7f8fa 0%, #f1f3f6 100%); border-color:rgba(134,144,156,.22);
+    &:hover { background:linear-gradient(180deg, #f1f3f6 0%, #eceff3 100%); border-color:rgba(134,144,156,.32); }
     .ev-title-row .strike { text-decoration:line-through; color:#86909c; }
   }
 
-  &.ev-selected { background:$primary-light !important; border-color:rgba($primary,.3) !important; }
+  &.ev-selected { background:#eaf2ff !important; border-color:rgba($primary,.32) !important; box-shadow:0 12px 24px rgba(9,88,217,.1); }
   &.batch-mode { cursor:pointer; }
   &.is-batch-disabled { cursor:not-allowed; }
 }
@@ -2394,22 +2537,23 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .ev-main { min-width:0; display:flex; flex-direction:column; justify-content:center; gap:3px; min-height:38px; }
 .ev-title-row { display:flex; align-items:center; gap:5px; flex-wrap:nowrap; min-width:0; min-height:19px; }
 .ev-inline-time {
-  width:68px; min-width:68px; flex-shrink:0;
+  width:72px; min-width:72px; flex-shrink:0;
   display:inline-flex; align-items:center; justify-content:center;
-  font-size:10.5px; font-weight:700; color:$ink2; font-variant-numeric:tabular-nums;
-  padding:1px 6px; border-radius:999px; background:#f3f6fa; white-space:nowrap; text-align:center;
+  font-size:10.5px; font-weight:800; color:$ink2; font-variant-numeric:tabular-nums;
+  padding:2px 7px; border-radius:999px; background:#f3f6fa; white-space:nowrap; text-align:center;
+  box-shadow:inset 0 0 0 1px rgba(219,226,234,.8);
   &.is-muted { color:$faint; background:#f5f7fa; }
 }
 
 .ev-tit {
-  font-size:13px; font-weight:600; color:$ink;
+  font-size:13px; font-weight:700; color:$ink;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; flex:1; cursor:text;
-  &.strike { text-decoration:line-through; color:$faint; font-weight:400; }
+  &.strike { text-decoration:line-through; color:$faint; font-weight:500; }
 }
 .ev-tit-input {
-  flex:1; min-width:0; font-size:13px; font-weight:600; color:$ink;
-  border:1.5px solid $primary; border-radius:5px; outline:none;
-  padding:2px 6px; background:$primary-light; box-shadow:0 0 0 3px rgba($primary,.1);
+  flex:1; min-width:0; font-size:13px; font-weight:700; color:$ink;
+  border:1.5px solid $primary; border-radius:8px; outline:none;
+  padding:3px 8px; background:$primary-light; box-shadow:0 0 0 3px rgba($primary,.1);
 }
 .ev-side {
   width:200px; min-width:200px; display:flex; flex-direction:column; align-items:flex-end; justify-content:center; gap:6px;
@@ -2419,7 +2563,8 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 }
 .ev-cat-tag {
   display:inline-flex; align-items:center; justify-content:center; width:60px; min-width:60px;
-  font-size:10px; font-weight:600; padding:2px 4px; border-radius:999px; white-space:nowrap; box-sizing:border-box;
+  font-size:10px; font-weight:700; padding:2px 4px; border-radius:999px; white-space:nowrap; box-sizing:border-box;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.45);
   &.done-tag { background:#edf7eb !important; color:$success !important; }
 }
 .ev-priority-slot {
@@ -2433,7 +2578,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 
 
 .ev-remark {
-  flex:1; min-width:0; font-size:11px; color:$sub; line-height:1.4;
+  flex:1; min-width:0; font-size:11px; color:#66758a; line-height:1.4;
   overflow:hidden; white-space:nowrap; text-overflow:ellipsis; cursor:help; display:block;
 }
 
@@ -2699,7 +2844,8 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .month-overview {
   width:100%; height:100%;
   display:flex; flex-direction:column;
-  padding:0 14px 0px; gap:0;
+  padding:6px 16px 10px;
+  gap:6px;
   overflow:hidden;
 }
 
@@ -2708,8 +2854,29 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   display:flex;
   align-items:center;
   justify-content:flex-start;
-  padding:1px 0 1px;
+  padding:1px 0 2px;
   flex-shrink:0;
+}
+.mo-calendar-stage {
+  flex:1;
+  min-height:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0 6px 36px;
+}
+.mo-calendar-panel {
+  width:min(100%, 1680px);
+  min-height:0;
+  height:min(100%, clamp(580px, calc(100vh - 238px), 780px));
+  display:flex;
+  flex-direction:column;
+  margin:0 auto;
+  padding:10px 10px 8px;
+  border:1px solid rgba(219,226,234,.88);
+  border-radius:18px;
+  background:linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(247,250,254,.98) 100%);
+  box-shadow:0 18px 42px rgba(15,23,42,.08), inset 0 1px 0 rgba(255,255,255,.85);
 }
 .mo-toolbar-actions {
   display:flex;
@@ -2773,20 +2940,21 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 
 /* [M] 状态筛选按钮组 */
 .mo-status-filters {
-  display:flex; gap:2px; background:$bg; padding:1px; border-radius:5px; border:1px solid $border;
+  display:flex; gap:3px; background:rgba(255,255,255,.88); padding:2px; border-radius:8px; border:1px solid rgba(219,226,234,.92);
+  box-shadow:0 4px 14px rgba(15,23,42,.04);
 }
 .msf-btn {
-  font-size:10.5px; font-weight:500; padding:2px 7px;
-  border:1px solid transparent; border-radius:5px; background:transparent; cursor:pointer;
-  color:$sub; transition:all .15s; white-space:nowrap;
-  &:hover:not(.active) { color:$ink; background:$surface; border-color:rgba($primary,.08); }
+  font-size:10.5px; font-weight:600; padding:3px 8px;
+  border:1px solid transparent; border-radius:6px; background:transparent; cursor:pointer;
+  color:#64748b; transition:all .15s ease; white-space:nowrap;
+  &:hover:not(.active) { color:$ink; background:#f8fbff; border-color:rgba($primary,.10); }
   &.active {
-    background:$primary; color:#fff; font-weight:700; box-shadow:0 2px 8px rgba($primary,.22);
+    background:linear-gradient(180deg, #2b6ef2 0%, #0958d9 100%); color:#fff; font-weight:700; box-shadow:0 4px 10px rgba($primary,.24);
   }
-  &.msf-todo.active { background:$warning; }
-  &.msf-doing.active { background:#2563eb; }
-  &.msf-done.active { background:$success; }
-  &.msf-cancelled.active { background:#64748b; }
+  &.msf-todo.active { background:linear-gradient(180deg, #f0a53b 0%, #d97706 100%); }
+  &.msf-doing.active { background:linear-gradient(180deg, #4d8eff 0%, #2563eb 100%); }
+  &.msf-done.active { background:linear-gradient(180deg, #46b96f 0%, #2f9e44 100%); }
+  &.msf-cancelled.active { background:linear-gradient(180deg, #7a8798 0%, #64748b 100%); }
 }
 /* 月视图状态按钮内的小色点 */
 .msf-btn { display:inline-flex; align-items:center; gap:4px; }
@@ -2794,19 +2962,20 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   display:inline-block; width:7px; height:7px; border-radius:50%; flex-shrink:0;
 }
 
-.mo-legend { display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+.mo-legend { display:flex; align-items:center; gap:6px; flex-wrap:wrap; color:#64748b; }
 
 /* 星期标题行 */
 .mo-week-header {
   display:grid; grid-template-columns:repeat(7,1fr);
-  background:linear-gradient(to bottom, #f0f4fb, #eef2f9);
-  border-radius:$rs $rs 0 0;
-  border:1px solid $border; border-bottom:none; margin-bottom:0;
+  background:linear-gradient(180deg, #f8fbff 0%, #edf4ff 100%);
+  border-radius:12px 12px 0 0;
+  border:1px solid rgba(211,223,238,.95); border-bottom:none; margin-bottom:0;
   flex-shrink:0;
+  box-shadow:none;
   span {
-    text-align:center; font-size:10px; font-weight:700; color:$sub;
-    padding:3px 0 4px; letter-spacing:2px; text-transform:uppercase;
-    &.wk-end { color:rgba($danger,.8); }
+    text-align:center; font-size:10px; font-weight:700; color:#607089;
+    padding:6px 0 7px; letter-spacing:1.5px; text-transform:uppercase;
+    &.wk-end { color:#c05a31; }
   }
 }
 
@@ -2817,21 +2986,23 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   grid-template-rows:repeat(var(--mo-row-count, 6), minmax(56px, 1fr));
   flex:1;
   min-height:0;
-  border:1px solid $border;
-  border-radius:0 0 $rs $rs;
+  border:1px solid rgba(211,223,238,.95);
+  border-radius:0 0 12px 12px;
   overflow:hidden;
   position:relative;
+  background:linear-gradient(180deg, rgba(255,255,255,.99) 0%, rgba(248,250,253,.99) 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.8);
 }
 
 /* 月视图单元格 */
 .mo-cell {
-  background:$surface;
-  border-right:1px solid $border;
-  border-bottom:1px solid $border;
+  background:linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(249,251,254,.98) 100%);
+  border-right:1px solid rgba(219,226,234,.82);
+  border-bottom:1px solid rgba(219,226,234,.82);
   display:flex; flex-direction:column;
   min-height:0;
   cursor:pointer;
-  transition:background .12s, box-shadow .12s, transform .12s;
+  transition:background .16s ease, box-shadow .16s ease, transform .16s ease;
   position:relative;
   overflow:hidden;
   transform:translateZ(0);
@@ -2853,16 +3024,16 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   &:nth-last-child(-n+7) { border-bottom:none; }
 
   &:hover {
-    background:#f3f7ff;
+    background:linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%);
     z-index:1;
-    box-shadow:inset 0 0 0 1px rgba($primary,.18);
+    box-shadow:inset 0 0 0 1px rgba($primary,.16), 0 10px 18px rgba(9,88,217,.04);
   }
   &:hover .mo-cell-add-btn { opacity:1; }
   &:hover .mo-empty-add-hint { opacity:1 !important; color:$primary; }
 
   &.today {
-    background:linear-gradient(180deg, rgba(#ff4d4f,.12) 0%, rgba(#ff4d4f,.05) 100%);
-    box-shadow:inset 4px 0 0 #ff4d4f, 0 0 0 1px #ff4d4f;
+    background:linear-gradient(180deg, rgba(#ff7875,.14) 0%, rgba(#fff1f0,.86) 100%);
+    box-shadow:inset 4px 0 0 #ff4d4f, 0 0 0 1px rgba(#ff4d4f,.5), 0 10px 18px rgba(255,77,79,.08);
     z-index:2;
     position:relative;
     .mo-day-num {
@@ -2870,55 +3041,65 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
       width:26px; height:26px; border-radius:50%;
       background:#ff4d4f; color:#fff !important;
       font-weight:900; font-size:12.5px;
-      box-shadow:0 2px 10px rgba(255,77,79,.55), 0 0 0 3px rgba(255,77,79,.15);
+      box-shadow:0 2px 10px rgba(255,77,79,.42), 0 0 0 3px rgba(255,77,79,.12);
       cursor:pointer;
       transition:transform .15s ease, box-shadow .15s ease;
       &:hover {
         transform:scale(1.12);
-        box-shadow:0 3px 14px rgba(255,77,79,.65), 0 0 0 4px rgba(255,77,79,.2);
+        box-shadow:0 3px 14px rgba(255,77,79,.55), 0 0 0 4px rgba(255,77,79,.16);
       }
     }
   }
 
   &.mo-cell-flash {
-    box-shadow:inset 4px 0 0 #ff4d4f, 0 0 0 1.5px #ff4d4f, 0 0 16px rgba(255,77,79,.5);
+    box-shadow:inset 4px 0 0 #ff4d4f, 0 0 0 1.5px rgba(#ff4d4f,.8), 0 0 16px rgba(255,77,79,.4);
     animation:mo-today-flash .8s ease-in-out infinite;
   }
 
   &.mo-cell-selected {
-    background:linear-gradient(180deg, rgba($primary,.07) 0%, rgba($primary,.025) 100%);
-    box-shadow:inset 0 0 0 1px rgba($primary,.22);
+    background:linear-gradient(180deg, rgba($primary,.08) 0%, rgba($primary,.03) 100%);
+    box-shadow:inset 0 0 0 1px rgba($primary,.24), 0 8px 18px rgba(9,88,217,.05);
   }
 
   &.mo-cell-popover-active {
-    background:#edf4ff;
+    background:linear-gradient(180deg, #eef5ff 0%, #e8f0ff 100%);
     transform:translateY(-1px);
-    box-shadow:inset 0 0 0 2px rgba($primary,.42), 0 10px 22px rgba($primary,.10);
+    box-shadow:inset 0 0 0 2px rgba($primary,.30), 0 12px 22px rgba($primary,.10);
     z-index:10;
     isolation:isolate;
   }
 
   &.other {
-    background:#f4f5f7; opacity:.4; pointer-events:none;
+    background:#f7f8fa; opacity:.55; filter:saturate(.82); pointer-events:none;
   }
 
   &.weekend {
-    background:rgba(207,19,34,.04);
+    background:linear-gradient(180deg, rgba(255,247,237,.55) 0%, rgba(255,255,255,.96) 100%);
   }
-  &.weekend .mo-day-num { color:#cf1322; font-weight:800; }
+  &.weekend .mo-day-num { color:#cf5b2d; font-weight:800; }
   &.holiday .mo-day-num { color:#b8290e; font-weight:900; }
 
   &.mo-has-events {
-    background:rgba($primary,.035);
-    &:hover { background:#e3efff; }
+    background:linear-gradient(180deg, rgba(238,245,255,.74) 0%, rgba(255,255,255,.98) 100%);
+    &:hover { background:linear-gradient(180deg, #f2f7ff 0%, #e8f1ff 100%); }
+  }
+
+  &.mo-cell-filter-match {
+    background:linear-gradient(180deg, rgba(230,244,255,.96) 0%, rgba(255,255,255,.99) 100%);
+    box-shadow:inset 0 0 0 1px rgba($primary,.26), 0 10px 20px rgba(9,88,217,.08);
+    z-index:1;
+    .mo-day-badge {
+      background:linear-gradient(180deg, rgba($primary,.22) 0%, rgba($primary,.10) 100%);
+      box-shadow:inset 0 0 0 1px rgba($primary,.10), 0 4px 10px rgba(9,88,217,.08);
+    }
   }
 
   &.mo-search-match {
-    box-shadow: inset 0 0 0 2px rgba(250,173,14,.5);
-    background:linear-gradient(180deg, rgba(255,248,223,.92) 0%, rgba(255,255,255,.95) 100%);
+    box-shadow:inset 0 0 0 2px rgba(250,173,14,.46), 0 8px 18px rgba(250,173,14,.08);
+    background:linear-gradient(180deg, rgba(255,249,230,.96) 0%, rgba(255,255,255,.98) 100%);
     &:hover {
-      background:#fff4d6;
-      box-shadow: inset 0 0 0 2px #faad14, 0 8px 20px rgba(250,173,14,.16);
+      background:#fff5db;
+      box-shadow:inset 0 0 0 2px rgba(250,173,14,.72), 0 10px 20px rgba(250,173,14,.12);
     }
   }
 
@@ -2932,13 +3113,23 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   }
 
   &.mo-cell-dimmed {
-    opacity:.28;
+    opacity:.52;
+    filter:saturate(.72);
+    background:linear-gradient(180deg, rgba(245,247,250,.96) 0%, rgba(255,255,255,.94) 100%);
+    box-shadow:inset 0 0 0 1px rgba(148,163,184,.16);
     .mo-cell-summary,
-    .mo-event-list { display:none; }
+    .mo-event-list,
+    .mo-cell-progress { display:none; }
     .mo-day-badge,
-    .mo-day-status-pill { opacity:0; }
+    .mo-day-status-pill,
+    .mo-cell-add-btn,
     .mo-empty-add-hint { opacity:0 !important; pointer-events:none; }
-    &:hover { opacity:.5; box-shadow:inset 0 0 0 1px rgba($primary,.15); }
+    .mo-day-num,
+    .mo-holiday-tag { opacity:.72; }
+    &:hover {
+      opacity:.7;
+      box-shadow:inset 0 0 0 1px rgba(148,163,184,.24), 0 6px 12px rgba(15,23,42,.04);
+    }
   }
 }
 
@@ -2992,28 +3183,29 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .mo-cell-summary-main.is-mixed { color:#6d28d9; background:#f1eafe; border-color:rgba(109,40,217,.18); }
 
 .mo-day-badge {
-  font-size:9px; font-weight:600;
-  background:rgba($primary,.12); color:$primary;
-  min-width:14px; height:15px; border-radius:7px; padding:0 4px;
+  font-size:9px; font-weight:700;
+  background:linear-gradient(180deg, rgba($primary,.16) 0%, rgba($primary,.08) 100%); color:$primary;
+  min-width:16px; height:16px; border-radius:999px; padding:0 5px;
   display:inline-flex; align-items:center; justify-content:center;
   flex-shrink:0; line-height:1;
+  box-shadow:inset 0 0 0 1px rgba($primary,.08);
 }
 
 /* 快速新建按钮（悬停显示） */
 .mo-cell-add-btn {
   width:20px; height:20px;
-  border:1.5px solid rgba($primary,.4); background:rgba($primary,.08);
-  border-radius:5px; cursor:pointer; color:$primary;
+  border:1px solid rgba($primary,.24); background:linear-gradient(180deg, rgba($primary,.08) 0%, rgba($primary,.04) 100%);
+  border-radius:6px; cursor:pointer; color:$primary;
   display:inline-flex; align-items:center; justify-content:center;
   opacity:0; transition:all .15s; flex-shrink:0;
-  &:hover { background:$primary; border-color:$primary; color:#fff; box-shadow:0 2px 8px rgba($primary,.4); }
+  &:hover { background:$primary; border-color:$primary; color:#fff; box-shadow:0 4px 10px rgba($primary,.28); }
 }
 
 /* 日程列表：每格展示 5 条 */
 .mo-event-list {
   display:grid;
   grid-template-rows:repeat(5, minmax(0, 1fr));
-  gap:1px;
+  gap:2px;
   padding:0 5px 2px;
   flex:1;
   min-height:0;
@@ -3025,26 +3217,29 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   box-sizing:border-box;
 }
 .mo-event-item {
-  display:flex; align-items:center; gap:3px;
-  padding:0 2px 0 5px; border-radius:4px;
-  border:1px solid transparent; transition:background .12s, border-color .12s, transform .12s;
-  cursor:pointer; position:relative; background:transparent; min-width:0;
-  min-height:18px;
+  display:flex; align-items:center; gap:4px;
+  padding:0 4px 0 7px; border-radius:6px;
+  border:1px solid transparent; transition:background .15s ease, border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+  cursor:pointer; position:relative; background:rgba(255,255,255,.58); min-width:0;
+  min-height:19px;
+  backdrop-filter:blur(2px);
 
   &::before {
     content:''; position:absolute; left:0; top:50%; transform:translateY(-50%);
-    width:3px; height:68%; border-radius:999px; background:var(--cat-color, #0958d9); opacity:1;
+    width:3px; height:70%; border-radius:999px; background:var(--cat-color, #0958d9); opacity:1;
+    box-shadow:0 0 0 1px rgba(255,255,255,.35);
   }
 
   &:hover {
-    background:rgba($primary,.08);
-    border-color:rgba($primary,.12);
+    background:#f3f8ff;
+    border-color:rgba($primary,.14);
     transform:translateX(1px);
+    box-shadow:0 6px 12px rgba(9,88,217,.06);
   }
 
   &.mo-ev-hit {
-    border-color:rgba(250,173,20,.22);
-    box-shadow:0 0 0 1px rgba(250,173,20,.10) inset;
+    border-color:rgba(250,173,20,.32);
+    box-shadow:0 0 0 1px rgba(250,173,20,.14) inset;
   }
 
   &.mo-todo {
@@ -3052,23 +3247,24 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   }
 
   &.mo-done {
-    opacity:.56;
-    background:rgba(47,158,68,.045);
+    opacity:.64;
+    background:rgba(47,158,68,.08);
     .mo-ev-title { text-decoration:line-through; color:$faint; }
     &::before { background:$success; }
   }
 
   &.mo-doing {
-    background:rgba($primary,.08);
-    border-color:rgba($primary,.12);
+    background:linear-gradient(180deg, rgba($primary,.10) 0%, rgba($primary,.06) 100%);
+    border-color:rgba($primary,.16);
     &::before {
       background:$primary;
-      box-shadow:0 0 6px rgba($primary,.45);
+      box-shadow:0 0 6px rgba($primary,.32);
     }
   }
 
   &.mo-cancelled {
-    opacity:.48;
+    opacity:.54;
+    background:rgba(148,163,184,.08);
     .mo-ev-title { text-decoration:line-through; color:#8c8c8c; font-weight:400; }
     &::before { background:#c9cdd4; }
   }
@@ -3083,11 +3279,11 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 }
 .mo-ev-time {
   width:32px; text-align:left;
-  font-size:9.5px; font-weight:700; color:$sub; letter-spacing:-.1px; flex-shrink:0;
+  font-size:9.5px; font-weight:700; color:#748095; letter-spacing:-.1px; flex-shrink:0;
   font-variant-numeric:tabular-nums;
 }
 .mo-ev-title {
-  font-size:11.5px; font-weight:700; color:$ink; line-height:1.2;
+  font-size:12px; font-weight:700; color:$ink; line-height:1.2;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; flex:1;
 }
 
@@ -3105,18 +3301,18 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 
 /* 超出数量提示 */
 .mo-more-tip {
-  width:100%; border:none; outline:none;
-  display:inline-flex; align-items:center; justify-content:flex-start; gap:2px;
+  width:100%; border:1px dashed rgba($primary,.16); outline:none;
+  display:inline-flex; align-items:center; justify-content:flex-start; gap:3px;
   font-size:10px; font-weight:700; color:$primary;
-  padding:0 3px 0 6px; border-radius:4px; cursor:pointer;
-  background:rgba($primary,.04);
-  transition:all .15s; margin:0; line-height:1;
+  padding:0 4px 0 6px; border-radius:6px; cursor:pointer;
+  background:rgba($primary,.05);
+  transition:all .15s ease; margin:0; line-height:1;
   white-space:nowrap; flex-shrink:0;
-  min-height:18px;
-  &:hover { background:rgba($primary,.10); color:$primary; }
+  min-height:19px;
+  &:hover { background:rgba($primary,.10); color:$primary; border-color:rgba($primary,.24); }
   svg { flex-shrink:0; transition:transform .2s ease; }
   &.mo-more-active {
-    background:rgba($primary,.14); color:$primary;
+    background:rgba($primary,.12); color:$primary; border-color:rgba($primary,.28);
     svg { transform:rotate(180deg); }
   }
 }
@@ -3155,13 +3351,13 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 /* 底部统计栏：更紧凑，让月网格居中 */
 .mo-footer {
   display:flex; align-items:center; justify-content:space-between;
-  padding:2px 2px 1px; margin-top:0;
-  border-top:1px solid $border; flex-shrink:0; flex-wrap:wrap; gap:4px;
+  padding:6px 6px 0; margin-top:4px;
+  border-top:1px dashed rgba(211,223,238,.92); flex-shrink:0; flex-wrap:wrap; gap:6px 12px;
 }
-.mo-footer-stats { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.mo-footer-stats { display:flex; align-items:center; gap:10px 12px; flex-wrap:wrap; }
 .mo-stat {
-  font-size:10.5px; color:$ink2; font-weight:500;
-  display:inline-flex; align-items:center; gap:3px;
+  font-size:10.5px; color:#5d687b; font-weight:600;
+  display:inline-flex; align-items:center; gap:4px;
   strong { font-weight:800; }
 }
 .mo-stat::before {
@@ -3178,16 +3374,19 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 
 /* 共计数不加圆点 */
 .mo-footer-stats > .mo-stat:first-child::before { display:none; }
-.mo-footer-progress { display:flex; align-items:center; gap:8px; flex-shrink:0; }
-.mo-footer-pct-label { font-size:11px; color:$ink2; font-weight:600; white-space:nowrap; }
+.mo-footer-progress {
+  display:flex; align-items:center; gap:8px; flex-shrink:0;
+  padding:4px 8px; border-radius:999px; background:rgba($primary,.045); border:1px solid rgba($primary,.10);
+}
+.mo-footer-pct-label { font-size:10.5px; color:#607089; font-weight:700; white-space:nowrap; }
 .mo-footer-track {
-  width:110px; height:5px;
-  background:rgba($primary,.12); border-radius:4px; overflow:hidden;
+  width:118px; height:6px;
+  background:rgba($primary,.10); border-radius:999px; overflow:hidden;
 }
 .mo-footer-fill {
-  height:100%; background:linear-gradient(to right, $primary, $success);
-  border-radius:4px; transition:width .6s cubic-bezier(.4,0,.2,1); min-width:4px;
-  box-shadow:0 0 4px rgba($primary,.35);
+  height:100%; background:linear-gradient(90deg, #2b6ef2 0%, #2f9e44 100%);
+  border-radius:999px; transition:width .6s cubic-bezier(.4,0,.2,1); min-width:4px;
+  box-shadow:0 0 4px rgba($primary,.24);
 }
 .mo-footer-pct { font-size:12px; font-weight:800; color:$primary; white-space:nowrap; }
 
@@ -3495,24 +3694,28 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 
 /* 月视图响应式 */
 @media(max-width:900px){
-  .month-overview { padding:2px 10px 10px; }
+  .month-overview { padding:6px 12px 10px; gap:6px; }
+  .mo-calendar-stage { padding:0 2px 24px; }
+  .mo-calendar-panel { width:100%; height:min(100%, clamp(510px, calc(100vh - 216px), 700px)); padding:8px 8px 6px; }
   .mo-grid { grid-template-rows:repeat(var(--mo-row-count, 6), minmax(68px, 1fr)); }
   .mo-cell { min-height:68px; }
-  .mo-ev-title { font-size:11.5px; }
-  .mo-footer { gap:8px; padding:10px 2px 2px; }
+  .mo-ev-title { font-size:12px; }
+  .mo-footer { gap:6px 8px; padding:5px 0 0; }
   .mo-legend { display:none; }
   .mo-week-header span { font-size:10px; letter-spacing:1px; }
   .mo-footer-track { width:80px; }
   .mo-footer-stats { gap:10px; }
 }
 @media(max-width:600px){
-  .month-overview { padding:0 6px 8px; }
+  .month-overview { padding:4px 6px 8px; gap:5px; }
+  .mo-calendar-stage { align-items:stretch; padding:0 0 10px; }
+  .mo-calendar-panel { width:100%; height:100%; padding:6px 6px 4px; border-radius:14px; }
   .mo-grid { grid-template-rows:repeat(var(--mo-row-count, 6), minmax(52px, 1fr)); }
   .mo-cell { min-height:52px; }
   .mo-cell-hd { padding:5px 5px 2px; }
   .mo-day-num { font-size:12px; }
-  .mo-ev-title { font-size:11.5px; }
-  .mo-footer { flex-direction:column; align-items:flex-start; gap:6px; }
+  .mo-ev-title { font-size:12px; }
+  .mo-footer { flex-direction:column; align-items:flex-start; gap:6px; padding:6px 0 0; }
   .mo-footer-progress { width:100%; }
   .mo-footer-track { flex:1; }
 }

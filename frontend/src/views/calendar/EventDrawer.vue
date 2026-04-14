@@ -74,20 +74,61 @@
       <div class="form-section-label">时间安排</div>
       <div class="form-row">
         <el-form-item label="开始时间" class="form-col">
-          <el-time-picker
-            v-model="form.startTime"
-            placeholder="开始时间"
-            value-format="HH:mm:ss"
-            style="width: 100%"
-          />
+          <div class="time-field">
+            <el-select
+              v-model="form.startTime"
+              placeholder="选择开始时间"
+              clearable
+              filterable
+              default-first-option
+              popper-class="event-drawer-time-popper"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="option in startTimeOptions"
+                :key="`start-${option.value}`"
+                :label="option.label"
+                :value="option.value"
+              >
+                <div class="time-option">
+                  <span>{{ option.label }}</span>
+                  <span v-if="option.badge" class="time-option-badge">{{ option.badge }}</span>
+                </div>
+              </el-option>
+            </el-select>
+            <div class="time-shortcuts">
+              <button type="button" class="time-shortcut-btn is-primary" @click="applyCurrentStartTime">当前时间</button>
+            </div>
+          </div>
         </el-form-item>
         <el-form-item label="结束时间" class="form-col">
-          <el-time-picker
-            v-model="form.endTime"
-            placeholder="结束时间"
-            value-format="HH:mm:ss"
-            style="width: 100%"
-          />
+          <div class="time-field">
+            <el-select
+              v-model="form.endTime"
+              placeholder="选择结束时间"
+              clearable
+              filterable
+              default-first-option
+              popper-class="event-drawer-time-popper"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="option in endTimeOptions"
+                :key="`end-${option.value}`"
+                :label="option.label"
+                :value="option.value"
+              >
+                <div class="time-option">
+                  <span>{{ option.label }}</span>
+                  <span v-if="option.badge" class="time-option-badge">{{ option.badge }}</span>
+                </div>
+              </el-option>
+            </el-select>
+            <div class="time-shortcuts">
+              <button type="button" class="time-shortcut-btn" :disabled="!form.startTime" @click="applyEndTimeOffset(30)">+30 分钟</button>
+              <button type="button" class="time-shortcut-btn" :disabled="!form.startTime" @click="applyEndTimeOffset(60)">+1 小时</button>
+            </div>
+          </div>
         </el-form-item>
       </div>
 
@@ -169,7 +210,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch, computed, h } from 'vue'
+
 import { ElMessage, ElMessageBox } from 'element-plus'
+
 import type { FormInstance, FormRules } from 'element-plus'
 import {
   getEventDetailApi, saveEventApi, updateEventApi, deleteEventApi
@@ -205,12 +248,14 @@ const emit = defineEmits<{
 const formRef = ref<FormInstance>()
 const saving = ref(false)
 const deleting = ref(false)
+const currentTimeSnapshot = ref('')
+
 
 const form = reactive({
   title: '',
   eventDate: '',
-  startTime: '' as any,
-  endTime: '' as any,
+  startTime: '',
+  endTime: '',
   category: EVENT_CATEGORY_VALUE.WORK,
   priority: EVENT_PRIORITY_VALUE.MEDIUM,
   status: EVENT_STATUS_VALUE.TODO,
@@ -247,6 +292,105 @@ function limitRemarkLines(value: string) {
     form.remark = nextRemark
   }
 }
+
+function normalizePickerTimeValue(time?: string | null): string {
+  const value = String(time || '').trim()
+  if (!value) return ''
+  return value.length >= 5 ? value.slice(0, 5) : value
+}
+
+function normalizeSubmitTimeValue(time?: string | null): string | null {
+  const value = normalizePickerTimeValue(time)
+  if (!value) return null
+  return value.length === 5 ? `${value}:00` : value
+}
+
+interface TimeOption {
+  value: string
+  label: string
+  badge?: string
+}
+
+const TIME_STEP_MINUTES = 15
+
+function formatMinuteTime(totalMinutes: number): string {
+  const safeMinutes = Math.min(Math.max(totalMinutes, 0), 23 * 60 + 59)
+  const hours = Math.floor(safeMinutes / 60)
+  const minutes = safeMinutes % 60
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+}
+
+function toTimeMinutes(time?: string | null): number {
+  const value = normalizePickerTimeValue(time)
+  if (!value) return -1
+  const [hourText, minuteText = '0'] = value.split(':')
+  const hour = Number(hourText)
+  const minute = Number(minuteText)
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return -1
+  return hour * 60 + minute
+}
+
+function buildTimeOptions(): TimeOption[] {
+  const options: TimeOption[] = []
+  for (let minutes = 0; minutes <= 23 * 60 + 45; minutes += TIME_STEP_MINUTES) {
+    const value = formatMinuteTime(minutes)
+    options.push({ value, label: value })
+  }
+  options.push({ value: '23:59', label: '23:59' })
+  return options
+}
+
+function appendCustomTimeOption(options: TimeOption[], time?: string | null, badge?: string): TimeOption[] {
+  const value = normalizePickerTimeValue(time)
+  if (!value) return options
+  const matched = options.find(item => item.value === value)
+  if (matched) {
+    return badge ? options.map(item => item.value === value ? { ...item, badge } : item) : options
+  }
+
+  const nextOptions = [...options, { value, label: value, badge }]
+  nextOptions.sort((a, b) => toTimeMinutes(a.value) - toTimeMinutes(b.value))
+  return nextOptions
+}
+
+function getDefaultStartTime(): string {
+  const now = new Date()
+  return formatMinuteTime(now.getHours() * 60 + now.getMinutes())
+}
+
+function addMinutesToTime(time: string, deltaMinutes: number): string {
+  const minutes = toTimeMinutes(time)
+  if (minutes < 0) return ''
+  return formatMinuteTime(minutes + deltaMinutes)
+}
+
+const baseTimeOptions = buildTimeOptions()
+
+const startTimeOptions = computed(() => {
+  let options = appendCustomTimeOption(baseTimeOptions, form.startTime)
+  if (!props.eventId && currentTimeSnapshot.value) {
+    options = appendCustomTimeOption(options, currentTimeSnapshot.value, '当前')
+  }
+  return options
+})
+
+const endTimeOptions = computed(() => {
+  const startMinutes = toTimeMinutes(form.startTime)
+  const filtered = startMinutes < 0
+    ? [...baseTimeOptions]
+    : baseTimeOptions.filter(item => toTimeMinutes(item.value) > startMinutes)
+  return appendCustomTimeOption(filtered, form.endTime)
+})
+
+function applyCurrentStartTime() {
+  currentTimeSnapshot.value = getDefaultStartTime()
+  form.startTime = currentTimeSnapshot.value
+}
+
+function applyEndTimeOffset(deltaMinutes: number) {
+  if (!form.startTime) return
+  form.endTime = addMinutesToTime(form.startTime, deltaMinutes)
+}
 /* ============ 步骤详情逻辑结束 ============ */
 
 watch(
@@ -254,15 +398,30 @@ watch(
   async (val) => {
     if (val) {
       resetForm()
+      currentTimeSnapshot.value = getDefaultStartTime()
       if (props.defaultDate) {
         form.eventDate = props.defaultDate
       }
       if (props.eventId) {
         await loadDetail(props.eventId)
+      } else {
+        form.startTime = currentTimeSnapshot.value
       }
     }
   }
 )
+
+watch(
+  () => form.startTime,
+  (value) => {
+    if (!value || !form.endTime) return
+    if (toTimeMinutes(form.endTime) <= toTimeMinutes(value)) {
+      form.endTime = ''
+    }
+  }
+)
+
+
 
 async function loadDetail(id: number) {
   try {
@@ -271,8 +430,8 @@ async function loadDetail(id: number) {
     Object.assign(form, {
       title: d.title || '',
       eventDate: d.eventDate || '',
-      startTime: d.startTime || '',
-      endTime: d.endTime || '',
+      startTime: normalizePickerTimeValue(d.startTime),
+      endTime: normalizePickerTimeValue(d.endTime),
       category: d.category ?? EVENT_CATEGORY_VALUE.WORK,
       priority: d.priority ?? EVENT_PRIORITY_VALUE.MEDIUM,
       status: d.status ?? EVENT_STATUS_VALUE.TODO,
@@ -298,8 +457,8 @@ async function handleSave() {
       status: form.status,
       remark: remark || null,
       description: remark || null,
-      startTime: form.startTime || null,
-      endTime: form.endTime || null
+      startTime: normalizeSubmitTimeValue(form.startTime),
+      endTime: normalizeSubmitTimeValue(form.endTime)
     }
 
     if (props.eventId) {
@@ -427,6 +586,36 @@ function resetForm() {
     min-height: 96px !important;
   }
 }
+
+.event-drawer-time-popper {
+  border: 1px solid #dbe2ea !important;
+  border-radius: 14px !important;
+  padding: 6px !important;
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12) !important;
+
+  .el-popper__arrow {
+    display: none !important;
+  }
+
+  .el-select-dropdown__item {
+    margin: 2px 0;
+    padding: 0 10px !important;
+    min-height: 38px;
+    border-radius: 10px;
+  }
+
+  .el-select-dropdown__item.is-hovering,
+  .el-select-dropdown__item:hover {
+    background: #f5f8ff !important;
+    color: #0958d9 !important;
+  }
+
+  .el-select-dropdown__item.is-selected {
+    background: #eaf2ff !important;
+    color: #0958d9 !important;
+    font-weight: 700;
+  }
+}
 </style>
 
 <style scoped lang="scss">
@@ -528,6 +717,72 @@ $rs: 10px;
 .form-col {
   flex: 1;
   min-width: 0;
+}
+
+.time-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.time-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  font-size: 13px;
+}
+
+.time-option-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  height: 20px;
+  border-radius: 999px;
+  background: #eaf2ff;
+  color: $primary;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.time-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.time-shortcut-btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(219, 226, 234, 0.96);
+  border-radius: 999px;
+  background: #ffffff;
+  color: $ink2;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .18s ease;
+
+  &:hover:not(:disabled) {
+    color: $primary;
+    border-color: rgba(9, 88, 217, 0.2);
+    background: #f5f8ff;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    color: #a8b2c1;
+    background: #f8fafc;
+  }
+
+  &.is-primary {
+    color: $primary;
+    background: $primary-light;
+    border-color: rgba(9, 88, 217, 0.14);
+  }
 }
 
 /* 分类选项 */
