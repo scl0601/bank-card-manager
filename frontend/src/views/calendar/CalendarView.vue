@@ -357,35 +357,40 @@
     <div v-show="viewMode === 'day'" class="main-body main-day">
       <div class="left-panel">
         <div class="stats-row">
-          <div class="stat-card stat-all" @click="setQuickFilter('all')" :class="{ 'stat-active': quickFilter === 'all' }">
+          <div class="stat-card stat-all" @click="setDayCalendarQuickFilter('all')" :class="{ 'stat-active': dayCalendarQuickFilter === 'all' }">
+
             <div class="stat-card-top">
               <div class="stat-icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></div>
             </div>
             <div class="stat-info"><em>{{ stats.todoCount + stats.doingCount + stats.doneCount }}</em><i>全部</i></div>
             <div class="stat-bar"><div class="stat-bar-inner" :style="{ width: '100%' }"></div></div>
           </div>
-          <div class="stat-card stat-todo" @click="setQuickFilter('todo')" :class="{ 'stat-active': quickFilter === 'todo' }">
+          <div class="stat-card stat-todo" @click="setDayCalendarQuickFilter('todo')" :class="{ 'stat-active': dayCalendarQuickFilter === 'todo' }">
+
             <div class="stat-card-top">
               <div class="stat-icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
             </div>
             <div class="stat-info"><em>{{ stats.todoCount }}</em><i>待办事项</i></div>
             <div class="stat-bar"><div class="stat-bar-inner" :style="{ width: statPercent('todo') + '%' }"></div></div>
           </div>
-          <div class="stat-card stat-doing" @click="setQuickFilter('doing')" :class="{ 'stat-active': quickFilter === 'doing' }">
+          <div class="stat-card stat-doing" @click="setDayCalendarQuickFilter('doing')" :class="{ 'stat-active': dayCalendarQuickFilter === 'doing' }">
+
             <div class="stat-card-top">
               <div class="stat-icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></div>
             </div>
             <div class="stat-info"><em>{{ stats.doingCount }}</em><i>进行中</i></div>
             <div class="stat-bar"><div class="stat-bar-inner" :style="{ width: statPercent('doing') + '%' }"></div></div>
           </div>
-          <div class="stat-card stat-done" @click="setQuickFilter('done')" :class="{ 'stat-active': quickFilter === 'done' }">
+          <div class="stat-card stat-done" @click="setDayCalendarQuickFilter('done')" :class="{ 'stat-active': dayCalendarQuickFilter === 'done' }">
+
             <div class="stat-card-top">
               <div class="stat-icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
             </div>
             <div class="stat-info"><em>{{ stats.doneCount }}</em><i>已完成</i></div>
             <div class="stat-bar"><div class="stat-bar-inner" :style="{ width: statPercent('done') + '%' }"></div></div>
           </div>
-          <div class="stat-card stat-cancelled" @click="setQuickFilter('cancelled')" :class="{ 'stat-active': quickFilter === 'cancelled' }">
+          <div class="stat-card stat-cancelled" @click="setDayCalendarQuickFilter('cancelled')" :class="{ 'stat-active': dayCalendarQuickFilter === 'cancelled' }">
+
             <div class="stat-card-top">
               <div class="stat-icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
             </div>
@@ -444,10 +449,11 @@
 
         <div class="toolbar">
           <div class="toolbar-right">
-            <el-select v-model="filterCategory" placeholder="分类筛选" clearable size="small" style="width:108px">
+            <el-select v-model="dayCalendarFilterCategory" placeholder="月历筛选" clearable size="small" style="width:108px">
               <el-option v-for="c in EVENT_CATEGORY_OPTIONS" :key="c.value" :label="c.label" :value="c.value" />
             </el-select>
             <div class="legend">
+
               <span v-for="(cat,ci) in EVENT_CATEGORY_OPTIONS" :key="ci" class="leg-item">
                 <i :style="{background:categoryColor[cat.value]}"></i>{{ cat.label }}
               </span>
@@ -793,16 +799,20 @@ const today = new Date()
 const currentYear = ref(today.getFullYear())
 const currentMonth = ref(today.getMonth() + 1)
 const selectedDate = ref(formatDate(today))
+const dayCalendarFilterCategory = ref<number | undefined>(undefined)
 const filterCategory = ref<number | undefined>(undefined)
 const keyword = ref('')
+
 
 const searchFocused = ref(false)
 const monthLoading = ref(false)
 const listLoading = ref(false)
 const monthChanging = ref(false)
 const loadError = ref(false)
+const dayCalendarQuickFilter = ref<'all'|'todo'|'doing'|'done'|'cancelled'>('all')
 const quickFilter = ref<'all'|'todo'|'doing'|'done'|'cancelled'>('all')
 const editingId = ref<number | null>(null)
+
 const drawerVisible = ref(false)
 const defaultNewDate = ref<string>('')
 const pageRef = ref<HTMLElement | null>(null)
@@ -1181,18 +1191,20 @@ const isSomeSelected = computed(()=>selectedIds.value.size>0)
 
 const dayViewMonthData = computed(()=>{
   let list=monthData.value
-  if(quickFilter.value==='todo') list=list.filter((e:any)=>e.status===EVENT_STATUS_VALUE.TODO)
-  else if(quickFilter.value==='doing') list=list.filter((e:any)=>e.status===EVENT_STATUS_VALUE.DOING)
-  else if(quickFilter.value==='done') list=list.filter((e:any)=>e.status===EVENT_STATUS_VALUE.DONE)
-  else if(quickFilter.value==='cancelled') list=list.filter((e:any)=>e.status===EVENT_STATUS_VALUE.CANCELLED)
+  if(dayCalendarQuickFilter.value==='todo') list=list.filter((e:any)=>e.status===EVENT_STATUS_VALUE.TODO)
+  else if(dayCalendarQuickFilter.value==='doing') list=list.filter((e:any)=>e.status===EVENT_STATUS_VALUE.DOING)
+  else if(dayCalendarQuickFilter.value==='done') list=list.filter((e:any)=>e.status===EVENT_STATUS_VALUE.DONE)
+  else if(dayCalendarQuickFilter.value==='cancelled') list=list.filter((e:any)=>e.status===EVENT_STATUS_VALUE.CANCELLED)
   if(keyword.value.trim()){
     const kw=keyword.value.trim().toLowerCase()
     list=list.filter((e:any)=>(e.title||'').toLowerCase().includes(kw)||(e.remark||'').toLowerCase().includes(kw))
   }
-  if(filterCategory.value!==undefined&&filterCategory.value!==null)
-    list=list.filter((e:any)=>e.category===filterCategory.value)
+  if(dayCalendarFilterCategory.value!==undefined&&dayCalendarFilterCategory.value!==null)
+    list=list.filter((e:any)=>e.category===dayCalendarFilterCategory.value)
   return list
 })
+
+
 const dayViewEventMap = computed<Record<string, any[]>>(()=>{
   const map:Record<string, any[]> = {}
   for(const event of dayViewMonthData.value){
@@ -1478,12 +1490,18 @@ function removeEventLocally(ids:number[]){
   syncStatsFromMonthData()
 }
 function isSelected(cell:any):boolean{ return !cell.isOther&&cell.date===selectedDate.value }
+function syncDayListFiltersFromCalendar(){
+  quickFilter.value=dayCalendarQuickFilter.value
+  filterCategory.value=dayCalendarFilterCategory.value
+}
 
 async function selectDate(cell:any){
+
   if(!cell.date)return
   selectedDate.value=cell.date
-  quickFilter.value='all'
+  syncDayListFiltersFromCalendar()
   const d=new Date(cell.date+'T00:00:00')
+
   if(d.getFullYear()!==currentYear.value||d.getMonth()+1!==currentMonth.value){
     currentYear.value=d.getFullYear(); currentMonth.value=d.getMonth()+1
     await loadMonthData()
@@ -1556,17 +1574,21 @@ async function nextMonth(){
 }
 async function goToday(){
   const t=new Date()
+  const todayStr=formatDate(t)
   const targetYear=t.getFullYear()
   const targetMonth=t.getMonth()+1
-  selectedDate.value=formatDate(t)
-  quickFilter.value='all'
+  selectedDate.value=todayStr
+  syncDayListFiltersFromCalendar()
   moCellFlash.value = true
+
   setTimeout(() => { moCellFlash.value = false }, 3000)
-  // 如果已在当前月份，只高亮今天格子，不触发网格过渡
+  // 如果已在当前月份，仍需刷新当天右侧列表
   if(currentYear.value===targetYear&&currentMonth.value===targetMonth){
+    await loadDayEvents(todayStr)
     return
   }
   moMonthChanging.value = true
+
   // 先预加载数据，再更新年月，避免过渡时显示空格子
   const targetMonthStr=`${targetYear}-${String(targetMonth).padStart(2,'0')}`
   try{
@@ -1582,15 +1604,20 @@ async function goToday(){
 function moveDay(dir:number){
   const d=new Date(selectedDate.value+'T00:00:00'); d.setDate(d.getDate()+dir)
   selectedDate.value=formatDate(d)
-  quickFilter.value='all'
+  syncDayListFiltersFromCalendar()
   if(d.getFullYear()!==currentYear.value||d.getMonth()+1!==currentMonth.value){
+
     currentYear.value=d.getFullYear(); currentMonth.value=d.getMonth()+1; refreshAll()
   }else{ loadDayEvents() }
+}
+function setDayCalendarQuickFilter(val:'all'|'todo'|'doing'|'done'|'cancelled'){
+  dayCalendarQuickFilter.value=val
 }
 function setQuickFilter(val:'all'|'todo'|'doing'|'done'|'cancelled'){
   quickFilter.value=val
 }
 function resetFilters(){ quickFilter.value='all'; filterCategory.value=undefined; keyword.value='' }
+
 
 function clearSearch(){ keyword.value='' }
 function openDrawer(event:any,date?:string){
@@ -1786,7 +1813,7 @@ function getPrintStyleText(mode:'day'|'month'){
     .pp-month-cell.today{background:#f0f7ff;box-shadow:inset 3px 0 0 #1677ff;}
     .pp-month-cell.empty:not(.other){background:#fcfcfd;}
     .pp-month-cell-hd{display:flex;align-items:center;justify-content:space-between;gap:6px;}
-    .pp-month-day{font-size:13px;font-weight:800;color:#1d2129;}
+    .pp-month-day{font-size:2px;font-weight:800;color:#1d2129;}
     .pp-month-cell.today .pp-month-day{color:#1677ff;}
     .pp-month-count{min-width:18px;height:18px;padding:0 5px;border-radius:10px;background:#1677ff;color:#fff;font-size:10px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;}
     .pp-month-cell-body{display:flex;flex-direction:column;gap:4px;flex:1;min-height:0;}
