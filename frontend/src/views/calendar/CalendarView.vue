@@ -6,7 +6,12 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         </span>
         <div class="header-title-group">
-          <h1 class="page-title">日历计划·{{ currentYear }}年{{ String(currentMonth).padStart(2,'0') }}月·{{ totalEvents }}个日程</h1>
+          <h1 class="page-title">日历计划</h1>
+          <div class="header-meta">
+            <span class="meta-year">{{ currentYear }} 年</span>
+            <span class="meta-divider">·</span>
+            <span class="header-badge"><span class="badge-dot"></span>{{ stats.todoCount + stats.doingCount + stats.doneCount }} 个日程</span>
+          </div>
         </div>
       </div>
       <div class="header-actions">
@@ -353,24 +358,27 @@
     <!-- [M] 日视图（原有功能） -->
     <div v-show="viewMode === 'day'" class="main-body main-day">
       <div class="left-panel">
-        <div class="calendar-overview-card">
-          <div class="calendar-overview-top">
-            <div class="calendar-progress-inline">
-              <span class="calendar-progress-label">本月完成率</span>
-              <strong class="calendar-progress-pct">{{ statPercent('done') }}%</strong>
+        <div class="stats-row">
+          <div class="stat-card stat-todo" @click="setQuickFilter('todo')" :class="{ 'stat-active': quickFilter === 'todo' }">
+            <div class="stat-card-top">
+              <div class="stat-icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
             </div>
-            <div class="legend calendar-legend" v-if="EVENT_CATEGORY_OPTIONS.length > 0">
-              <span v-for="(cat,ci) in EVENT_CATEGORY_OPTIONS" :key="ci" class="leg-item">
-                <i :style="{background:categoryColor[cat.value]}"></i>{{ cat.label }}
-              </span>
-            </div>
+            <div class="stat-info"><em>{{ stats.todoCount }}</em><i>待办事项</i></div>
+            <div class="stat-bar"><div class="stat-bar-inner" :style="{ width: statPercent('todo') + '%' }"></div></div>
           </div>
-          <div class="foot-progress-track"><div class="foot-progress-fill" :style="{ width: statPercent('done') + '%' }"></div></div>
-          <div class="foot-progress-counts">
-            <span><em class="clr-warning">{{ stats.todoCount }}</em> 待办</span>
-            <span><em class="clr-primary">{{ stats.doingCount }}</em> 进行中</span>
-            <span><em class="clr-success">{{ stats.doneCount }}</em> 已完成</span>
-            <span><em class="clr-info">{{ stats.cancelledCount }}</em> 已取消</span>
+          <div class="stat-card stat-doing" @click="setQuickFilter('doing')" :class="{ 'stat-active': quickFilter === 'doing' }">
+            <div class="stat-card-top">
+              <div class="stat-icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></div>
+            </div>
+            <div class="stat-info"><em>{{ stats.doingCount }}</em><i>进行中</i></div>
+            <div class="stat-bar"><div class="stat-bar-inner" :style="{ width: statPercent('doing') + '%' }"></div></div>
+          </div>
+          <div class="stat-card stat-done" @click="setQuickFilter('done')" :class="{ 'stat-active': quickFilter === 'done' }">
+            <div class="stat-card-top">
+              <div class="stat-icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+            </div>
+            <div class="stat-info"><em>{{ stats.doneCount }}</em><i>已完成</i></div>
+            <div class="stat-bar"><div class="stat-bar-inner" :style="{ width: statPercent('done') + '%' }"></div></div>
           </div>
         </div>
 
@@ -403,22 +411,34 @@
             <div class="cal-week-row">
               <span v-for="(w,wi) in weekDays" :key="w" :class="{'wk-end':wi>=5}">{{ w }}</span>
             </div>
-            <div class="cal-day-grid" :style="{ '--cal-row-count': String(dayCalendarRowCount) }">
-              <div v-for="(cell,ci) in dayCalendarCells" :key="cell.key||ci"
-                :class="['day-cell',{'other':cell.isOther,'today':cell.isToday,'active':isSelected(cell),'weekend':!cell.isOther&&cell.isWeekend,'holiday':!cell.isOther&&!!cell.holidayName,'has-events':!cell.isOther&&cell.eventCount>0}]"
+            <div class="cal-day-grid">
+              <div v-for="(cell,ci) in allCells" :key="cell.key||ci"
+                :class="['day-cell',{'other':cell.isOther,'today':cell.isToday,'active':isSelected(cell),'weekend':!cell.isOther&&cell.isWeekend,'holiday':!cell.isOther&&!!cell.holidayName,'has-events':!cell.isOther&&cell.dots.length>0}]"
                 @click="selectDate(cell)" @dblclick="openDrawer(null,cell.date)">
                 <div class="cell-inner">
                   <div class="cell-hd">
                     <b class="cell-num">{{ cell.day }}</b>
                     <small v-if="cell.holidayName&&!cell.isOther" :title="cell.holidayName">{{ cell.holidayName }}</small>
-                    <span v-if="!cell.isOther&&cell.eventCount>0" class="dot-count-badge">{{ cell.eventCount }}</span>
                   </div>
-                  <div v-if="!cell.isOther&&cell.eventCount>0" class="cell-dots">
-                    <i v-for="(dot,di) in cell.visibleDots" :key="`${cell.key}-dot-${di}`" :style="{background:categoryColor[dot]}"></i>
-                    <span v-if="cell.eventCount > 10" class="dot-overflow">+{{ cell.eventCount - 10 }}</span>
+                  <div v-if="cell.dots.length&&!cell.isOther" class="cell-dots">
+                    <i v-for="(dot,di) in cell.dots.slice(0,3)" :key="di" :style="{background:categoryColor[dot]}"></i>
+                    <i v-if="cell.eventCount>3" class="dot-more">{{ cell.eventCount }}</i>
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <div class="toolbar-right">
+            <el-select v-model="filterCategory" placeholder="分类筛选" clearable size="small" style="width:108px">
+              <el-option v-for="c in EVENT_CATEGORY_OPTIONS" :key="c.value" :label="c.label" :value="c.value" />
+            </el-select>
+            <div class="legend">
+              <span v-for="(cat,ci) in EVENT_CATEGORY_OPTIONS" :key="ci" class="leg-item">
+                <i :style="{background:categoryColor[cat.value]}"></i>{{ cat.label }}
+              </span>
             </div>
           </div>
         </div>
@@ -1739,7 +1759,7 @@ function getPrintStyleText(mode:'day'|'month'){
     .pp-month-event.is-s-2{opacity:.6;}
     .pp-month-event.is-s-3{opacity:.45;}
     .pp-month-event-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
-    .pp-month-event-title{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .pp-month-event-title{flex:1;min-width:0;font-size:9px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .pp-month-more{margin-top:auto;font-size:11px;font-weight:700;color:#1677ff;}
     .pp-month-empty{margin-top:auto;font-size:11px;color:#c9cdd4;}
     .pp-month-summary{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:14px;}
@@ -1821,26 +1841,32 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 }
 .page-header {
   display:flex; align-items:center; justify-content:space-between;
-  padding:8px 28px; background:$surface; border-bottom:1px solid $border;
+  padding:16px 28px; background:$surface; border-bottom:1px solid $border;
   flex-shrink:0; box-shadow:0 1px 0 rgba(0,0,0,.03);
 }
-.header-left { display:flex; align-items:center; gap:10px; }
-.header-title-group { display:flex; align-items:center; min-width:0; }
+.header-left { display:flex; align-items:center; gap:12px; }
+.header-title-group { display:flex; flex-direction:column; gap:3px; min-width:0; }
 .page-title-icon {
-  width:26px; height:26px; border-radius:$rs;
+  width:32px; height:32px; border-radius:$rs;
   background:$primary-light; color:$primary;
   display:flex; align-items:center; justify-content:center; flex-shrink:0;
 }
-.page-title {
-  margin:0; font-size:15px; font-weight:700; color:$ink; letter-spacing:-.3px;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+.page-title { margin:0; font-size:18px; font-weight:700; color:$ink; letter-spacing:-.3px; }
+.header-meta { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.meta-year { font-size:12px; color:$sub; font-weight:500; }
+.meta-divider { font-size:11px; color:$faint; }
+.header-badge {
+  display:flex; align-items:center; gap:4px;
+  font-size:12px; color:$sub; background:$bg;
+  padding:2px 9px 2px 7px; border-radius:20px; font-weight:500;
+  .badge-dot { width:6px; height:6px; border-radius:50%; background:$primary; }
 }
 
-.header-actions { display:flex; align-items:center; gap:7px; }
+.header-actions { display:flex; align-items:center; gap:10px; }
 .search-box {
-  display:flex; align-items:center; gap:6px;
+  display:flex; align-items:center; gap:7px;
   background:$bg; border:1.5px solid transparent;
-  border-radius:$rs; padding:5px 9px; width:180px; transition:all .2s;
+  border-radius:$rs; padding:7px 12px; width:220px; transition:all .2s;
   .search-icon { color:$sub; flex-shrink:0; }
   input { border:none; outline:none; font-size:13px; color:$ink; background:transparent; width:100%; min-width:0;
     &::placeholder { color:$faint; } }
@@ -1859,7 +1885,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .main-body { display:flex; flex:1; overflow:hidden; min-height:0; }
 .main-day {
   display:grid;
-  grid-template-columns:repeat(2, minmax(0, 1fr));
+  grid-template-columns:minmax(380px, 640px) minmax(0, 1fr);
   gap:12px;
   padding:12px 16px 16px;
   min-height:0;
@@ -1868,30 +1894,51 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 
 .left-panel {
   flex:none; min-width:0; max-width:none;
-  display:flex; flex-direction:column; gap:10px;
+  display:flex; flex-direction:column; gap:12px;
   padding:0; overflow-y:auto; overflow-x:hidden;
   &::-webkit-scrollbar { width:4px; }
   &::-webkit-scrollbar-thumb { background:#d0d3da; border-radius:4px; }
   &::-webkit-scrollbar-track { background:transparent; }
 }
 
-.calendar-overview-card {
-  background:$surface; border-radius:$rs-lg; padding:11px 14px 9px;
-  box-shadow:$shadow-sm; border:1px solid rgba($primary,.08);
-}
-.calendar-overview-top {
-  display:flex; align-items:center; justify-content:space-between; gap:10px;
-  margin-bottom:7px; flex-wrap:wrap;
-}
 
-.calendar-progress-inline {
-  display:flex; align-items:center; gap:8px; min-width:0;
+
+.stats-row { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+.stat-card {
+  background:$surface; border-radius:$rs-lg; padding:14px 14px 10px;
+  display:flex; flex-direction:column; gap:10px;
+  box-shadow:$shadow-sm; border:1.5px solid transparent;
+  cursor:pointer; transition:all .2s; position:relative; overflow:hidden;
+  &:hover { box-shadow:$shadow-md; transform:translateY(-2px); }
+  &.stat-active { border-color:currentColor; }
 }
-.calendar-progress-label {
-  font-size:12px; font-weight:700; color:$ink2;
+.stat-card-top { display:flex; align-items:center; justify-content:flex-start; }
+.stat-icon-wrap { width:36px; height:36px; border-radius:$rs; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.stat-todo {
+  color:$warning;
+  .stat-icon-wrap { background:#fff7e6; }
+  &.stat-active { border-color:$warning; background:#fffbf0; }
+  .stat-bar-inner { background:$warning; }
 }
-.calendar-progress-pct {
-  font-size:18px; font-weight:800; color:$primary; line-height:1;
+.stat-doing {
+  color:$primary;
+  .stat-icon-wrap { background:$primary-light; }
+  &.stat-active { border-color:$primary; background:#f0f7ff; }
+  .stat-bar-inner { background:$primary; }
+}
+.stat-done {
+  color:$success;
+  .stat-icon-wrap { background:#f6ffed; }
+  &.stat-active { border-color:$success; background:#f6ffed; }
+  .stat-bar-inner { background:$success; }
+}
+.stat-info {
+  em { display:block; font-style:normal; font-size:28px; font-weight:800; line-height:1; color:$ink; }
+  i { display:block; font-style:normal; font-size:13px; color:$sub; margin-top:4px; }
+}
+.stat-bar {
+  height:3px; background:$border; border-radius:2px; overflow:hidden;
+  .stat-bar-inner { height:100%; border-radius:2px; transition:width .6s cubic-bezier(.4,0,.2,1); min-width:4px; }
 }
 .legend { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .calendar-legend { margin-left:auto; }
@@ -1906,47 +1953,31 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 }
 
 /* 日历卡片 */
+/* 日历卡片 */
 .cal-card {
-  background:$surface; border-radius:$rs-lg; padding:12px;
-  box-shadow:$shadow-sm; border:1px solid rgba($primary,.08); flex:1;
+  background:$surface; border-radius:$rs-lg; padding:16px 14px 12px;
+  box-shadow:$shadow-sm; border:1px solid rgba(0,0,0,.04); flex:1;
   display:flex; flex-direction:column; min-height:0; position:relative;
 }
-.cal-nav {
-  display:grid; grid-template-columns:auto 1fr auto; align-items:center;
-  gap:8px; margin-bottom:10px; flex-shrink:0; padding:8px 10px;
-  border:1px solid rgba($primary,.08); border-radius:12px;
-  background:linear-gradient(180deg,#f8fbff 0%, #f3f7ff 100%);
-}
-
-.cal-nav-center { display:flex; align-items:center; gap:8px; flex:1; justify-content:center; position:relative; min-width:0; }
-
+.cal-nav { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-shrink:0; }
+.cal-nav-center { display:flex; align-items:center; gap:10px; flex:1; justify-content:center; position:relative; }
 .nav-btn {
-  width:26px; height:26px; border:1px solid $border; background:$surface;
+  width:30px; height:30px; border:1px solid $border; background:$surface;
   border-radius:$rs; cursor:pointer; display:flex; align-items:center; justify-content:center;
   color:$sub; transition:all .18s; flex-shrink:0;
   &:hover:not(:disabled) { border-color:$primary; color:$primary; background:$primary-light; }
   &:disabled { opacity:.3; cursor:not-allowed; }
 }
 .cal-month {
-  font-size:15px; font-weight:700; color:$ink; letter-spacing:.3px;
-  em { font-style:normal; font-size:12px; color:$sub; font-weight:500; }
+  font-size:16px; font-weight:700; color:$ink; letter-spacing:.5px;
+  em { font-style:normal; font-size:13px; color:$sub; font-weight:400; }
 }
 .cal-month-btn {
   display:inline-flex; align-items:center; gap:4px;
-  cursor:pointer; padding:5px 12px; border-radius:999px; transition:all .15s; user-select:none;
-  background:rgba($primary,.05); border:1px solid rgba($primary,.08);
+  cursor:pointer; padding:4px 10px; border-radius:$rs; transition:all .15s; user-select:none;
   &:hover { background:$primary-light; color:$primary; em { color:rgba($primary,.7); } .mp-arrow { color:$primary; } }
   .mp-arrow { color:$faint; transition:all .2s; &.open { transform:rotate(180deg); } }
 }
-.cal-nav .nav-btn {
-  width:28px; height:28px; background:#fff;
-  border-color:rgba($primary,.10);
-}
-.cal-nav .today-btn {
-  padding:5px 12px; border-radius:999px;
-  background:#fff; border:1px solid rgba($primary,.14);
-}
-
 .month-picker-popup {
   position:absolute; top:calc(100% + 8px); left:50%; transform:translateX(-50%);
   background:$surface; border:1px solid $border; border-radius:$rs-lg;
@@ -1974,77 +2005,57 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   &.active { background:$primary; color:#fff; border-color:$primary; font-weight:700; }
 }
 .today-btn {
-  font-size:11px; font-weight:600; color:$primary;
+  font-size:12px; font-weight:600; color:$primary;
   background:$primary-light; border:none; border-radius:6px;
-  padding:2px 9px; cursor:pointer; transition:all .18s;
+  padding:4px 12px; cursor:pointer; transition:all .18s;
   &:hover { background:$primary; color:#fff; }
 }
 .month-fade-enter-active,.month-fade-leave-active { transition:opacity .18s,transform .18s; }
 .month-fade-enter-from { opacity:0; transform:translateX(8px); }
 .month-fade-leave-to { opacity:0; transform:translateX(-8px); }
 
-.cal-grid-wrap {
-  flex:1; display:flex; flex-direction:column; min-height:0;
-  background:linear-gradient(180deg,#f7faff 0%, #ffffff 22%);
-  border:1px solid rgba($primary,.08); border-radius:12px; padding:10px;
-}
+.cal-grid-wrap { flex:1; display:flex; flex-direction:column; min-height:0; }
 .cal-week-row {
-  display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:8px; gap:4px;
-  padding:3px; border:1px solid #edf2f7; border-radius:10px; background:#f8fafc;
-  span { text-align:center; font-size:11px; font-weight:700; color:$sub; padding:7px 0; letter-spacing:.8px; border-radius:7px; background:transparent;
-    &.wk-end { color:$danger; background:#fff4f4; } }
+  display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:4px;
+  span { text-align:center; font-size:11.5px; font-weight:600; color:$sub; padding:4px 0 8px; letter-spacing:2px;
+    &.wk-end { color:$danger; } }
 }
-
-.cal-day-grid {
-  display:grid; grid-template-columns:repeat(7,minmax(0,1fr));
-  grid-template-rows:repeat(var(--cal-row-count, 6), minmax(60px, 1fr));
-  flex:1; gap:6px;
-}
+.cal-day-grid { display:grid; grid-template-columns:repeat(7,1fr); grid-auto-rows:1fr; flex:1; gap:3px; }
 .day-cell {
-  border-radius:10px; cursor:pointer; transition:all .16s;
-  position:relative; border:1px solid #edf1f6; min-height:60px; background:#fbfcfe; overflow:hidden;
-  .cell-inner { width:100%; height:100%; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; padding:8px 7px 6px; box-sizing:border-box; }
-  &:hover { background:#f4f8ff; border-color:rgba($primary,.22); box-shadow:0 6px 14px rgba(15,23,42,.05); transform:translateY(-1px); }
-  &.active { background:$primary-light; border-color:rgba($primary,.38); .cell-num { color:$primary; font-weight:800; } }
+  border-radius:7px; cursor:pointer; transition:all .15s;
+  position:relative; border:1.5px solid transparent; min-height:48px;
+  .cell-inner { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:5px 2px 4px; }
+  &:hover { background:$primary-light; border-color:rgba($primary,.2); }
+  &.active { background:$primary-light; border-color:rgba($primary,.4); .cell-num { color:$primary; font-weight:700; } }
   &.today {
-    background:rgba($primary,.05); border-color:rgba($primary,.2);
-    .cell-num { display:inline-flex; align-items:center; justify-content:center; min-width:28px; height:28px; border-radius:50%; background:$primary; color:#fff !important; font-weight:700; font-size:13px; box-shadow:0 0 0 4px rgba($primary,.12),0 2px 8px rgba($primary,.24); }
+    background:rgba($primary,.04); border-color:rgba($primary,.18);
+    .cell-num { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:50%; background:$primary; color:#fff !important; font-weight:700; font-size:13px; box-shadow:0 0 0 4px rgba($primary,.14),0 2px 8px rgba($primary,.4); }
   }
   &.other { opacity:.28; pointer-events:none; }
-  &.weekend .cell-num { color:$danger; font-weight:700; }
-  &.holiday .cell-num { color:#cf382a; font-weight:800; }
-  &.has-events { background:linear-gradient(180deg, rgba($primary,.03) 0%, rgba($primary,.01) 100%); }
+  &.weekend .cell-num { color:$danger; font-weight:600; }
+  &.holiday .cell-num { color:#cf382a; font-weight:700; }
+  &.has-events { background:rgba($primary,.03); }
 }
-.cell-hd { display:flex; flex-direction:column; align-items:flex-start; gap:4px; width:100%; justify-content:flex-start; min-height:34px; flex-shrink:0; position:relative; }
-.cell-num { font-size:13.5px; font-weight:700; color:$ink; line-height:1.2; }
+.cell-hd { display:flex; flex-direction:column; align-items:center; gap:2px; width:100%; justify-content:center; min-height:32px; flex-shrink:0; }
+.cell-num { font-size:14px; font-weight:500; color:$ink; line-height:1.2; }
 .cell-hd small {
   font-size:9px; color:#cf382a; background:#ffe4df; border-radius:3px; padding:0 4px; line-height:15px; font-weight:700;
-  white-space:nowrap; max-width:42px; overflow:hidden; text-overflow:ellipsis; display:block;
+  white-space:nowrap; max-width:30px; overflow:hidden; text-overflow:ellipsis; display:block;
 }
 .cell-dots {
-  display:flex; align-items:center; gap:2px; flex-wrap:wrap;
-  justify-content:flex-start; min-height:13px; padding-top:4px;
-  i { width:5px; height:5px; border-radius:50%; flex-shrink:0; }
-}
-.dot-overflow {
-  display:inline-flex; align-items:center; justify-content:center;
-  font-size:8.5px; font-weight:800; color:$primary; background:#edf4ff;
-  padding:0 3px; border-radius:4px; line-height:1; min-height:12px; flex-shrink:0;
+  display:flex; justify-content:center; gap:2px; padding-top:2px;
+  i { width:5px; height:5px; border-radius:50%; display:inline-block; flex-shrink:0;
+    &.dot-more { width:auto; height:auto; font-size:8px; color:$sub; background:none !important; font-style:normal; line-height:1; font-weight:700; } }
 }
 .dot-more {
-  display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:16px; padding:0 5px;
-  border-radius:999px; background:#edf4ff; color:$primary; font-size:10px; font-weight:700; line-height:1;
-}
-.dot-count-badge {
-  position:absolute; top:0; right:0;
   display:inline-flex; align-items:center; justify-content:center;
-  min-width:16px; height:14px; padding:0 4px;
-  border-radius:999px; background:#edf4ff; color:$primary;
-  font-size:9.5px; font-weight:800; line-height:1;
 }
 .cal-loading { position:absolute; inset:0; background:rgba(255,255,255,.8); display:flex; align-items:center; justify-content:center; z-index:10; border-radius:$rs; }
 .loading-spinner { width:28px; height:28px; border:3px solid $border; border-top-color:$primary; border-radius:50%; animation:spin .6s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
+
+.toolbar { display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap; }
+.toolbar-right { display:flex; align-items:center; gap:8px; margin-left:auto; }
 
 .kbd-hints-wrap {
   position:relative; flex-shrink:0; align-self:flex-start;
@@ -2533,7 +2544,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 }
 .pp-month-event-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
 .pp-month-event-title {
-  flex:1; min-width:0; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  flex:1; min-width:0; font-size:9px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .pp-month-more { margin-top:auto; font-size:11px; font-weight:700; color:$primary; }
 .pp-month-empty { margin-top:auto; font-size:11px; color:$faint; }
