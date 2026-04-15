@@ -5,14 +5,9 @@ server:
 
 spring:
   profiles:
-    active: dev
+    default: dev
   application:
     name: bank-admin
-  datasource:
-    url: jdbc:mysql://sh-cynosdbmysql-grp-81wbjz68.sql.tencentcdb.com:20721/bank_admin?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
-    username: dev
-    password: 7756384Fd
-    driver-class-name: com.mysql.cj.jdbc.Driver
   jackson:
     time-zone: Asia/Shanghai
     date-format: yyyy-MM-dd HH:mm:ss

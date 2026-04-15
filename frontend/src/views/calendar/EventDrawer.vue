@@ -250,8 +250,18 @@ const saving = ref(false)
 const deleting = ref(false)
 const currentTimeSnapshot = ref('')
 
+interface EventForm {
+  title: string
+  eventDate: string
+  startTime: string
+  endTime: string
+  category: number
+  priority: number
+  status: number
+  remark: string
+}
 
-const form = reactive({
+const form = reactive<EventForm>({
   title: '',
   eventDate: '',
   startTime: '',

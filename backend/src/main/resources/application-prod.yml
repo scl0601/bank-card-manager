@@ -1,0 +1,18 @@
+# 生产环境配置
+# 关闭 SQL 日志，默认使用生产库；如云端已配置环境变量，会优先读取环境变量
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://sh-cynosdbmysql-grp-81wbjz68.sql.tencentcdb.com:20721/bank_admin?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${SPRING_DATASOURCE_USERNAME:dev}
+    password: ${SPRING_DATASOURCE_PASSWORD:7756384Fd}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+
+logging:
+  level:
+    com.bank.admin: info
+    root: warn

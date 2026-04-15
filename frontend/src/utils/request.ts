@@ -3,8 +3,23 @@ import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/store/modules/auth'
 import router from '@/router'
 
+const CLOUD_PROD_API_BASE_URL = 'https://bank-admin-backend-239413-10-1411764939.sh.run.tcloudbase.com/api'
+
+function resolveApiBaseUrl() {
+  const envBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim()
+  if (envBaseUrl) {
+    return envBaseUrl.replace(/\/+$/, '')
+  }
+
+  if (typeof window !== 'undefined' && window.location.hostname.endsWith('tcloudbaseapp.com')) {
+    return CLOUD_PROD_API_BASE_URL
+  }
+
+  return '/api'
+}
+
 const request = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  baseURL: resolveApiBaseUrl(),
   timeout: 15000
 })
 
@@ -12,7 +27,11 @@ const request = axios.create({
 request.interceptors.request.use(
   (config) => {
     const authStore = useAuthStore()
-    if (authStore.token) {
+    const requestUrl = config.url ?? ''
+    const shouldAttachToken = !!authStore.token && !requestUrl.includes('/auth/login')
+
+    if (shouldAttachToken) {
+      config.headers = config.headers ?? {}
       config.headers['Authorization'] = `Bearer ${authStore.token}`
     }
     return config

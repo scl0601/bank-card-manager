@@ -12,6 +12,7 @@ WORKDIR /app
 COPY --from=builder /app/target/bank-admin-1.0.0.jar app.jar
 EXPOSE 7878
 ENV TZ=Asia/Shanghai
+ENV SPRING_PROFILES_ACTIVE=prod
 ENV JAVA_OPTS="-Xms256m -Xmx512m"
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
 
