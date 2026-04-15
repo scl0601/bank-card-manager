@@ -1963,7 +1963,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .search-box {
   display:flex; align-items:center; gap:7px;
   background:$bg; border:1.5px solid transparent;
-  border-radius:$rs; padding:7px 12px; width:220px; transition:all .2s;
+  border-radius:$rs; padding:7px 12px; width:clamp(150px, 18vw, 260px); transition:all .2s;
   .search-icon { color:$sub; flex-shrink:0; }
   input { border:none; outline:none; font-size:13px; color:$ink; background:transparent; width:100%; min-width:0;
     &::placeholder { color:$faint; } }
@@ -1982,7 +1982,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .main-body { display:flex; flex:1; overflow:hidden; min-height:0; }
 .main-day {
   display:grid;
-  grid-template-columns:minmax(360px, 42%) minmax(0, 58%);
+  grid-template-columns:minmax(280px, 0.42fr) minmax(0, 0.58fr);
   gap:12px;
   padding:12px 16px 16px;
   min-height:0;
@@ -2000,7 +2000,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 
 
 
-.stats-row { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; }
+.stats-row { display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:10px; }
 .stat-card {
   --stat-accent: #7b8ba2;
   --stat-number: #5f6f86;
@@ -2309,7 +2309,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 }
 .rp-date-info { display:flex; align-items:center; gap:8px; min-width:0; }
 .rp-date-main { display:flex; align-items:center; gap:8px; min-width:0; }
-.rp-day-num { font-size:30px; font-weight:900; color:$ink; line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-1px; }
+.rp-day-num { font-size:clamp(22px, 2.8vw, 34px); font-weight:900; color:$ink; line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-1px; }
 .rp-date-sub { display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0; }
 .rp-date-text { font-size:12px; font-weight:700; color:$ink2; }
 .rp-rel-date {
@@ -2473,7 +2473,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .ev-group { padding:0 16px; display:flex; flex-direction:column; gap:6px; }
 .ev-card {
   width:100%; box-sizing:border-box;
-  display:grid; grid-template-columns:26px minmax(0,1fr) 200px; align-items:center; column-gap:10px;
+  display:grid; grid-template-columns:26px minmax(0,1fr) minmax(140px, 18%); align-items:center; column-gap:10px;
   padding:10px 12px; min-height:60px; border-radius:14px; cursor:pointer;
   transition:all .18s ease; border:1px solid rgba(219,226,234,.72); background:rgba(255,255,255,.92); position:relative;
   box-shadow:0 6px 16px rgba(15,23,42,.04);
@@ -2556,7 +2556,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   padding:3px 8px; background:$primary-light; box-shadow:0 0 0 3px rgba($primary,.1);
 }
 .ev-side {
-  width:200px; min-width:200px; display:flex; flex-direction:column; align-items:flex-end; justify-content:center; gap:6px;
+  width:auto; min-width:140px; max-width:240px; display:flex; flex-direction:column; align-items:flex-end; justify-content:center; gap:6px;
 }
 .ev-side-top {
   width:100%; display:grid; grid-template-columns:60px 56px 72px; align-items:center; justify-content:end; column-gap:6px;
@@ -2868,7 +2868,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .mo-calendar-panel {
   width:min(100%, 1680px);
   min-height:0;
-  height:min(100%, clamp(580px, calc(100vh - 238px), 780px));
+  height:min(100%, clamp(480px, calc(100vh - 220px), 85vh));
   display:flex;
   flex-direction:column;
   margin:0 auto;
@@ -2983,7 +2983,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .mo-grid {
   display:grid;
   grid-template-columns:repeat(7, minmax(0, 1fr));
-  grid-template-rows:repeat(var(--mo-row-count, 6), minmax(56px, 1fr));
+  grid-template-rows:repeat(var(--mo-row-count, 6), minmax(clamp(40px, 3.5vh, 60px), 1fr));
   flex:1;
   min-height:0;
   border:1px solid rgba(211,223,238,.95);
@@ -3692,7 +3692,32 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   &:hover { border-color:$primary; color:$primary; background:$primary-light; }
 }
 
-/* 月视图响应式 */
+/* ========== 响应式适配 ========== */
+
+/* 大屏优化 (>=1600px) */
+@media(min-width: 1600px){
+  .mo-calendar-panel{ width:min(100%, 1760px); border-radius:20px; }
+  .ev-card{ padding:12px 16px; min-height:66px; }
+  .rp-day-num{ font-size:36px; }
+  .stat-info em{ font-size:24px; }
+}
+
+/* 中等屏过渡 (<=1440px) */
+@media(max-width: 1440px){
+  .main-day{ grid-template-columns:minmax(260px, 0.40fr) minmax(0, 0.60fr); }
+  .ev-side{ min-width:130px; max-width:180px; }
+  .ev-card{ grid-template-columns:26px minmax(0,1fr) minmax(120px, 16%); }
+  .mo-footer-track{ width:100px; }
+}
+
+/* 中等屏过渡 (<=1280px) */
+@media(max-width: 1280px){
+  .search-box{ width: clamp(140px, 16vw, 200px); }
+  .header-actions{ gap:8px; }
+  .page-header{ padding:14px 20px; }
+}
+
+/* 月视图原有响应式 + 增强 */
 @media(max-width:900px){
   .month-overview { padding:6px 12px 10px; gap:6px; }
   .mo-calendar-stage { padding:0 2px 24px; }
@@ -3705,6 +3730,9 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   .mo-week-header span { font-size:10px; letter-spacing:1px; }
   .mo-footer-track { width:80px; }
   .mo-footer-stats { gap:10px; }
+  .stats-row{ grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); gap:8px; }
+  .stat-card{ padding:10px 10px 9px; }
+  .stat-info em{ font-size:18px; }
 }
 @media(max-width:600px){
   .month-overview { padding:4px 6px 8px; gap:5px; }
@@ -3718,6 +3746,12 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   .mo-footer { flex-direction:column; align-items:flex-start; gap:6px; padding:6px 0 0; }
   .mo-footer-progress { width:100%; }
   .mo-footer-track { flex:1; }
+  .stats-row{ grid-template-columns:repeat(auto-fill, minmax(90px, 1fr)); gap:6px; }
+}
+
+/* 日视图单列布局：窄屏时左右面板堆叠 */
+@media(max-width: 900px){
+  .main-day{ grid-template-columns:1fr !important; }
 }
 @keyframes mo-today-flash {
   0%, 100% { box-shadow:inset 4px 0 0 #ff4d4f, 0 0 0 2px #ff4d4f, 0 0 14px rgba(255,77,79,.45); }
