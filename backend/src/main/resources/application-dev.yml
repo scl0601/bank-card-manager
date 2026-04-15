@@ -38,3 +38,12 @@ jwt:
 logging:
   level:
     com.bank.admin: debug
+
+# CloudBase AI 配置（开发环境）
+cloudbase:
+  ai:
+    enabled: true
+    secret-id: ${TENCENT_SECRET_ID:your-secret-id}
+    secret-key: ${TENCENT_SECRET_KEY:your-secret-key}
+    model: hunyuan-pro
+    max-tokens: 2000

@@ -55,6 +55,9 @@
         <router-view />
       </main>
     </div>
+
+    <!-- 全局 AI 悬浮助手 -->
+    <AiFloatWidget />
   </div>
 </template>
 
@@ -63,6 +66,7 @@ import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/modules/auth'
 import { ElMessageBox } from 'element-plus'
+import AiFloatWidget from '@/components/AiFloatWidget.vue'
 
 const route = useRoute()
 const router = useRouter()

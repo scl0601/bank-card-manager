@@ -30,6 +30,17 @@ jwt:
   secret: bank-admin-jwt-secret-key-2024-very-long-secret
   expiration: 86400000
 
+# AI 配置（使用腾讯云混元大模型）
+cloudbase:
+  ai:
+    enabled: true
+    secret-id: ${AI_SECRET_ID:}
+    secret-key: ${AI_SECRET_KEY:}
+    model: hunyuan-pro
+    # Token总配额（根据实际购买/赠送额度填写，单位：tokens）
+    # AI激励计划: 100000000 (1亿) | 环境赠送: 1000000 (100万) | 自费按实填写
+    quota: 100000
+
 # 日志
 logging:
   level:

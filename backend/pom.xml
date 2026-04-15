@@ -115,6 +115,13 @@
             <version>3.3.3</version>
         </dependency>
 
+        <!-- Tencent Cloud SDK (AI / Hunyuan) -->
+        <dependency>
+            <groupId>com.tencentcloudapi</groupId>
+            <artifactId>tencentcloud-sdk-java-hunyuan</artifactId>
+            <version>3.1.1422</version>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

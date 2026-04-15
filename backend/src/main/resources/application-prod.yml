@@ -16,3 +16,12 @@ logging:
   level:
     com.bank.admin: info
     root: warn
+
+# CloudBase AI 配置（生产环境）
+cloudbase:
+  ai:
+    enabled: true
+    secret-id: ${TENCENT_SECRET_ID:your-secret-id}
+    secret-key: ${TENCENT_SECRET_KEY:your-secret-key}
+    model: hunyuan-pro
+    max-tokens: 2000
