@@ -2001,7 +2001,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 
 
 
-.stats-row { display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:10px; }
+.stats-row { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
 .stat-card {
   --stat-accent: #7b8ba2;
   --stat-number: #5f6f86;
