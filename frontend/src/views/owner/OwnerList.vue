@@ -91,6 +91,7 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'Owners' })
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { formatTime } from '@/utils/formatters'

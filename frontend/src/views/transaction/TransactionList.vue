@@ -109,6 +109,7 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'Transactions' })
 import { ref, reactive, onMounted } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'

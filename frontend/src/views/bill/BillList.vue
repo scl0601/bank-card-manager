@@ -120,6 +120,7 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'Bills' })
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import SearchBar from '@/components/SearchBar/index.vue'

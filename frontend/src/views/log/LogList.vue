@@ -72,6 +72,7 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'Logs' })
 import { ref } from 'vue'
 import { formatTime } from '@/utils/formatters'
 import SearchBar from '@/components/SearchBar/index.vue'

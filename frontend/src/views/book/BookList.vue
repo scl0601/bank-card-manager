@@ -157,6 +157,7 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'Books' })
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { Plus, Setting } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'

@@ -70,12 +70,6 @@ const router = createRouter({
           name: 'Calendar',
           component: () => import('@/views/calendar/CalendarView.vue'),
           meta: { title: '日历计划', icon: 'Calendar' }
-        },
-        {
-          path: 'ai',
-          name: 'AiAssistant',
-          component: () => import('@/views/ai/index.vue'),
-          meta: { title: 'AI助手', icon: 'ChatDotRound' }
         }
       ]
     },

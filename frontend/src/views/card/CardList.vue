@@ -123,6 +123,7 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'Cards' })
 import { computed, reactive, ref } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'

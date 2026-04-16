@@ -788,6 +788,7 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'Calendar' })
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {

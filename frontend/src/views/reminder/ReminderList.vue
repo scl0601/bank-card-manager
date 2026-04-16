@@ -154,6 +154,7 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'Reminders' })
 import { ref, reactive, onMounted, computed } from 'vue'
 import { Bell, Warning, Clock, CreditCard, ArrowDown } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
