@@ -33,7 +33,8 @@
 
 | 服务 | 访问地址 | 状态 |
 |------|----------|------|
-| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604150851) | ✅ 已上线 |
+| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604151607) | ✅ 已上线 |
+
 | **后端 API** | `https://bank-admin-backend-239413-10-1411764939.sh.run.tcloudbase.com` | ✅ 运行中 |
 
 ---
@@ -154,3 +155,6 @@ npm run dev
 - 调整后端 prod 配置与容器 profile，重新部署云托管服务
 - 修复登录链路：登录请求不再附带旧 token，JWT 过滤器跳过 `/api/auth/login`
 - 回测确认 CloudBase 外网登录与静态站点访问均正常
+- 重新发布当前最新版本到 CloudBase（后端云托管 + 前端静态托管）
+- 为云托管服务补充 AI 环境变量配置，外网场景可正常调用 AI 能力
+

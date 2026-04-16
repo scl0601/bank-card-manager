@@ -57,8 +57,9 @@ import { reactive, ref } from 'vue'
 import { DataAnalysis, RefreshRight } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { analyzeApi } from '@/api/ai'
+import type { AiAnalyzeRequest } from '@/api/ai'
 
-const form = reactive({
+const form = reactive<{ type: AiAnalyzeRequest['type'] }>({
   type: 'reconcile',
 })
 

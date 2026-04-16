@@ -4,6 +4,7 @@ import { useAuthStore } from '@/store/modules/auth'
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
+    // ==================== 桌面端路由 ====================
     {
       path: '/login',
       name: 'Login',
@@ -69,9 +70,53 @@ const router = createRouter({
           name: 'Calendar',
           component: () => import('@/views/calendar/CalendarView.vue'),
           meta: { title: '日历计划', icon: 'Calendar' }
+        },
+        {
+          path: 'ai',
+          name: 'AiAssistant',
+          component: () => import('@/views/ai/index.vue'),
+          meta: { title: 'AI助手', icon: 'ChatDotRound' }
         }
       ]
     },
+
+
+    // ==================== 移动端路由 ====================
+    {
+      path: '/m/login',
+      name: 'MobileLogin',
+      component: () => import('@/mobile/layout/MobileLayout.vue'),
+      meta: { requiresAuth: false, isMobile: true, mobileTitle: '登录' },
+      children: [
+        {
+          path: '',
+          name: 'MobileLoginPage',
+          component: () => import('@/mobile/views/MobileLoginView.vue')
+        }
+      ]
+    },
+    {
+      path: '/m',
+      component: () => import('@/mobile/layout/MobileLayout.vue'),
+      meta: { requiresAuth: true, isMobile: true, mobileTitle: '日历计划' },
+      redirect: '/m/calendar',
+      children: [
+        {
+          path: 'calendar',
+          name: 'MobileCalendar',
+          component: () => import('@/mobile/views/calendar/MobileCalendarView.vue'),
+          meta: { showBack: false, mobileTitle: '日历计划' }
+        },
+        {
+          path: 'event/:id?',
+          name: 'MobileEventDetail',
+          component: () => import('@/mobile/views/event/MobileEventDetail.vue'),
+          meta: { showBack: true, mobileTitle: '日程详情' }
+        }
+      ]
+    },
+
+    // ==================== 404 ====================
     {
       path: '/:pathMatch(.*)*',
       name: 'NotFound',
@@ -84,11 +129,14 @@ const router = createRouter({
 // 路由守卫
 router.beforeEach((to) => {
   const authStore = useAuthStore()
+  const isMobileRoute = !!to.meta?.isMobile
+  const loginPath = isMobileRoute ? '/m/login' : '/login'
+
   if (to.meta.requiresAuth !== false && !authStore.token) {
-    return '/login'
+    return loginPath
   }
-  if (to.path === '/login' && authStore.token) {
-    return '/'
+  if ((to.path === '/login' || to.path === '/m/login') && authStore.token) {
+    return isMobileRoute ? '/m/calendar' : '/'
   }
 })
 

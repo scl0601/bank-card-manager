@@ -82,8 +82,10 @@ const menuItems = [
   { path: '/bills',        title: '账单管理',   icon: 'Document' },
   { path: '/reminders',    title: '提醒中心',   icon: 'Bell' },
   { path: '/calendar',     title: '日历计划',   icon: 'Calendar' },
+  { path: '/ai',           title: 'AI助手',     icon: 'ChatDotRound' },
   { path: '/logs',         title: '系统日志',   icon: 'Tickets' }
 ]
+
 
 const activeMenu = computed(() => route.path)
 const currentTitle = computed(() =>

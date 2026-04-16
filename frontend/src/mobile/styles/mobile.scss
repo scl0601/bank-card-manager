@@ -1,0 +1,286 @@
+// ==================== 移动端专属变量 ====================
+:root {
+  --mobile-nav-height: 50px;
+  --mobile-tabbar-height: 56px;
+  --mobile-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --mobile-page-bg: radial-gradient(circle at top, #f8fbff 0%, #eff4fb 42%, #edf2f8 100%);
+  --mobile-card-radius: 16px;
+  --mobile-card-border: rgba(221, 228, 238, 0.92);
+  --mobile-card-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+  --mobile-card-shadow-strong: 0 18px 36px rgba(15, 23, 42, 0.08);
+  --mobile-surface-primary: rgba(255, 255, 255, 0.98);
+  --mobile-surface-secondary: #f7faff;
+  --mobile-surface-tertiary: #f1f5fb;
+  --mobile-text-muted: #6b7280;
+  --mobile-spacing: 12px;
+  --mobile-accent-gradient: linear-gradient(135deg, #2b6ef2 0%, #0958d9 100%);
+
+  // 触摸友好尺寸
+  --mobile-touch-min: 44px;  // 最小触摸区域
+  --mobile-font-xs:   12px;
+  --mobile-font-sm:   13px;
+  --mobile-font-base: 14px;
+  --mobile-font-md:   16px;
+  --mobile-font-lg:   18px;
+  --mobile-font-xl:   20px;
+}
+
+// ==================== 移动端基础重置 ====================
+.mobile-page {
+  min-height: 100vh;
+  background: var(--mobile-page-bg);
+  font-size: var(--mobile-font-base);
+  color: var(--color-text-regular);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+
+  // 防止 iOS 弹性滚动
+  overflow-x: hidden;
+
+  // 防止双击缩放（iOS Safari）
+  touch-action: manipulation;
+}
+
+// ==================== 移动端卡片 ====================
+.mobile-card {
+  background: linear-gradient(180deg, var(--mobile-surface-primary) 0%, var(--mobile-surface-secondary) 100%);
+  border-radius: var(--mobile-card-radius);
+  padding: 16px;
+  margin: 12px;
+  border: 1px solid var(--mobile-card-border);
+  box-shadow: var(--mobile-card-shadow);
+  backdrop-filter: blur(10px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+
+  &--no-margin {
+    margin: 0;
+  }
+
+  &--flat {
+    box-shadow: none;
+  }
+}
+
+// ==================== 移动端安全区域 ====================
+.mobile-safe-bottom {
+  padding-bottom: calc(var(--mobile-safe-bottom) + 10px);
+}
+
+// ==================== 移动端空状态 ====================
+.mobile-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 24px;
+  color: var(--color-text-secondary);
+
+  .empty-icon {
+    font-size: 48px;
+    color: #d0d5dd;
+    margin-bottom: 12px;
+  }
+
+  .empty-text {
+    font-size: var(--mobile-font-sm);
+  }
+}
+
+// ==================== 页面滑动过渡 ====================
+.mobile-slide-right-enter-active,
+.mobile-slide-right-leave-active,
+.mobile-slide-left-enter-active,
+.mobile-slide-left-leave-active {
+  transition: transform 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.28s ease-out;
+}
+
+.mobile-slide-left-enter-from {
+  transform: translateX(24%);
+  opacity: 0;
+}
+.mobile-slide-left-leave-to {
+  transform: translateX(-20%);
+  opacity: 0;
+}
+.mobile-slide-right-enter-from {
+  transform: translateX(-24%);
+  opacity: 0;
+}
+.mobile-slide-right-leave-to {
+  transform: translateX(20%);
+  opacity: 0;
+}
+
+// ==================== 淡入淡出+轻微上移 ====================
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+// ==================== 底部弹出层动画 ====================
+.mobile-popup-up-enter-active {
+  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.mobile-popup-up-leave-active {
+  transition: transform 0.22s cubic-bezier(0.55, 0.06, 0.68, 0.19);
+}
+.mobile-popup-up-enter-from,
+.mobile-popup-up-leave-to {
+  transform: translateY(100%);
+}
+
+// ==================== 弹性缩放入场 ====================
+.scale-in-enter-active {
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.scale-in-enter-from {
+  opacity: 0;
+  transform: scale(0.92);
+}
+
+// ==================== 列表交错入场 ====================
+.list-stagger-enter-active {
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.list-stagger-enter-from {
+  opacity: 0;
+  transform: translateY(12px);
+}
+// 列表项离开时快速淡出
+.list-stagger-leave-active {
+  transition: all 0.15s ease-in;
+  position: absolute;  // 允许后续项上移填充
+  width: 100%;
+}
+.list-stagger-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+.list-stagger-move {
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+// ==================== 按钮弹性点击反馈 ====================
+@keyframes btn-bounce {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+
+.btn-bounce {
+  &:active {
+    animation: btn-bounce 0.2s ease-out;
+  }
+}
+
+// ==================== 触觉式脉冲动画（用于进行中状态指示器） ====================
+@keyframes haptic-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.65); }
+}
+
+.haptic-pulse {
+  animation: haptic-pulse 1.5s ease-in-out infinite;
+}
+
+// ==================== Shimmer 骨架屏 ====================
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.shimmer-bg {
+  background: linear-gradient(90deg, #f0f0f0 25%, #f8f8f8 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+// ==================== Element Plus 移动端覆盖 ====================
+.mobile-page {
+  // 让 el-form-item 在移动端更紧凑
+  .el-form-item {
+    margin-bottom: 16px;
+  }
+
+  .el-input__wrapper,
+  .el-select__wrapper,
+  .el-textarea__inner {
+    border-radius: 14px;
+    border-color: transparent;
+    background: rgba(245, 247, 251, 0.92);
+    box-shadow: none;
+  }
+
+  .el-input__wrapper,
+  .el-select__wrapper {
+    min-height: var(--mobile-touch-min);
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .el-input.is-focus .el-input__wrapper,
+  .el-select .el-select__wrapper.is-focused,
+  .el-textarea__inner:focus {
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(9, 88, 217, 0.08);
+  }
+
+  .el-button {
+    min-height: var(--mobile-touch-min);
+    border-radius: 12px;
+  }
+
+  // Select 下拉框在移动端的优化
+  .el-select {
+    width: 100%;
+  }
+
+  // Date Picker 移动端适配
+  .el-date-editor {
+    width: 100%;
+  }
+
+  // Textarea 优化
+  .el-textarea__inner {
+    font-size: var(--mobile-font-base);
+    line-height: 1.6;
+    padding: 12px 14px;
+  }
+
+  // Tag 在移动端稍小一点
+  .el-tag {
+    flex-shrink: 0;
+  }
+
+  // Dropdown 在移动端全宽显示
+  .el-dropdown-menu {
+    min-width: 180px;
+  }
+}
+
+@media (max-width: 375px) {
+  .mobile-card {
+    margin: 10px;
+    padding: 14px;
+    border-radius: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
