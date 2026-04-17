@@ -798,7 +798,9 @@ import {
 import {
   EVENT_CATEGORY_OPTIONS, EVENT_STATUS_VALUE, EVENT_CATEGORY_MAP
 } from '@/constants/dict'
+import { getHolidayName } from '@/utils/holiday'
 import EventDrawer from './EventDrawer.vue'
+
 
 const today = new Date()
 const currentYear = ref(today.getFullYear())
@@ -1107,15 +1109,8 @@ const categoryColor: Record<string,string> = {
 const categoryColorLight: Record<string,string> = {
   0:'#eaf2ff',1:'#e8f7ed',2:'#fff4db',3:'#fff1f0',4:'#eef2f6',5:'#f1eafe',
 }
-const holidayMap: Record<string,string> = {
-  '01-01':'元旦','01-28':'除夕','01-29':'春节',
-  '04-05':'清明','05-01':'劳动','06-19':'端午',
-  '09-25':'中秋','10-01':'国庆',
-}
-function getHolidayName(m:number,d:number):string {
-  return holidayMap[`${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`]||''
-}
 function isWeekend(y:number,m:number,d:number):boolean {
+
   const dow=new Date(y,m-1,d).getDay(); return dow===0||dow===6
 }
 
@@ -1233,7 +1228,8 @@ const calendarRows = computed(()=>{
     const dateKey=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`
     const dayEvents=monthData.value.filter((e:any)=>e.eventDate===dateKey)
     const dots=dayEvents.map((e:any)=>e.category)
-    cells.push({day:d,date:dateKey,isToday:dateKey===todayStr,dots,visibleDots:dots.slice(0,10),eventCount:dayEvents.length,isWeekend:isWeekend(y,m,d),holidayName:getHolidayName(m,d),key:dateKey})
+    cells.push({day:d,date:dateKey,isToday:dateKey===todayStr,dots,visibleDots:dots.slice(0,10),eventCount:dayEvents.length,isWeekend:isWeekend(y,m,d),holidayName:getHolidayName(y,m,d),key:dateKey})
+
   }
   const remaining=42-cells.length
   for(let d=1;d<=remaining;d++) cells.push({day:d,isOther:true,dots:[],key:`next-${d}`})

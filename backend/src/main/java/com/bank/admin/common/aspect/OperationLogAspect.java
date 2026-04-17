@@ -123,24 +123,80 @@ public class OperationLogAspect {
             if (args == null || args.length == 0) {
                 return "";
             }
-            StringBuilder sb = new StringBuilder("[");
+
+            java.util.List<Object> safeArgs = new java.util.ArrayList<>();
             for (Object arg : args) {
-                if (arg instanceof MultipartFile || arg instanceof jakarta.servlet.http.HttpServletResponse
-                        || arg instanceof jakarta.servlet.http.HttpSession) {
-                    continue; // 跳过文件和响应对象
+                Object sanitized = sanitizeLogArg(arg);
+                if (sanitized != null) {
+                    safeArgs.add(sanitized);
                 }
-                String json = MAPPER.writeValueAsString(arg);
-                sb.append(maskSensitiveFields(json)).append(",");
             }
-            if (sb.length() > 1) {
-                sb.deleteCharAt(sb.length() - 1); // 移除最后的逗号
-            }
-            sb.append("]");
-            return sb.toString();
+            return maskSensitiveFields(MAPPER.writeValueAsString(safeArgs));
         } catch (Exception e) {
             log.warn("序列化请求参数失败", e);
             return "[serialization error]";
         }
+    }
+
+    private Object sanitizeLogArg(Object arg) {
+        if (arg == null) {
+            return null;
+        }
+        if (arg instanceof MultipartFile file) {
+            return buildMultipartFileLog(file);
+        }
+        if (arg instanceof MultipartFile[] files) {
+            java.util.List<Object> fileLogs = new java.util.ArrayList<>();
+            for (MultipartFile file : files) {
+                fileLogs.add(buildMultipartFileLog(file));
+            }
+            return fileLogs;
+        }
+        if (arg instanceof jakarta.servlet.http.HttpServletRequest
+                || arg instanceof jakarta.servlet.http.HttpServletResponse
+                || arg instanceof jakarta.servlet.http.HttpSession) {
+            return null;
+        }
+        if (arg instanceof java.util.Collection<?> collection) {
+            java.util.List<Object> items = new java.util.ArrayList<>();
+            for (Object item : collection) {
+                Object sanitized = sanitizeLogArg(item);
+                if (sanitized != null) {
+                    items.add(sanitized);
+                }
+            }
+            return items;
+        }
+        if (arg instanceof java.util.Map<?, ?> map) {
+            java.util.Map<String, Object> safeMap = new java.util.LinkedHashMap<>();
+            for (java.util.Map.Entry<?, ?> entry : map.entrySet()) {
+                Object sanitized = sanitizeLogArg(entry.getValue());
+                if (sanitized != null) {
+                    safeMap.put(String.valueOf(entry.getKey()), sanitized);
+                }
+            }
+            return safeMap;
+        }
+        if (arg.getClass().isArray()) {
+            int length = java.lang.reflect.Array.getLength(arg);
+            java.util.List<Object> items = new java.util.ArrayList<>();
+            for (int i = 0; i < length; i++) {
+                Object sanitized = sanitizeLogArg(java.lang.reflect.Array.get(arg, i));
+                if (sanitized != null) {
+                    items.add(sanitized);
+                }
+            }
+            return items;
+        }
+        return arg;
+    }
+
+    private java.util.Map<String, Object> buildMultipartFileLog(MultipartFile file) {
+        java.util.Map<String, Object> fileInfo = new java.util.LinkedHashMap<>();
+        fileInfo.put("fileName", file.getOriginalFilename());
+        fileInfo.put("size", file.getSize());
+        fileInfo.put("contentType", file.getContentType());
+        return fileInfo;
     }
 
     /**

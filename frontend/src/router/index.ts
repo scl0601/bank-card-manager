@@ -60,6 +60,12 @@ const router = createRouter({
           meta: { title: '提醒中心', icon: 'Bell' }
         },
         {
+          path: 'feedbacks',
+          name: 'Feedbacks',
+          component: () => import('@/views/feedback/FeedbackList.vue'),
+          meta: { title: '用户反馈', icon: 'ChatDotRound' }
+        },
+        {
           path: 'logs',
           name: 'Logs',
           component: () => import('@/views/log/LogList.vue'),

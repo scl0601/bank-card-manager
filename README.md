@@ -33,7 +33,8 @@
 
 | 服务 | 访问地址 | 状态 |
 |------|----------|------|
-| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604161155) | ✅ 已上线 |
+| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604161539) | ✅ 已上线 |
+
 
 | **后端 API** | `https://bank-admin-backend-239413-10-1411764939.sh.run.tcloudbase.com` | ✅ 运行中 |
 
@@ -149,10 +150,12 @@ npm run dev
 
 ### 2026-04-16
 - 重新将当前最新前后端代码部署到 CloudBase
-- 后端重新发布到云托管服务 `bank-admin-backend`
+- 后端云托管服务 `bank-admin-backend` 成功发布至版本 `bank-admin-backend-013`
 - 前端重新构建并上传到静态网站托管
-- 更新 README 中的前端缓存刷新访问参数
+- 更新 README 中的前端缓存刷新访问参数为 `?v=202604161539`
 - 线上验证发现测试域名当前返回 CloudBase 风险提醒页，提示“当前访问量已达上限”，需后续在控制台继续排查域名访问限制
+- 后端 API 线上域名保持不变，可继续通过现有地址访问
+
 
 ### 2026-04-15
 - 部署到腾讯云 CloudBase 外网

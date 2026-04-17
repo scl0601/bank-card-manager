@@ -54,7 +54,7 @@
       <main class="content-area">
         <router-view v-slot="{ Component, route }">
           <transition name="fade-slide" mode="out-in" appear>
-            <keep-alive :include="['Dashboard','Owners','Cards','Transactions','Books','Bills','Reminders','Calendar','Logs']">
+            <keep-alive :include="['Dashboard','Owners','Cards','Transactions','Books','Bills','Reminders','Feedbacks','Calendar','Logs']">
               <component :is="Component" :key="route.name || route.path" />
             </keep-alive>
           </transition>
@@ -87,6 +87,7 @@ const menuItems = [
   { path: '/books',        title: '个人记账',   icon: 'Wallet' },
   { path: '/bills',        title: '账单管理',   icon: 'Document' },
   { path: '/reminders',    title: '提醒中心',   icon: 'Bell' },
+  { path: '/feedbacks',    title: '用户反馈',   icon: 'ChatDotRound' },
   { path: '/calendar',     title: '日历计划',   icon: 'Calendar' },
   { path: '/logs',         title: '系统日志',   icon: 'Tickets' }
 ]

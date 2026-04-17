@@ -11,19 +11,31 @@ export function formatAmount(val: number | string | null | undefined): string {
 }
 
 /**
- * 格式化时间（ISO格式转显示格式）
+ * 格式化时间（兼容 ISO 字符串 / LocalDateTime 数组 / Date）
  */
-export function formatTime(time: string | null | undefined): string {
+export function formatTime(time: string | number[] | Date | null | undefined): string {
   if (!time) return '-'
+
+  if (Array.isArray(time)) {
+    const [year, month = 1, day = 1, hour = 0, minute = 0, second = 0] = time
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${year}-${pad(month)}-${pad(day)} ${pad(hour)}:${pad(minute)}:${pad(second)}`
+  }
+
+  if (time instanceof Date) {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${time.getFullYear()}-${pad(time.getMonth() + 1)}-${pad(time.getDate())} ${pad(time.getHours())}:${pad(time.getMinutes())}:${pad(time.getSeconds())}`
+  }
+
   return time.replace('T', ' ').substring(0, 19)
 }
 
 /**
  * 格式化日期（只取日期部分）
  */
-export function formatDate(date: string | null | undefined): string {
+export function formatDate(date: string | number[] | Date | null | undefined): string {
   if (!date) return '-'
-  return date.substring(0, 10)
+  return formatTime(date).substring(0, 10)
 }
 
 /**

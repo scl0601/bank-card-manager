@@ -322,6 +322,97 @@ export const EVENT_STATUS_TAG_TYPE: Record<number, string> = {
   [EVENT_STATUS_VALUE.CANCELLED]: 'info'
 }
 
+// ==================== 用户反馈状态 ====================
+export const FEEDBACK_STATUS_VALUE = {
+  PENDING: 0,      // 待处理
+  IN_PROGRESS: 1,  // 修复中
+  RESOLVED: 2,     // 已解决
+  CLOSED: 3        // 已关闭
+} as const
+
+export const FEEDBACK_STATUS_OPTIONS = [
+  { label: '待处理', value: FEEDBACK_STATUS_VALUE.PENDING },
+  { label: '修复中', value: FEEDBACK_STATUS_VALUE.IN_PROGRESS },
+  { label: '已解决', value: FEEDBACK_STATUS_VALUE.RESOLVED },
+  { label: '已关闭', value: FEEDBACK_STATUS_VALUE.CLOSED }
+]
+
+export const FEEDBACK_STATUS_MAP: Record<number, string> = {
+  [FEEDBACK_STATUS_VALUE.PENDING]: '待处理',
+  [FEEDBACK_STATUS_VALUE.IN_PROGRESS]: '修复中',
+  [FEEDBACK_STATUS_VALUE.RESOLVED]: '已解决',
+  [FEEDBACK_STATUS_VALUE.CLOSED]: '已关闭'
+}
+
+export const FEEDBACK_STATUS_TAG_TYPE: Record<number, string> = {
+  [FEEDBACK_STATUS_VALUE.PENDING]: 'warning',
+  [FEEDBACK_STATUS_VALUE.IN_PROGRESS]: '',
+  [FEEDBACK_STATUS_VALUE.RESOLVED]: 'success',
+  [FEEDBACK_STATUS_VALUE.CLOSED]: 'info'
+}
+
+// ==================== 用户反馈优先级 ====================
+export const FEEDBACK_PRIORITY_VALUE = {
+  LOW: 0,    // 低
+  MEDIUM: 1, // 中
+  HIGH: 2,   // 高
+  URGENT: 3  // 紧急
+} as const
+
+export const FEEDBACK_PRIORITY_OPTIONS = [
+  { label: '低', value: FEEDBACK_PRIORITY_VALUE.LOW },
+  { label: '中', value: FEEDBACK_PRIORITY_VALUE.MEDIUM },
+  { label: '高', value: FEEDBACK_PRIORITY_VALUE.HIGH },
+  { label: '紧急', value: FEEDBACK_PRIORITY_VALUE.URGENT }
+]
+
+export const FEEDBACK_PRIORITY_MAP: Record<number, string> = {
+  [FEEDBACK_PRIORITY_VALUE.LOW]: '低',
+  [FEEDBACK_PRIORITY_VALUE.MEDIUM]: '中',
+  [FEEDBACK_PRIORITY_VALUE.HIGH]: '高',
+  [FEEDBACK_PRIORITY_VALUE.URGENT]: '紧急'
+}
+
+export const FEEDBACK_PRIORITY_TAG_TYPE: Record<number, string> = {
+  [FEEDBACK_PRIORITY_VALUE.LOW]: 'info',
+  [FEEDBACK_PRIORITY_VALUE.MEDIUM]: '',
+  [FEEDBACK_PRIORITY_VALUE.HIGH]: 'warning',
+  [FEEDBACK_PRIORITY_VALUE.URGENT]: 'danger'
+}
+
+// ==================== 用户反馈类型 ====================
+export const FEEDBACK_TYPE_VALUE = {
+  BUG: 0,        // 功能异常
+  UI: 1,         // 界面体验
+  DATA: 2,       // 数据问题
+  PERMISSION: 3, // 权限问题
+  OTHER: 4       // 其他
+} as const
+
+export const FEEDBACK_TYPE_OPTIONS = [
+  { label: '功能异常', value: FEEDBACK_TYPE_VALUE.BUG },
+  { label: '界面体验', value: FEEDBACK_TYPE_VALUE.UI },
+  { label: '数据问题', value: FEEDBACK_TYPE_VALUE.DATA },
+  { label: '权限问题', value: FEEDBACK_TYPE_VALUE.PERMISSION },
+  { label: '其他', value: FEEDBACK_TYPE_VALUE.OTHER }
+]
+
+export const FEEDBACK_TYPE_MAP: Record<number, string> = {
+  [FEEDBACK_TYPE_VALUE.BUG]: '功能异常',
+  [FEEDBACK_TYPE_VALUE.UI]: '界面体验',
+  [FEEDBACK_TYPE_VALUE.DATA]: '数据问题',
+  [FEEDBACK_TYPE_VALUE.PERMISSION]: '权限问题',
+  [FEEDBACK_TYPE_VALUE.OTHER]: '其他'
+}
+
+export const FEEDBACK_TYPE_TAG_TYPE: Record<number, string> = {
+  [FEEDBACK_TYPE_VALUE.BUG]: 'danger',
+  [FEEDBACK_TYPE_VALUE.UI]: '',
+  [FEEDBACK_TYPE_VALUE.DATA]: 'warning',
+  [FEEDBACK_TYPE_VALUE.PERMISSION]: 'warning',
+  [FEEDBACK_TYPE_VALUE.OTHER]: 'info'
+}
+
 // ==================== 日期范围快捷选项 ====================
 export const DATE_RANGE_SHORTCUTS = [
   {
