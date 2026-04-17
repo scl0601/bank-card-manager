@@ -119,13 +119,12 @@
               >
                 <el-icon class="file-icon"><component :is="getFileIcon(att.fileName)" /></el-icon>
                 <div class="file-info">
-                  <el-link type="primary" :underline="false" class="file-name-link" @click="handlePreviewExistingAttachment(att)">
+                  <el-link type="primary" :underline="false" class="file-name-link" @click="handleDownloadExistingAttachment(att)">
                     <span class="file-name" :title="att.fileName">{{ att.fileName }}</span>
                   </el-link>
                   <span class="file-size">{{ formatFileSize(att.fileSize) }}</span>
                 </div>
                 <div class="file-actions">
-                  <el-button link size="small" @click="handlePreviewExistingAttachment(att)">预览</el-button>
                   <el-button link size="small" @click="handleDownloadExistingAttachment(att)">下载</el-button>
                   <el-button
                     :type="deletedAttachmentIds.includes(att.id) ? 'info' : 'danger'"
@@ -413,22 +412,6 @@ function formatFileSize(size: number): string {
   if (size < 1024) return `${size} B`
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
   return `${(size / (1024 * 1024)).toFixed(1)} MB`
-}
-
-async function openAttachmentPreview(att: FeedbackAttachment) {
-  const blob = await downloadFeedbackAttachmentApi(att.id, att.fileName)
-  const url = window.URL.createObjectURL(blob)
-  const win = window.open(url, '_blank', 'noopener,noreferrer')
-  if (!win) {
-    window.URL.revokeObjectURL(url)
-    ElMessage.warning('请允许浏览器弹出窗口')
-    return
-  }
-  window.setTimeout(() => window.URL.revokeObjectURL(url), 60000)
-}
-
-async function handlePreviewExistingAttachment(att: FeedbackAttachment) {
-  await openAttachmentPreview(att)
 }
 
 async function handleDownloadExistingAttachment(att: FeedbackAttachment) {

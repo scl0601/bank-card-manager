@@ -145,10 +145,17 @@ export const getFeedbackStatsApi = () =>
 export const deleteAttachmentApi = (attachmentId: number) =>
   request.delete(`/feedbacks/attachments/${attachmentId}`)
 
-/** 下载附件 */
-export const downloadFeedbackAttachmentApi = (attachmentId: number, fileName?: string) =>
-  request.get(`/feedbacks/attachments/${attachmentId}/download`, {
+/** 下载附件（强制下载） */
+export const downloadFeedbackAttachmentApi = (attachmentId: number, fileName?: string): Promise<Blob> =>
+  request.get<Blob, Blob>(`/feedbacks/attachments/${attachmentId}/download`, {
     params: fileName ? { fileName } : undefined,
+    responseType: 'blob'
+  })
+
+/** 预览附件（inline 模式，返回正确 MIME 类型） */
+export const previewFeedbackAttachmentApi = (attachmentId: number): Promise<Blob> =>
+  request.get<Blob, Blob>(`/feedbacks/attachments/${attachmentId}/download`, {
+    params: { inline: true },
     responseType: 'blob'
   })
 

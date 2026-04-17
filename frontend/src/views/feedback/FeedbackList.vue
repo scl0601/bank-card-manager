@@ -146,7 +146,7 @@
                   type="primary"
                   :underline="false"
                   class="attachment-link"
-                  @click="previewAttachment(row.attachments[0])"
+                  @click="downloadAttachment(row.attachments[0])"
                 >
                   <span class="attachment-name" :title="row.attachments[0].fileName">
                     {{ row.attachments[0].fileName }}
@@ -182,7 +182,7 @@
                       type="primary"
                       :underline="false"
                       class="attachment-popover-link"
-                      @click="previewAttachment(att)"
+                      @click="downloadAttachment(att)"
                     >
                       <span class="attachment-popover-name" :title="att.fileName">{{ att.fileName }}</span>
                     </el-link>
@@ -364,16 +364,18 @@ function formatFileSize(size: number) {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`
 }
 
-async function previewAttachment(att: FeedbackAttachment) {
-  const blob = await downloadFeedbackAttachmentApi(att.id, att.fileName)
-  const url = window.URL.createObjectURL(blob)
-  const win = window.open(url, '_blank', 'noopener,noreferrer')
-  if (!win) {
+async function downloadAttachment(att: FeedbackAttachment) {
+  try {
+    const blob = await downloadFeedbackAttachmentApi(att.id, att.fileName)
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = att.fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
     window.URL.revokeObjectURL(url)
-    ElMessage.warning('请允许浏览器弹出窗口')
-    return
-  }
-  window.setTimeout(() => window.URL.revokeObjectURL(url), 60000)
+  } catch {}
 }
 
 // ==================== 数据加载 ====================
@@ -601,11 +603,13 @@ onMounted(() => {
 }
 
 .attachment-chip {
-  max-width: 100%;
+  max-width: calc(100% - 40px);
   padding: 4px 8px;
+  overflow: hidden;
 }
 
 .attachment-chip--single {
+  max-width: none;
   flex: 1;
 }
 
@@ -627,6 +631,7 @@ onMounted(() => {
   align-items: center;
   min-width: 0;
   flex: 1;
+  overflow: hidden;
 }
 
 .attachment-name,

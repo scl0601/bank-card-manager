@@ -148,6 +148,16 @@ npm run dev
 
 ## 更新日志
 
+### 2026-04-17
+- 重新将当前最新前后端代码部署到 CloudBase
+- 后端云托管服务 `bank-admin-backend` 成功发布至版本 `bank-admin-backend-014`
+- 前端重新构建并上传到静态网站托管
+- 线上执行 `feedback-tables.sql`，补齐 `user_feedback`、`user_feedback_attachment`、`user_feedback_process_log` 三张反馈表
+- 将上传文件相关的 `multipart` 配置同步到 `application-prod.yml`
+- 修复反馈附件下载接口的前端 TypeScript 返回类型，确保本次前端构建成功
+- 更新 README 中的前端缓存刷新访问参数为 `?v=202604171412`
+- 后端 API 线上域名保持不变，可继续通过现有地址访问
+
 ### 2026-04-16
 - 重新将当前最新前后端代码部署到 CloudBase
 - 后端云托管服务 `bank-admin-backend` 成功发布至版本 `bank-admin-backend-013`

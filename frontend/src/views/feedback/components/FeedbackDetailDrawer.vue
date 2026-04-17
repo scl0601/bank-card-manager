@@ -59,7 +59,7 @@
                   type="primary"
                   :underline="false"
                   class="att-name-link"
-                  @click="previewAttachment(att)"
+                  @click="downloadAttachment(att)"
                 >
                   <span class="att-name" :title="att.fileName">{{ att.fileName }}</span>
                 </el-link>
@@ -67,12 +67,6 @@
               </div>
             </div>
             <div class="att-actions">
-              <el-button
-                type="primary"
-                link
-                size="small"
-                @click="previewAttachment(att)"
-              >预览</el-button>
               <el-button
                 type="primary"
                 link
@@ -126,7 +120,6 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
 import { User, Clock, Check, Download, ArrowRight } from '@element-plus/icons-vue'
 import { Avatar } from '@element-plus/icons-vue'
 import { Document, Picture, Files } from '@element-plus/icons-vue'
@@ -185,18 +178,6 @@ function formatFileSize(size: number): string {
   if (size < 1024) return `${size} B`
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
   return `${(size / (1024 * 1024)).toFixed(1)} MB`
-}
-
-async function previewAttachment(att: FeedbackAttachment) {
-  const blob = await downloadFeedbackAttachmentApi(att.id, att.fileName)
-  const url = window.URL.createObjectURL(blob)
-  const win = window.open(url, '_blank', 'noopener,noreferrer')
-  if (!win) {
-    window.URL.revokeObjectURL(url)
-    ElMessage.warning('请允许浏览器弹出窗口')
-    return
-  }
-  window.setTimeout(() => window.URL.revokeObjectURL(url), 60000)
 }
 
 async function downloadAttachment(att: FeedbackAttachment) {

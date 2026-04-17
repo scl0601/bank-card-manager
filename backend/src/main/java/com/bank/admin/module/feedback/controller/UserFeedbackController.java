@@ -136,7 +136,8 @@ public class UserFeedbackController {
     }
 
     /**
-     * 附件下载
+     * 附件下载 / 预览
+     * 不传 inline 参数时为下载模式（attachment），传 inline=true 为预览模式（inline）
      */
     @Operation(summary = "附件下载")
     @Log(module = "用户反馈", type = ActionTypeEnum.OTHER, description = "下载附件[id=#attachmentId]")
@@ -144,7 +145,8 @@ public class UserFeedbackController {
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR', 'VIEWER')")
     public ResponseEntity<Resource> downloadAttachment(
         @PathVariable Long attachmentId,
-        @Parameter(description = "原始文件名（用于响应头）") @RequestParam(required = false) String fileName
+        @Parameter(description = "原始文件名（用于响应头）") @RequestParam(required = false) String fileName,
+        @Parameter(description = "是否以内联方式预览") @RequestParam(required = false) Boolean inline
     ) {
         String filePath = feedbackService.getAttachmentFilePath(attachmentId);
         File file = new File(filePath);
@@ -155,10 +157,23 @@ public class UserFeedbackController {
         String encodedName = URLEncoder.encode(
             fileName != null ? fileName : file.getName(), StandardCharsets.UTF_8
         ).replace("+", "%20");
-        return ResponseEntity.ok()
-            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + encodedName)
-            .contentType(MediaType.APPLICATION_OCTET_STREAM)
-            .body(resource);
+
+        boolean isInline = Boolean.TRUE.equals(inline);
+        ResponseEntity.BodyBuilder builder = ResponseEntity.ok();
+        if (isInline) {
+            // 预览模式：使用真实 MIME 类型 + inline，让浏览器尝试渲染
+            MediaType mediaType = MediaTypeFactory.getMediaType(file.getName())
+                .orElse(MediaType.APPLICATION_OCTET_STREAM);
+            builder
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename*=UTF-8''" + encodedName)
+                .contentType(mediaType);
+        } else {
+            // 下载模式：强制 attachment + octet-stream
+            builder
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + encodedName)
+                .contentType(MediaType.APPLICATION_OCTET_STREAM);
+        }
+        return builder.body(resource);
     }
 
     /**
