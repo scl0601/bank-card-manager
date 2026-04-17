@@ -3510,10 +3510,11 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   overflow-x:hidden;
   max-height:276px;
   padding:10px 0;
-  scrollbar-gutter:stable both-edges;
-  scrollbar-width:thin;
-  scrollbar-color:#c4ccda transparent;
-  overscroll-behavior:contain;
+  // Win7 兼容：以下属性 IE11 不支持，降级为纯 webkit-scrollbar 方案
+  // scrollbar-gutter:stable both-edges;    // 不支持
+  // scrollbar-width:thin;                  // Firefox only
+  // scrollbar-color:#c4ccda transparent;   // Firefox only
+  // overscroll-bhavior:contain;            // IE11 不支持
   &::-webkit-scrollbar { width:8px; height:8px; }
   &::-webkit-scrollbar-track { background:transparent; }
   &::-webkit-scrollbar-thumb {

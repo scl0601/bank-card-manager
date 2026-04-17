@@ -33,7 +33,7 @@
 
 | 服务 | 访问地址 | 状态 |
 |------|----------|------|
-| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604161539) | ✅ 已上线 |
+| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604171535) | ✅ 已上线 |
 
 
 | **后端 API** | `https://bank-admin-backend-239413-10-1411764939.sh.run.tcloudbase.com` | ✅ 运行中 |
@@ -149,14 +149,15 @@ npm run dev
 ## 更新日志
 
 ### 2026-04-17
-- 重新将当前最新前后端代码部署到 CloudBase
-- 后端云托管服务 `bank-admin-backend` 成功发布至版本 `bank-admin-backend-014`
+- 再次将当前最新前后端代码重新部署到 CloudBase
+- 后端云托管服务 `bank-admin-backend` 已重新触发容器部署，控制台更新时间为 `2026-04-17 15:33:26`
 - 前端重新构建并上传到静态网站托管
 - 线上执行 `feedback-tables.sql`，补齐 `user_feedback`、`user_feedback_attachment`、`user_feedback_process_log` 三张反馈表
 - 将上传文件相关的 `multipart` 配置同步到 `application-prod.yml`
 - 修复反馈附件下载接口的前端 TypeScript 返回类型，确保本次前端构建成功
-- 更新 README 中的前端缓存刷新访问参数为 `?v=202604171412`
+- 更新 README 中的前端缓存刷新访问参数为 `?v=202604171535`
 - 后端 API 线上域名保持不变，可继续通过现有地址访问
+- 当前前后端测试域名仍会先返回 CloudBase 风险提醒页，并提示“当前访问量已达上限”，需后续在控制台继续处理测试域名访问限制
 
 ### 2026-04-16
 - 重新将当前最新前后端代码部署到 CloudBase

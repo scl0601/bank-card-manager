@@ -90,7 +90,8 @@ onUnmounted(() => {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth; // 平滑滚动
+  // scroll-behavior: smooth 不被 IE11 支持，用 JS 方案替代
+  // scroll-behavior: smooth;
 }
 
 // 导航栏阴影类

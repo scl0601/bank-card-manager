@@ -144,7 +144,7 @@ public class DashboardServiceImpl implements DashboardService {
             }
             vo2.setStatus(((Number) m.get("status")).intValue());
             return vo2;
-        }).toList());
+        }).collect(Collectors.toList()));
 
         // 银行分布统计
         List<BankCard> allCards = bankCardMapper.selectList(
