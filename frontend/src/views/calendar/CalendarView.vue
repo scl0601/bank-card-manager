@@ -7,6 +7,17 @@
         </span>
         <div class="header-title-group">
           <h1 class="page-title">日历计划</h1>
+          <span class="page-subtitle" v-if="yearStats">
+            {{ currentYear }} 年 · 共 <strong>{{ yearTotal }}</strong> 项
+            <i class="sub-divider"></i>
+            完成 <strong>{{ yearStats.doneCount || 0 }}</strong>
+            <i class="sub-divider"></i>
+            进行中 <strong>{{ yearStats.doingCount || 0 }}</strong>
+            <i class="sub-divider"></i>
+            待办 <strong>{{ yearStats.todoCount || 0 }}</strong>
+            <i class="sub-divider"></i>
+            已取消 <strong>{{ yearStats.cancelledCount || 0 }}</strong>
+          </span>
         </div>
       </div>
       <div class="header-actions">
@@ -36,13 +47,13 @@
         </el-dropdown>
         <!-- [M] 视图模式切换 -->
         <div class="view-mode-switch">
-          <button :class="['vm-btn',{active:viewMode==='day'}]" @click="switchToTodayDayView" title="日视图">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            日
-          </button>
           <button :class="['vm-btn',{active:viewMode==='month'}]" @click="viewMode='month'" title="月视图">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
             月
+          </button>
+          <button :class="['vm-btn',{active:viewMode==='day'}]" @click="switchToTodayDayView" title="日视图">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            日
           </button>
         </div>
         <el-button type="primary" @click="openDrawer(null)">
@@ -613,6 +624,10 @@
                         <input v-else class="ev-tit-input" v-model="inlineEditTitle" @blur="submitInlineEdit(ev)" @keydown.enter.stop="submitInlineEdit(ev)" @keydown.esc.stop="cancelInlineEdit" @click.stop />
                       </div>
                       <div class="ev-detail-row">
+                        <span
+                          class="ev-cat-tag"
+                          :style="{ background: categoryColorLight[ev.category], color: categoryColor[ev.category], opacity: (ev.status===EVENT_STATUS_VALUE.DONE || ev.status===EVENT_STATUS_VALUE.CANCELLED) ? .5 : 1 }"
+                        >{{ EVENT_CATEGORY_MAP[ev.category] }}</span>
                         <el-tooltip
                           v-if="getEventRemark(ev)"
                           placement="bottom-start"
@@ -631,24 +646,9 @@
                       </div>
                     </div>
                     <div class="ev-side" @click.stop>
-                      <div class="ev-side-top">
-                        <span
-                          class="ev-cat-tag"
-                          :class="{ 'done-tag': ev.status===EVENT_STATUS_VALUE.DONE, 'cancelled-tag': ev.status===EVENT_STATUS_VALUE.CANCELLED }"
-                          :style="ev.status===EVENT_STATUS_VALUE.TODO || ev.status===EVENT_STATUS_VALUE.DOING ? { background: categoryColorLight[ev.category], color: categoryColor[ev.category] } : undefined"
-                        >{{ EVENT_CATEGORY_MAP[ev.category] }}</span>
-                        <div class="ev-priority-slot">
-                          <el-tag v-if="ev.priority===2" size="small" type="danger" effect="dark" round>紧急</el-tag>
-                          <el-tag v-else-if="ev.priority===1" size="small" type="warning" effect="plain" round>重要</el-tag>
-                        </div>
-                        <div class="ev-status-line">
-                          <span class="ev-status-indicator">
-                            <span v-if="ev.status===EVENT_STATUS_VALUE.DOING" class="doing-pulse"></span>
-                          </span>
-                          <span :class="['ev-status-chip', `is-${ev.status}`, { 'is-loading': isEventStatusPending(ev.id) }]">{{ STATUS_LABEL[ev.status] }}</span>
-                        </div>
-                      </div>
                       <div v-if="!batchMode" class="ev-status-actions">
+                        <!-- 进行中呼吸灯 - 按钮前 -->
+                        <span v-if="ev.status === EVENT_STATUS_VALUE.DOING" class="ev-doing-dot"></span>
                         <button
                           v-for="action in getDayQuickStatusActions(ev)"
                           :key="`${ev.id}-${action.key}`"
@@ -793,7 +793,7 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getMonthEventsApi, getDayEventsApi, deleteEventApi, updateEventStatusApi,
-  getCalendarStatsApi, updateEventApi
+  getCalendarStatsApi, getYearStatsApi, updateEventApi
 } from '@/api/calendar'
 import {
   EVENT_CATEGORY_OPTIONS, EVENT_STATUS_VALUE, EVENT_CATEGORY_MAP
@@ -827,6 +827,15 @@ const weekDays = ['一','二','三','四','五','六','日']
 const monthData = ref<any[]>([])
 const events = ref<any[]>([])
 const stats = ref({ todoCount: 0, doingCount: 0, doneCount: 0, cancelledCount: 0 })
+// [年度统计]
+const yearStats = ref<any>(null)
+const yearTotal = computed(() => {
+  if (!yearStats.value) return 0
+  return (yearStats.value.todoCount || 0) + (yearStats.value.doingCount || 0) + (yearStats.value.doneCount || 0) + (yearStats.value.cancelledCount || 0)
+})
+async function fetchYearStats() {
+  try { const res:any=await getYearStatsApi(String(currentYear.value)); if(res.data)yearStats.value=res.data }catch{}
+}
 let dayEventsRequestToken = 0
 
 const showMonthPicker = ref(false)
@@ -1107,7 +1116,7 @@ const categoryColor: Record<string,string> = {
   5:'#6d28d9',
 }
 const categoryColorLight: Record<string,string> = {
-  0:'#eaf2ff',1:'#e8f7ed',2:'#fff4db',3:'#fff1f0',4:'#eef2f6',5:'#f1eafe',
+  0:'#d6e4ff',1:'#d3f2d5',2:'#ffe7ba',3:'#ffccc7',4:'#d9e0e8',5:'#e8dbfc',
 }
 function isWeekend(y:number,m:number,d:number):boolean {
 
@@ -1681,7 +1690,7 @@ async function onDelete(id:number){
 }
 function onSaved(){ refreshAll() }
 
-async function refreshAll(){ await Promise.all([loadMonthData(),loadDayEvents(),loadStats()]) }
+async function refreshAll(){ await Promise.all([loadMonthData(),loadDayEvents(),loadStats(),fetchYearStats()]) }
 /** 仅刷新月视图相关数据（日历格子、统计），不刷新右侧日程列表 */
 async function refreshMonthOnly(){ await Promise.all([loadMonthData(),loadStats()]) }
 
@@ -1817,7 +1826,7 @@ function getPrintStyleText(mode:'day'|'month'){
     .pp-empty{text-align:center;color:#c9cdd4;padding:40px 0;}
     .pp-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f0f2f5;}
     .pp-num{width:20px;font-size:11px;color:#c9cdd4;flex-shrink:0;text-align:right;}
-    .pp-cat-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+    .pp-cat-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
     .pp-tit{flex:1;font-size:13px;font-weight:600;}
     .pp-time{font-size:11px;color:#86909c;white-space:nowrap;}
     .pp-status{font-size:11px;padding:1px 8px;border-radius:10px;white-space:nowrap;}
@@ -1946,6 +1955,26 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   box-shadow:0 8px 18px rgba(9,88,217,.08);
 }
 .page-title { margin:0; font-size:18px; font-weight:700; color:$ink; letter-spacing:-.3px; }
+.page-subtitle {
+  display:flex; align-items:center; gap:6px;
+  margin-top:2px; font-size:13px; color:$sub; font-weight:400;
+  line-height:1.4;
+  strong { font-weight:600; }
+}
+.sub-dot {
+  display:inline-block; width:6px; height:6px; border-radius:50%;
+  background:$primary; flex-shrink:0;
+}
+.sub-divider {
+  display:inline-block; width:1px; height:12px;
+  background:$border; flex-shrink:0; opacity:.5;
+}
+.sub-count {
+  display:inline-flex; align-items:center;
+  padding:1px 8px; border-radius:10px;
+  background:rgba(79,130,255,.10); color:$primary;
+  font-size:12px; font-weight:600; line-height:1.6;
+}
 .header-meta { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
 .meta-year { font-size:12px; color:$sub; font-weight:500; }
 .meta-divider { font-size:11px; color:$faint; }
@@ -2045,7 +2074,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   z-index: 1;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: flex-end;
 }
 .stat-icon-wrap {
   width: 34px;
@@ -2109,12 +2138,13 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
     line-height: 1;
     color: var(--stat-number);
     letter-spacing: -.4px;
+    text-align: right;
   }
 
   i {
     display: block;
     font-style: normal;
-    font-size: 11px;
+    font-size: 13px;
     color: var(--stat-label);
     margin-top: 4px;
   }
@@ -2142,7 +2172,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .leg-item {
   display:flex; align-items:center; gap:4px; font-size:11px; color:$sub; white-space:nowrap;
   padding:2px 0;
-  i { width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
+  i { width:6px; height:6px; border-radius:50%; display:inline-block; flex-shrink:0; }
 }
 /* 图例分隔符 */
 .mo-legend .leg-divider {
@@ -2338,7 +2368,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   &.qf-cancelled.active{ background:#64748b; }
 }
 .qf-dot {
-  display:inline-block; width:7px; height:7px; border-radius:50%; flex-shrink:0;
+  display:inline-block; width:6px; height:6px; border-radius:50%; flex-shrink:0;
 }
 .rp-nav-btns { display:flex; gap:5px; }
 .rp-arrow {
@@ -2471,14 +2501,14 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .ev-card {
   width:100%; box-sizing:border-box;
   display:grid; grid-template-columns:26px minmax(0,1fr) minmax(140px, 18%); align-items:center; column-gap:10px;
-  padding:10px 12px; min-height:60px; border-radius:14px; cursor:pointer;
-  transition:all .18s ease; border:1px solid rgba(219,226,234,.72); background:rgba(255,255,255,.92); position:relative;
+  padding:10px 12px; min-height:60px; border-radius:16px; cursor:pointer;
+  transition:all .18s ease; border:1px solid rgba(219,226,234,.72); background:#fff; position:relative;
   box-shadow:0 6px 16px rgba(15,23,42,.04);
 
   &:hover { transform:translateY(-1px); box-shadow:0 12px 24px rgba(15,23,42,.08); }
-  &.pri-0 { border-left:3px solid $faint; padding-left:9px; }
-  &.pri-1 { border-left:3px solid $warning; padding-left:9px; }
-  &.pri-2 { border-left:3px solid $danger; padding-left:9px; }
+  &.pri-0.pri-0 { border-left:4px solid #d8dce5 !important; }
+  &.pri-1.pri-1 { border-left:4px solid #f5a623 !important; }
+  &.pri-2.pri-2 { border-left:4px solid #e54d42 !important; }
 
   &.ev-card-todo {
     background:linear-gradient(180deg, #fffaf1 0%, #fff6eb 100%); border-color:rgba(217,119,6,.18);
@@ -2629,11 +2659,11 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 }
 
 .ev-status-btn {
-  width:48px; height:24px; padding:0; border-radius:999px; border:1px solid #dbe3ef;
+  min-width:42px; height:22px; padding:0 8px; border-radius:999px; border:1px solid #dbe3ef;
   background:#fff; color:$ink2; cursor:pointer; display:inline-flex; align-items:center; justify-content:center;
-  font-size:10.5px; font-weight:500; line-height:1; transition:all .15s; box-shadow:0 1px 2px rgba(15,23,42,.04);
+  font-size:10px; font-weight:500; line-height:1; transition:all .18s; box-shadow:0 1px 2px rgba(15,23,42,.04); white-space:nowrap;
   &:hover:not(:disabled) { transform:none; box-shadow:0 1px 3px rgba(15,23,42,.08); }
-  &:disabled { cursor:wait; opacity:.64; }
+  &:disabled { cursor:not-allowed; opacity:.56; }
   &.is-pending { background:#f5f7fa; }
 
   &.is-todo {
@@ -2653,10 +2683,16 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
     &:hover:not(:disabled) { background:#64748b; border-color:#64748b; color:#fff; }
   }
   &.is-delete {
-    width:48px; padding:0;
+    min-width:30px; padding:0 5px;
     border-color:#fecaca; color:#dc2626; background:#fef2f2;
     &:hover:not(:disabled) { background:#ef4444; border-color:#ef4444; color:#fff; }
   }
+}
+
+/* 日视图 - 进行中呼吸灯圆点（按钮前） */
+.ev-doing-dot {
+  width:7px; height:7px; border-radius:50%; flex-shrink:0; background:$primary;
+  animation:pulse-dot 1.6s ease-out infinite;
 }
 
 
@@ -2956,7 +2992,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 /* 月视图状态按钮内的小色点 */
 .msf-btn { display:inline-flex; align-items:center; gap:4px; }
 .msf-dot {
-  display:inline-block; width:7px; height:7px; border-radius:50%; flex-shrink:0;
+  display:inline-block; width:6px; height:6px; border-radius:50%; flex-shrink:0;
 }
 
 .mo-legend { display:flex; align-items:center; gap:6px; flex-wrap:wrap; color:#64748b; }
@@ -3272,7 +3308,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   border:1px solid transparent;
 }
 .mo-ev-dot {
-  width:5px; height:5px; border-radius:50%; flex-shrink:0;
+  width:6px; height:6px; border-radius:50%; flex-shrink:0;
 }
 .mo-ev-time {
   width:32px; text-align:left;
@@ -3286,7 +3322,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 
 /* 进行中脉冲点 */
 .mo-ev-doing-dot {
-  width:5px; height:5px; border-radius:50%; background:$primary; flex-shrink:0;
+  width:6px; height:6px; border-radius:50%; background:$primary; flex-shrink:0;
   animation:pulse-dot 1.6s ease-out infinite;
 }
 
@@ -3358,7 +3394,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   strong { font-weight:800; }
 }
 .mo-stat::before {
-  content:''; display:inline-block; width:8px; height:8px; border-radius:50%; flex-shrink:0;
+  content:''; display:inline-block; width:6px; height:6px; border-radius:50%; flex-shrink:0;
 }
 .mo-stat-todo::before { background:$warning; }
 .mo-stat-todo strong { color:$warning; }
@@ -3463,7 +3499,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   font-size:11px; color:$sub; font-weight:600;
   span { position:relative; }
   span + span::before {
-    content:''; display:inline-block; width:4px; height:4px; border-radius:50%;
+    content:''; display:inline-block; width:6px; height:6px; border-radius:50%;
     background:#cbd5e1; margin-right:10px; vertical-align:middle;
   }
 }

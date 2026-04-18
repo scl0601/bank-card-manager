@@ -8,6 +8,7 @@ import com.bank.admin.module.calendar.dto.CalendarEventSaveDTO;
 import com.bank.admin.module.calendar.service.CalendarEventService;
 import com.bank.admin.module.calendar.vo.CalendarEventVO;
 import com.bank.admin.module.calendar.vo.CalendarStatsVO;
+import com.bank.admin.module.calendar.vo.CalendarYearStatsVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -117,5 +118,15 @@ public class CalendarEventController {
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR', 'VIEWER')")
     public Result<CalendarStatsVO> getMonthStats(@RequestParam String month) {
         return Result.success(calendarEventService.getMonthStats(month));
+    }
+
+    /**
+     * 获取年度统计
+     */
+    @Operation(summary = "获取年度统计数据")
+    @GetMapping("/stats/year")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR', 'VIEWER')")
+    public Result<CalendarYearStatsVO> getYearStats(@RequestParam String year) {
+        return Result.success(calendarEventService.getYearStats(year));
     }
 }

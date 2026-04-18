@@ -6,6 +6,7 @@ import com.bank.admin.module.calendar.dto.CalendarEventSaveDTO;
 import com.bank.admin.module.calendar.entity.CalendarEvent;
 import com.bank.admin.module.calendar.vo.CalendarEventVO;
 import com.bank.admin.module.calendar.vo.CalendarStatsVO;
+import com.bank.admin.module.calendar.vo.CalendarYearStatsVO;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -54,4 +55,9 @@ public interface CalendarEventService {
      * 获取当月统计
      */
     CalendarStatsVO getMonthStats(String month);
+
+    /**
+     * 获取年度统计（含月度分布）
+     */
+    CalendarYearStatsVO getYearStats(String year);
 }

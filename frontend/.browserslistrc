@@ -1,0 +1,11 @@
+# Win7 兼容：IE11 + Chrome 49+ + Firefox 52+
+ie >= 11
+chrome >= 49
+firefox >= 52
+safari >= 9
+edge >= 12
+android >= 4.4
+iOS >= 9
+
+# 排除已停止维护的浏览器
+not dead

@@ -257,7 +257,7 @@ CREATE TABLE `calendar_event` (
   `event_date`       DATE            NOT NULL                COMMENT '事项日期',
   `start_time`       TIME            DEFAULT NULL            COMMENT '开始时间',
   `end_time`         TIME            DEFAULT NULL            COMMENT '结束时间',
-  `category`         TINYINT         NOT NULL DEFAULT 0      COMMENT '分类：0工作 1生活 2学习 3健康 4其他',
+  `category`         TINYINT         NOT NULL DEFAULT 0      COMMENT '分类：0工作 1生活 2学习 3健康 4其他 5日记',
   `priority`         TINYINT         NOT NULL DEFAULT 1      COMMENT '优先级：0低 1中 2高',
   `status`           TINYINT         NOT NULL DEFAULT 0      COMMENT '状态：0待办 1进行中 2已完成 3已取消',
   `remind_before_min`INT             DEFAULT NULL            COMMENT '提前提醒分钟数（null=不提醒）',

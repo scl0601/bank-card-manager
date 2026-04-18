@@ -11,6 +11,7 @@ import com.bank.admin.module.calendar.mapper.CalendarEventMapper;
 import com.bank.admin.module.calendar.service.CalendarEventService;
 import com.bank.admin.module.calendar.vo.CalendarEventVO;
 import com.bank.admin.module.calendar.vo.CalendarStatsVO;
+import com.bank.admin.module.calendar.vo.CalendarYearStatsVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -160,6 +161,52 @@ public class CalendarEventServiceImpl implements CalendarEventService {
         stats.setDoneCount(doneCount);
         stats.setCancelledCount(cancelledCount);
         return stats;
+    }
+
+    @Override
+    public CalendarYearStatsVO getYearStats(String year) {
+        LocalDate start = LocalDate.of(Integer.parseInt(year), 1, 1);
+        LocalDate end = LocalDate.of(Integer.parseInt(year), 12, 31);
+
+        long todoCount = calendarEventMapper.selectCount(Wrappers.<CalendarEvent>lambdaQuery()
+                .between(CalendarEvent::getEventDate, start, end)
+                .eq(CalendarEvent::getStatus, 0));
+        long doingCount = calendarEventMapper.selectCount(Wrappers.<CalendarEvent>lambdaQuery()
+                .between(CalendarEvent::getEventDate, start, end)
+                .eq(CalendarEvent::getStatus, 1));
+        long doneCount = calendarEventMapper.selectCount(Wrappers.<CalendarEvent>lambdaQuery()
+                .between(CalendarEvent::getEventDate, start, end)
+                .eq(CalendarEvent::getStatus, 2));
+        long cancelledCount = calendarEventMapper.selectCount(Wrappers.<CalendarEvent>lambdaQuery()
+                .between(CalendarEvent::getEventDate, start, end)
+                .eq(CalendarEvent::getStatus, 3));
+
+        long totalCount = todoCount + doingCount + doneCount + cancelledCount;
+        double doneRate = totalCount > 0 ? Math.round((double) doneCount / totalCount * 1000) / 10.0 : 0;
+
+        List<CalendarYearStatsVO.MonthStatItem> monthStats = new java.util.ArrayList<>();
+        for (int m = 1; m <= 12; m++) {
+            LocalDate monthStart = LocalDate.of(Integer.parseInt(year), m, 1);
+            LocalDate monthEnd = monthStart.withDayOfMonth(monthStart.lengthOfMonth());
+            long count = calendarEventMapper.selectCount(Wrappers.<CalendarEvent>lambdaQuery()
+                    .between(CalendarEvent::getEventDate, monthStart, monthEnd)
+                    .ne(CalendarEvent::getStatus, 3));
+            CalendarYearStatsVO.MonthStatItem item = new CalendarYearStatsVO.MonthStatItem();
+            item.setMonth(m);
+            item.setCount(count);
+            monthStats.add(item);
+        }
+
+        CalendarYearStatsVO vo = new CalendarYearStatsVO();
+        vo.setYear(year);
+        vo.setTodoCount(todoCount);
+        vo.setDoingCount(doingCount);
+        vo.setDoneCount(doneCount);
+        vo.setCancelledCount(cancelledCount);
+        vo.setTotalCount(totalCount);
+        vo.setDoneRate(doneRate);
+        vo.setMonthStats(monthStats);
+        return vo;
     }
 
     // ==================== 私有方法 ====================

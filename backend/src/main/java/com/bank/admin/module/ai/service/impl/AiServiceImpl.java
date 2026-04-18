@@ -313,7 +313,8 @@ public class AiServiceImpl implements AiService {
                     ev.getCategory() == 0 ? "工作"
                         : ev.getCategory() == 1 ? "生活"
                             : ev.getCategory() == 2 ? "学习"
-                                : ev.getCategory() == 3 ? "健康" : "其他"));
+                                : ev.getCategory() == 3 ? "健康"
+                                    : ev.getCategory() == 4 ? "其他" : "日记"));
             }
         }
 

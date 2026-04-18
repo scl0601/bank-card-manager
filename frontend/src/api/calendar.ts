@@ -23,3 +23,6 @@ export const updateEventStatusApi = (id: number, status: number) =>
 
 export const getCalendarStatsApi = (month: string) =>
   request.get('/calendar/events/stats/month', { params: { month } })
+
+export const getYearStatsApi = (year: string) =>
+  request.get('/calendar/events/stats/year', { params: { year } })

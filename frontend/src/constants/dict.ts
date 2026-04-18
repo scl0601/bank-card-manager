@@ -241,7 +241,8 @@ export const EVENT_CATEGORY_VALUE = {
   LIFE: 1,     // 生活
   STUDY: 2,    // 学习
   HEALTH: 3,   // 健康
-  OTHER: 4     // 其他
+  OTHER: 4,    // 其他
+  DIARY: 5     // 日记
 } as const
 
 export const EVENT_CATEGORY_OPTIONS = [
@@ -249,6 +250,7 @@ export const EVENT_CATEGORY_OPTIONS = [
   { label: '生活', value: EVENT_CATEGORY_VALUE.LIFE },
   { label: '学习', value: EVENT_CATEGORY_VALUE.STUDY },
   { label: '健康', value: EVENT_CATEGORY_VALUE.HEALTH },
+  { label: '日记', value: EVENT_CATEGORY_VALUE.DIARY },
   { label: '其他', value: EVENT_CATEGORY_VALUE.OTHER }
 ]
 
@@ -257,7 +259,8 @@ export const EVENT_CATEGORY_MAP: Record<number, string> = {
   [EVENT_CATEGORY_VALUE.LIFE]: '生活',
   [EVENT_CATEGORY_VALUE.STUDY]: '学习',
   [EVENT_CATEGORY_VALUE.HEALTH]: '健康',
-  [EVENT_CATEGORY_VALUE.OTHER]: '其他'
+  [EVENT_CATEGORY_VALUE.OTHER]: '其他',
+  [EVENT_CATEGORY_VALUE.DIARY]: '日记'
 }
 
 export const EVENT_CATEGORY_TAG_TYPE: Record<number, string> = {
@@ -265,7 +268,8 @@ export const EVENT_CATEGORY_TAG_TYPE: Record<number, string> = {
   [EVENT_CATEGORY_VALUE.LIFE]: 'success',
   [EVENT_CATEGORY_VALUE.STUDY]: 'warning',
   [EVENT_CATEGORY_VALUE.HEALTH]: 'danger',
-  [EVENT_CATEGORY_VALUE.OTHER]: 'info'
+  [EVENT_CATEGORY_VALUE.OTHER]: 'info',
+  [EVENT_CATEGORY_VALUE.DIARY]: ''
 }
 
 // ==================== 日程事项优先级 ====================
