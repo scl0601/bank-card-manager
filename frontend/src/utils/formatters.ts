@@ -110,3 +110,26 @@ export function parseAmount(str: string | null | undefined): number {
   const num = parseFloat(str.replace(/,/g, ''))
   return isNaN(num) ? 0 : num
 }
+
+/**
+ * 格式化费率（保留2位小数）
+ */
+export function formatRate(val: number | string | null | undefined, decimals = 2): string {
+  if (!val && val !== 0) return '0.00'
+  return Number(val).toFixed(decimals)
+}
+
+/**
+ * 格式化金额（简单版，保留2位小数，无千分位）
+ */
+export function formatMoney(val: number | string | null | undefined): string {
+  if (!val && val !== 0) return '0.00'
+  return Number(val).toFixed(2)
+}
+
+/**
+ * 转换为数字（安全转换）
+ */
+export function toNumber(value: number | string | null | undefined): number {
+  return Number(value ?? 0)
+}

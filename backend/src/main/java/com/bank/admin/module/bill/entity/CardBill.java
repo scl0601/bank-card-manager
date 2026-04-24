@@ -22,8 +22,14 @@ public class CardBill extends BaseEntity {
     /** 持卡人ID */
     private Long ownerId;
 
+    /** 来源方ID（冗余，用于聚合查询） */
+    private Long supplierId;
+
     /** 账单月份（格式：yyyy-MM） */
     private String billMonth;
+
+    /** 账单日 */
+    private Integer billDay;
 
     /** 账单金额 */
     private BigDecimal billAmount;
@@ -47,4 +53,16 @@ public class CardBill extends BaseEntity {
 
     /** 备注 */
     private String remark;
+
+    /** 约定费率%（如1表示1%） */
+    private BigDecimal feeRate;
+
+    /** 本期应收手续费 */
+    private BigDecimal feeAmount;
+
+    /** POS机使用成本 */
+    private BigDecimal posCostAmount;
+
+    /** 本期净利润 */
+    private BigDecimal netProfit;
 }

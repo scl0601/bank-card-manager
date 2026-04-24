@@ -10,30 +10,30 @@ INSERT INTO `bank_sys_user` (`username`, `password`, `nickname`, `role`, `status
 ('lisi', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', '李四', 'VIEWER', 0, 0, NOW()),
 ('wangwu', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', '王五', 'VIEWER', 1, 0, NOW());
 
--- ===================== 持卡人 =====================
-INSERT INTO `card_owner` (`id`, `name`, `phone`, `id_card`, `remark`, `status`, `is_deleted`, `create_time`) VALUES
-(1, '张伟', '138****1234', '310***********1234', '主要持卡人', 0, 0, NOW()),
-(2, '李娜', '139****5678', '310***********5678', '家庭成员', 0, 0, NOW()),
-(3, '王芳', '137****9012', '310***********9012', '备用持卡人', 0, 0, NOW()),
-(4, '赵强', '136****3456', '310***********3456', '商务用卡', 0, 0, NOW());
+-- ===================== 用户（两级层级） =====================
+INSERT INTO `card_user` (`id`, `name`, `phone`, `parent_id`, `fee_rate`, `remark`, `status`, `is_deleted`, `create_time`) VALUES
+(1, '张伟', '13800001111', NULL, 0.50, '一级用户', 0, 0, NOW()),
+(2, '李娜', '13800002222', 1, 0.50, '张伟下属-家庭成员', 0, 0, NOW()),
+(3, '王芳', '13800003333', 1, 0.50, '张伟下属-备用用户', 0, 0, NOW()),
+(4, '赵强', '13800004444', NULL, 0.80, '一级用户', 0, 0, NOW());
 
 -- ===================== 银行卡 =====================
-INSERT INTO `bank_card` (`id`, `owner_id`, `bank_name`, `card_no`, `card_no_last4`, `card_type`, `credit_limit`, `balance`, `used_amount`, `bill_day`, `repay_day`, `expire_date`, `status`, `is_deleted`, `create_time`) VALUES
+INSERT INTO `bank_card` (`id`, `user_id`, `bank_name`, `card_no_last4`, `owner_relation`, `card_type`, `credit_limit`, `balance`, `total_limit`, `bill_day`, `repay_day`, `expire_date`, `status`, `repay_method`, `verified`, `is_deleted`, `create_time`) VALUES
 -- 张伟的卡
-(1, 1, '招商银行', '6225************1234', '1234', 2, 50000.00, 0.00, 12580.50, 5, 25, '2028-06', 0, 0, NOW()),
-(2, 1, '工商银行', '6222************5678', '5678', 2, 30000.00, 0.00, 8500.00, 10, 30, '2027-12', 0, 0, NOW()),
-(3, 1, '建设银行', '6217************9012', '9012', 1, NULL, 56800.25, 0.00, NULL, NULL, NULL, 0, 0, NOW()),
+(1, 1, '招商银行', '1234', '本人', 2, 50000.00, 0.00, NULL, 5, 25, '2028-06', 0, 'cloudpay', 1, 0, NOW()),
+(2, 1, '工商银行', '5678', '配偶', 2, 30000.00, 0.00, NULL, 10, 30, '2027-12', 0, 'cloudpay', 1, 0, NOW()),
+(3, 1, '建设银行', '9012', '本人', 1, NULL, 56800.25, 80000.00, NULL, NULL, NULL, 0, 'cloudpay', NULL, 0, NOW()),
 
 -- 李娜的卡
-(4, 2, '浦发银行', '6226************3456', '3456', 2, 20000.00, 0.00, 3200.00, 15, 5, '2026-09', 0, 0, NOW()),
-(5, 2, '农业银行', '6228************7890', '7890', 1, NULL, 12890.50, 0.00, NULL, NULL, NULL, 0, 0, NOW()),
+(4, 2, '浦发银行', '3456', '本人', 2, 20000.00, 0.00, NULL, 15, 5, '2026-09', 0, 'cloudpay', 1, 0, NOW()),
+(5, 2, '农业银行', '7890', '孩子', 1, NULL, 12890.50, 30000.00, NULL, NULL, NULL, 0, 'cloudpay', NULL, 0, NOW()),
 
 -- 王芳的卡
-(6, 3, '交通银行', '6222************2345', '2345', 2, 15000.00, 0.00, 6780.00, 20, 10, '2025-03', 0, 0, NOW()),
+(6, 3, '交通银行', '2345', '本人', 2, 15000.00, 0.00, NULL, 20, 10, '2027-03', 0, 'invoice', NULL, 0, NOW()),
 
 -- 赵强的卡
-(7, 4, '中信银行', '6226************6789', '6789', 2, 100000.00, 0.00, 45600.00, 1, 20, '2029-01', 0, 0, NOW()),
-(8, 4, '光大银行', '6225************0123', '0123', 2, 50000.00, 0.00, 12000.00, 8, 28, '2027-06', 0, 0, NOW());
+(7, 4, '中信银行', '6789', '本人', 2, 100000.00, 0.00, NULL, 1, 20, '2029-01', 0, 'cloudpay', 1, 0, NOW()),
+(8, 4, '光大银行', '0123', '配偶', 2, 50000.00, 0.00, NULL, 8, 28, '2027-06', 0, 'invoice', NULL, 0, NOW());
 
 -- ===================== 流水记录（近30天） =====================
 INSERT INTO `card_transaction` (`card_id`, `owner_id`, `tx_type`, `amount`, `tx_date`, `description`, `counterpart`, `balance_snapshot`, `is_deleted`, `create_time`) VALUES

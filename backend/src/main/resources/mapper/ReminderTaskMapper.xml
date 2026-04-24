@@ -9,7 +9,7 @@
         SELECT
             rt.id,
             rt.owner_id,
-            co.name            AS owner_name,
+            cu.name            AS owner_name,
             rt.card_id,
             bc.card_no_last4   AS card_no_last4,
             bc.bank_name       AS bank_name,
@@ -23,12 +23,12 @@
             rt.handled_by,
             rt.create_time
         FROM reminder_task rt
-        LEFT JOIN card_owner  co ON co.id  = rt.owner_id AND co.is_deleted = 0
+        LEFT JOIN card_user  cu ON cu.id  = rt.owner_id AND cu.is_deleted = 0
         LEFT JOIN bank_card   bc ON bc.id  = rt.card_id  AND bc.is_deleted = 0
         LEFT JOIN card_bill   cb ON cb.id  = rt.bill_id  AND cb.is_deleted = 0
         WHERE rt.is_deleted = 0
         <if test="query.ownerName != null and query.ownerName != ''">
-            AND co.name LIKE CONCAT('%', #{query.ownerName}, '%')
+            AND cu.name LIKE CONCAT('%', #{query.ownerName}, '%')
         </if>
         <if test="query.reminderType != null">
             AND rt.reminder_type = #{query.reminderType}

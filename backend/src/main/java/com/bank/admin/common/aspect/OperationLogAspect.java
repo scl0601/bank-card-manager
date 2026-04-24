@@ -35,7 +35,7 @@ public class OperationLogAspect {
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
     /** 敏感字段名，序列化参数时会脱敏 */
-    private static final String[] SENSITIVE_FIELDS = {"password", "cardNumber", "cardNo", "cvv", "idCard"};
+    private static final String[] SENSITIVE_FIELDS = {"password", "cvv"};
 
     @Around("@annotation(logAnnotation)")
     public Object around(ProceedingJoinPoint joinPoint, Log logAnnotation) throws Throwable {

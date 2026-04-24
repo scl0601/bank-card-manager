@@ -11,7 +11,7 @@
             bc.card_no_last4,
             bc.bank_name,
             ct.owner_id,
-            co.name       AS owner_name,
+            cu.name       AS owner_name,
             ct.tx_type,
             ct.amount,
             ct.tx_date,
@@ -22,7 +22,7 @@
             ct.create_time
         FROM card_transaction ct
         LEFT JOIN bank_card  bc ON bc.id = ct.card_id  AND bc.is_deleted = 0
-        LEFT JOIN card_owner co ON co.id = ct.owner_id AND co.is_deleted = 0
+        LEFT JOIN card_user cu ON cu.id = ct.owner_id AND cu.is_deleted = 0
         WHERE ct.is_deleted = 0
         <if test="cardId != null">AND ct.card_id  = #{cardId}</if>
         <if test="ownerId != null">AND ct.owner_id = #{ownerId}</if>

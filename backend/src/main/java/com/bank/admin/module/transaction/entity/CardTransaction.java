@@ -22,6 +22,9 @@ public class CardTransaction extends BaseEntity {
     /** 持卡人ID */
     private Long ownerId;
 
+    /** 来源方ID（冗余，用于聚合查询） */
+    private Long supplierId;
+
     /**
      * 交易类型：1收入 2支出
      */

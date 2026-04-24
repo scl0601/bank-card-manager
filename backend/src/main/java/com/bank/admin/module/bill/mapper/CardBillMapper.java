@@ -1,6 +1,7 @@
 package com.bank.admin.module.bill.mapper;
 
 import com.bank.admin.module.bill.entity.CardBill;
+import com.bank.admin.module.bill.vo.CardBillOverviewVO;
 import com.bank.admin.module.bill.vo.CardBillVO;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -22,7 +23,18 @@ public interface CardBillMapper extends BaseMapper<CardBill> {
             Page<CardBillVO> page,
             @Param("cardId") Long cardId,
             @Param("ownerId") Long ownerId,
+            @Param("cardName") String cardName,
             @Param("billMonth") String billMonth,
+            @Param("year") Integer year,
+            @Param("status") Integer status
+    );
+
+    CardBillOverviewVO selectOverview(
+            @Param("cardId") Long cardId,
+            @Param("ownerId") Long ownerId,
+            @Param("cardName") String cardName,
+            @Param("billMonth") String billMonth,
+            @Param("year") Integer year,
             @Param("status") Integer status
     );
 

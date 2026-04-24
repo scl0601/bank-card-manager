@@ -13,11 +13,8 @@ import lombok.EqualsAndHashCode;
 @Schema(description = "银行卡查询参数")
 public class BankCardQueryDTO extends PageDTO {
 
-    @Schema(description = "持卡人ID")
-    private Long ownerId;
-
-    @Schema(description = "持卡人姓名（模糊）")
-    private String ownerName;
+    @Schema(description = "用户ID")
+    private Long userId;
 
     @Schema(description = "银行名称（模糊）")
     private String bankName;

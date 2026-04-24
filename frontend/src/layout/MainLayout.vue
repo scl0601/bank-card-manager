@@ -54,7 +54,7 @@
       <main class="content-area">
         <router-view v-slot="{ Component, route }">
           <transition name="fade-slide" mode="out-in" appear>
-            <keep-alive :include="['Dashboard','Owners','Cards','Transactions','Books','Bills','Reminders','Feedbacks','Calendar','Logs']">
+            <keep-alive :include="['Dashboard','Cards','CardUsers','Transactions','Books','Bills','ProfitStats','Reminders','Feedbacks','Calendar','Logs']">
               <component :is="Component" :key="route.name || route.path" />
             </keep-alive>
           </transition>
@@ -81,11 +81,12 @@ const isCollapsed = ref(false)
 
 const menuItems = [
   { path: '/dashboard',    title: '首页看板',   icon: 'House' },
-  { path: '/owners',       title: '持卡人管理', icon: 'User' },
+  { path: '/users',        title: '持卡人管理', icon: 'UserFilled' },
   { path: '/cards',        title: '银行卡管理', icon: 'CreditCard' },
+  { path: '/bills',        title: '账单管理',   icon: 'Document' },
+  { path: '/profits',      title: '收益统计',   icon: 'TrendCharts' },
   { path: '/transactions', title: '流水管理',   icon: 'List' },
   { path: '/books',        title: '个人记账',   icon: 'Wallet' },
-  { path: '/bills',        title: '账单管理',   icon: 'Document' },
   { path: '/reminders',    title: '提醒中心',   icon: 'Bell' },
   { path: '/feedbacks',    title: '用户反馈',   icon: 'ChatDotRound' },
   { path: '/calendar',     title: '日历计划',   icon: 'Calendar' },

@@ -66,6 +66,27 @@ export const TXN_TYPE_TAG_TYPE: Record<number, string> = {
   [TXN_TYPE_VALUE.EXPENSE]: 'danger'
 }
 
+// ==================== 明细类型 ====================
+export const DETAIL_TYPE_VALUE = {
+  EXPENSE: 0,  // 刷出
+  INCOME: 1    // 刷入
+} as const
+
+export const DETAIL_TYPE_OPTIONS = [
+  { label: '刷出', value: DETAIL_TYPE_VALUE.EXPENSE },
+  { label: '刷入', value: DETAIL_TYPE_VALUE.INCOME }
+]
+
+export const DETAIL_TYPE_MAP: Record<number, string> = {
+  [DETAIL_TYPE_VALUE.EXPENSE]: '刷出',
+  [DETAIL_TYPE_VALUE.INCOME]: '刷入'
+}
+
+export const DETAIL_TYPE_TAG_TYPE: Record<number, string> = {
+  [DETAIL_TYPE_VALUE.EXPENSE]: 'danger',
+  [DETAIL_TYPE_VALUE.INCOME]: 'success'
+}
+
 // ==================== 账单状态 ====================
 export const BILL_STATUS_VALUE = {
   PENDING: 0,      // 待还款

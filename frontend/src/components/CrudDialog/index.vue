@@ -7,6 +7,7 @@
     :close-on-press-escape="closeOnPressEscape"
     :destroy-on-close="destroyOnClose"
     :before-close="handleBeforeClose"
+    align-center
     @closed="handleClosed"
   >
     <el-form

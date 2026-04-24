@@ -1,20 +1,90 @@
 // ==================== 全局变量 ====================
 :root {
-  --color-primary: #0958d9;
-  --color-success: #2f9e44;
-  --color-warning: #d97706;
-  --color-danger:  #cf1322;
-  --color-info:    #64748b;
+  // 颜色系统 - 主色调
+  --color-primary: #1677ff;
+  --color-primary-light: #4096ff;
+  --color-primary-lighter: #69b1ff;
+  --color-primary-dark: #0958d9;
 
-  --color-bg:     #f5f7fb;
-  --color-card:   #ffffff;
-  --color-border: #dbe2ea;
+  --color-success: #52c41a;
+  --color-success-light: #95de64;
+  --color-success-dark: #389e0d;
 
-  --color-text-primary:     #1f2937;
-  --color-text-regular:     #374151;
-  --color-text-secondary:   #5b6475;
-  --color-text-placeholder: #94a3b8;
+  --color-warning: #faad14;
+  --color-warning-light: #ffc53d;
+  --color-warning-dark: #d48806;
 
+  --color-danger: #ff4d4f;
+  --color-danger-light: #ff7875;
+  --color-danger-dark: #cf1322;
+
+  --color-info: #1890ff;
+  --color-info-light: #40a9ff;
+  --color-info-dark: #096dd9;
+
+  // 中性色系统
+  --color-bg: #f0f2f5;
+  --color-bg-light: #fafafa;
+  --color-card: #ffffff;
+  --color-border: #d9d9d9;
+  --color-border-light: #f0f0f0;
+  --color-divider: #e8e8e8;
+
+  // 文本颜色系统
+  --color-text-primary: #262626;
+  --color-text-regular: #595959;
+  --color-text-secondary: #8c8c8c;
+  --color-text-placeholder: #bfbfbf;
+  --color-text-disabled: #d9d9d9;
+
+  // 金融专用色
+  --color-finance-profit: #52c41a;
+  --color-finance-loss: #ff4d4f;
+  --color-finance-neutral: #595959;
+
+  // 间距系统
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 20px;
+  --spacing-2xl: 24px;
+  --spacing-3xl: 32px;
+  --spacing-4xl: 40px;
+
+  // 字体系统
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-base: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 20px;
+  --font-size-3xl: 24px;
+  --font-mono: 'SF Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
+
+  // 字重系统
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  // 圆角系统
+  --border-radius-sm: 4px;
+  --border-radius: 6px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+  --border-radius-xl: 16px;
+  --border-radius-full: 9999px;
+
+  // 阴影系统
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 12px 40px rgba(0, 0, 0, 0.15);
+
+  // 日历相关
   --calendar-primary: #0958d9;
   --calendar-primary-soft: #eaf2ff;
   --calendar-surface-soft: #f8fafc;
@@ -34,9 +104,7 @@
   --calendar-category-4: #64748b;
   --calendar-category-5: #6d28d9;
 
-  --border-radius: 8px;
-  --shadow-card: 0 4px 18px rgba(15, 23, 42, 0.08);
-  --shadow-hover: 0 10px 28px rgba(15, 23, 42, 0.12);
+  // 布局相关
   --header-height: 60px;
   --sidebar-width: 220px;
 }
@@ -60,44 +128,79 @@ html, body, #app {
 // ==================== 卡片 ====================
 .page-card {
   background: var(--color-card);
-  border-radius: var(--border-radius);
+  border-radius: var(--border-radius-md);
   box-shadow: var(--shadow-card);
-  padding: 20px;
-  margin-bottom: 16px;
+  padding: var(--spacing-2xl);
+  margin-bottom: var(--spacing-lg);
+  transition: box-shadow 0.3s ease;
+
+  &:hover {
+    box-shadow: var(--shadow-hover);
+  }
 }
 
 // ==================== 筛选区 ====================
 .filter-area {
   background: var(--color-card);
-  border-radius: var(--border-radius);
+  border-radius: var(--border-radius-md);
   box-shadow: var(--shadow-card);
-  padding: 16px 20px 0;
-  margin-bottom: 16px;
+  padding: var(--spacing-xl) var(--spacing-2xl) 0;
+  margin-bottom: var(--spacing-lg);
 }
 
 // ==================== 表格区 ====================
 .table-area {
   background: var(--color-card);
-  border-radius: var(--border-radius);
+  border-radius: var(--border-radius-md);
   box-shadow: var(--shadow-card);
-  padding: 16px 20px;
+  padding: var(--spacing-xl) var(--spacing-2xl);
 }
 
 // ==================== 金额样式 ====================
 .amount-positive {
-  color: var(--color-success);
-  font-weight: 600;
+  color: var(--color-finance-profit);
+  font-weight: var(--font-weight-semibold);
 }
 
 .amount-negative {
-  color: var(--color-danger);
-  font-weight: 600;
+  color: var(--color-finance-loss);
+  font-weight: var(--font-weight-semibold);
+}
+
+.amount-neutral {
+  color: var(--color-text-regular);
+  font-weight: var(--font-weight-semibold);
 }
 
 .amount-cell {
   text-align: right;
   font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
 }
+
+// 金额显示工具类（统一别名）
+.amt-pos { @extend .amount-positive; }
+.amt-neg { @extend .amount-negative; }
+.amt-base { @extend .amount-neutral; }
+
+// ==================== 字体工具类 ====================
+.font-mono {
+  font-family: var(--font-mono);
+  letter-spacing: 0.5px;
+}
+
+.text-xs { font-size: var(--font-size-xs); }
+.text-sm { font-size: var(--font-size-sm); }
+.text-base { font-size: var(--font-size-base); }
+.text-lg { font-size: var(--font-size-lg); }
+.text-xl { font-size: var(--font-size-xl); }
+.text-2xl { font-size: var(--font-size-2xl); }
+
+.text-primary { color: var(--color-text-primary); }
+.text-regular { color: var(--color-text-regular); }
+.text-secondary { color: var(--color-text-secondary); }
+.text-placeholder { color: var(--color-text-placeholder); }
 
 // ==================== 状态标签 ====================
 .status-normal  { color: var(--color-success); }
@@ -107,33 +210,78 @@ html, body, #app {
 
 // ==================== 页面标题 ====================
 .page-title {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
-  margin-bottom: 16px;
+  margin-bottom: var(--spacing-xl);
+  line-height: 1.4;
 }
 
 // ==================== 分页区 ====================
 .pagination-area {
   display: flex;
   justify-content: flex-end;
-  padding-top: 16px;
+  padding-top: var(--spacing-xl);
 }
 
 // ==================== Element Plus 覆盖 ====================
-.el-table th.el-table__cell {
-  background-color: #fafafa;
-  color: #595959;
-  font-weight: 600;
+.el-table {
+  --el-table-border-color: var(--color-border-light);
+  --el-table-header-bg-color: #fafafa;
+  --el-table-header-text-color: var(--color-text-regular);
+  --el-table-row-hover-bg-color: #fafafa;
+
+  th.el-table__cell {
+    background-color: #fafafa;
+    color: var(--color-text-regular);
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-sm);
+    padding: 14px 0;
+  }
+
+  .el-table__cell {
+    padding: 12px 0;
+  }
+
+  .el-table__row {
+    transition: background-color 0.2s ease;
+  }
 }
 
-.el-button--primary {
-  background-color: var(--color-primary);
-  border-color: var(--color-primary);
+.el-button {
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--border-radius);
+  transition: all 0.2s ease;
+
+  &--primary {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+
+    &:hover {
+      background-color: var(--color-primary-light);
+      border-color: var(--color-primary-light);
+    }
+  }
 }
 
 .el-tag {
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.el-input,
+.el-select,
+.el-date-editor {
+  --el-input-border-radius: var(--border-radius);
+  --el-input-border-color: var(--color-border);
+  --el-input-hover-border-color: var(--color-primary-light);
+  --el-input-focus-border-color: var(--color-primary);
+}
+
+.el-card {
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-card);
+  border: none;
 }
 
 // ==================== 页面过渡动画（纯淡入淡出，避免 transform 触发复杂布局重算） ====================

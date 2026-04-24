@@ -4,6 +4,7 @@ import com.bank.admin.common.result.PageResult;
 import com.bank.admin.module.card.dto.BankCardQueryDTO;
 import com.bank.admin.module.card.dto.BankCardSaveDTO;
 import com.bank.admin.module.card.vo.BankCardVO;
+import com.bank.admin.module.card.vo.UserCardGroupVO;
 
 import java.util.List;
 
@@ -18,9 +19,14 @@ public interface BankCardService {
 
     BankCardVO detail(Long id);
 
-    void save(BankCardSaveDTO dto);
+    Long save(BankCardSaveDTO dto);
 
     void update(BankCardSaveDTO dto);
 
     void delete(Long id);
+
+    /**
+     * 按用户分组查询银行卡（两级层级模型）
+     */
+    List<UserCardGroupVO> listGroupedByUser(BankCardQueryDTO query);
 }

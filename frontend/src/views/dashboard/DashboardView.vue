@@ -21,8 +21,8 @@
     <div class="page-card quick-actions">
       <div class="card-title">快捷操作</div>
       <div class="action-list">
-        <el-button type="primary" plain @click="router.push('/owners')">
-          <el-icon><Plus /></el-icon>添加持卡人
+        <el-button type="primary" plain @click="router.push('/cards')">
+          <el-icon><Plus /></el-icon>管理用户/银行卡
         </el-button>
         <el-button type="success" plain @click="router.push('/cards')">
           <el-icon><Plus /></el-icon>添加银行卡
@@ -85,7 +85,7 @@
               <el-tag type="danger">今日到期</el-tag>
               <span class="reminder-count">{{ stats.todayDueCount || 0 }} 条</span>
             </div>
-            <div class="reminder-item clickable" @click="router.push('/bills?status=OVERDUE')">
+            <div class="reminder-item clickable" @click="router.push('/bills?status=3')">
               <el-tag type="danger">逾期账单</el-tag>
               <span class="reminder-count">{{ stats.overdueBillCount || 0 }} 条</span>
             </div>
@@ -187,10 +187,10 @@ const stats = ref<any>({
 })
 
 const statCards = computed(() => [
-  { label: '持卡人总数', value: stats.value.totalOwners, icon: 'User', color: '#1677ff', route: '/owners' },
+  { label: '用户总数', value: stats.value.totalOwners, icon: 'User', color: '#1677ff', route: '/cards' },
   { label: '银行卡总数', value: stats.value.totalCards, icon: 'CreditCard', color: '#52c41a', route: '/cards' },
   { label: '待处理提醒', value: stats.value.pendingReminderCount, icon: 'Bell', color: '#faad14', route: '/reminders' },
-  { label: '逾期账单数', value: stats.value.overdueBillCount, icon: 'Warning', color: '#ff4d4f', route: '/bills?status=OVERDUE' }
+  { label: '逾期账单数', value: stats.value.overdueBillCount, icon: 'Warning', color: '#ff4d4f', route: '/bills?status=3' }
 ])
 
 // 近7日收支趋势

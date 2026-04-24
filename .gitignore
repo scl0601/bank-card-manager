@@ -27,3 +27,21 @@ frontend/.env.*.local
 
 # === CodeBuddy ===
 .codebuddy/
+
+# === Build Logs ===
+build*.log
+*.build.log
+
+# === Temporary Files ===
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# === Database Backups ===
+backup_*.sql
+*.backup.sql
+
+# === Claude Worktrees ===
+.claude/worktrees/

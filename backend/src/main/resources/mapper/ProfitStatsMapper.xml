@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bank.admin.module.profit.mapper.ProfitStatsMapper">
+
+    <sql id="profitBaseJoin">
+        FROM card_bill cb
+        LEFT JOIN bank_card bc ON bc.id = cb.card_id AND bc.is_deleted = 0
+        LEFT JOIN card_user owner_user ON owner_user.id = cb.owner_id AND owner_user.is_deleted = 0
+        LEFT JOIN card_user top_user ON top_user.id = IFNULL(owner_user.parent_id, owner_user.id) AND top_user.is_deleted = 0
+    </sql>
+
+    <sql id="profitWhere">
+        WHERE cb.is_deleted = 0
+        <if test="query.year != null">
+            AND cb.bill_month LIKE CONCAT(#{query.year}, '-%')
+        </if>
+        <if test="query.month != null and query.year != null">
+            AND cb.bill_month = CONCAT(#{query.year}, '-', LPAD(#{query.month}, 2, '0'))
+        </if>
+        <if test="query.cardId != null">
+            AND cb.card_id = #{query.cardId}
+        </if>
+        <if test="query.userId != null">
+            AND IFNULL(top_user.id, owner_user.id) = #{query.userId}
+        </if>
+    </sql>
+
+    <select id="selectOverview" resultType="com.bank.admin.module.profit.vo.ProfitOverviewVO">
+        SELECT
+            #{query.year} AS year,
+            #{query.month} AS month,
+            COUNT(DISTINCT IFNULL(top_user.id, owner_user.id)) AS user_count,
+            COUNT(DISTINCT cb.card_id) AS card_count,
+            COALESCE(SUM(cb.bill_amount), 0) AS total_bill_amount,
+            COALESCE(SUM(cb.fee_amount), 0) AS total_fee_amount,
+            COALESCE(SUM(cb.pos_cost_amount), 0) AS total_pos_cost_amount,
+            COALESCE(SUM(cb.net_profit), 0) AS total_net_profit
+        <include refid="profitBaseJoin"/>
+        <include refid="profitWhere"/>
+    </select>
+
+    <select id="selectUserProfitPage" resultType="com.bank.admin.module.profit.vo.UserProfitVO">
+        SELECT
+            IFNULL(top_user.id, owner_user.id) AS user_id,
+            IFNULL(top_user.name, owner_user.name) AS user_name,
+            COUNT(DISTINCT cb.card_id) AS card_count,
+            COUNT(DISTINCT cb.bill_month) AS bill_month_count,
+            COALESCE(SUM(cb.bill_amount), 0) AS total_bill_amount,
+            COALESCE(SUM(cb.fee_amount), 0) AS total_fee_amount,
+            COALESCE(SUM(cb.pos_cost_amount), 0) AS total_pos_cost_amount,
+            COALESCE(SUM(cb.net_profit), 0) AS total_net_profit
+        <include refid="profitBaseJoin"/>
+        <include refid="profitWhere"/>
+        GROUP BY IFNULL(top_user.id, owner_user.id), IFNULL(top_user.name, owner_user.name)
+        ORDER BY total_net_profit DESC, total_bill_amount DESC, user_id ASC
+    </select>
+
+    <select id="selectCardProfitPage" resultType="com.bank.admin.module.profit.vo.CardProfitVO">
+        SELECT
+            cb.card_id,
+            IFNULL(top_user.id, owner_user.id) AS user_id,
+            IFNULL(top_user.name, owner_user.name) AS user_name,
+            owner_user.id AS owner_id,
+            owner_user.name AS owner_name,
+            bc.owner_relation,
+            bc.bank_name,
+            bc.card_no_last4,
+            COUNT(*) AS bill_count,
+            COALESCE(SUM(cb.bill_amount), 0) AS total_bill_amount,
+            COALESCE(SUM(cb.fee_amount), 0) AS total_fee_amount,
+            COALESCE(SUM(cb.pos_cost_amount), 0) AS total_pos_cost_amount,
+            COALESCE(SUM(cb.net_profit), 0) AS total_net_profit
+        <include refid="profitBaseJoin"/>
+        <include refid="profitWhere"/>
+        GROUP BY cb.card_id,
+                 IFNULL(top_user.id, owner_user.id),
+                 IFNULL(top_user.name, owner_user.name),
+                 owner_user.id,
+                 owner_user.name,
+                 bc.owner_relation,
+                 bc.bank_name,
+                 bc.card_no_last4
+        ORDER BY total_net_profit DESC, total_bill_amount DESC, cb.card_id DESC
+    </select>
+
+    <select id="selectMonthlyProfit" resultType="com.bank.admin.module.profit.vo.MonthlyProfitVO">
+        SELECT
+            cb.bill_month,
+            COUNT(DISTINCT IFNULL(top_user.id, owner_user.id)) AS user_count,
+            COUNT(DISTINCT cb.card_id) AS card_count,
+            COALESCE(SUM(cb.bill_amount), 0) AS total_bill_amount,
+            COALESCE(SUM(cb.fee_amount), 0) AS total_fee_amount,
+            COALESCE(SUM(cb.pos_cost_amount), 0) AS total_pos_cost_amount,
+            COALESCE(SUM(cb.net_profit), 0) AS total_net_profit
+        <include refid="profitBaseJoin"/>
+        <include refid="profitWhere"/>
+        GROUP BY cb.bill_month
+        ORDER BY cb.bill_month ASC
+    </select>
+
+</mapper>

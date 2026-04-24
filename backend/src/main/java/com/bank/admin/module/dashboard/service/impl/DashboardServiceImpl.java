@@ -4,11 +4,11 @@ import com.bank.admin.module.bill.entity.CardBill;
 import com.bank.admin.module.bill.mapper.CardBillMapper;
 import com.bank.admin.module.card.entity.BankCard;
 import com.bank.admin.module.card.mapper.BankCardMapper;
+import com.bank.admin.module.card.mapper.CardUserMapper;
 import com.bank.admin.module.dashboard.service.DashboardService;
 import com.bank.admin.module.dashboard.vo.DashboardVO;
 import com.bank.admin.module.log.entity.OperationLog;
 import com.bank.admin.module.log.mapper.OperationLogMapper;
-import com.bank.admin.module.owner.mapper.CardOwnerMapper;
 import com.bank.admin.module.reminder.mapper.ReminderTaskMapper;
 import com.bank.admin.module.transaction.entity.CardTransaction;
 import com.bank.admin.module.transaction.mapper.CardTransactionMapper;
@@ -18,7 +18,6 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,7 +32,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class DashboardServiceImpl implements DashboardService {
 
-    private final CardOwnerMapper cardOwnerMapper;
+    private final CardUserMapper cardUserMapper;
     private final BankCardMapper bankCardMapper;
     private final CardTransactionMapper transactionMapper;
     private final CardBillMapper cardBillMapper;
@@ -46,32 +45,15 @@ public class DashboardServiceImpl implements DashboardService {
         LocalDate today = LocalDate.now();
         LocalDate monthStart = today.withDayOfMonth(1);
 
-        // 持卡人总数
-        vo.setTotalOwners(cardOwnerMapper.selectCount(
-                new LambdaQueryWrapper<>()));
-
-        // 银行卡总数
-        vo.setTotalCards(bankCardMapper.selectCount(
-                new LambdaQueryWrapper<>()));
-
-        // 信用卡数量
-        vo.setCreditCardCount(bankCardMapper.selectCount(
-                new LambdaQueryWrapper<BankCard>().eq(BankCard::getCardType, 2)));
-
-        // 借记卡数量
-        vo.setDebitCardCount(bankCardMapper.selectCount(
-                new LambdaQueryWrapper<BankCard>().eq(BankCard::getCardType, 1)));
-
-        // 待处理提醒数
+        vo.setTotalOwners(cardUserMapper.selectCount(new LambdaQueryWrapper<>()));
+        vo.setTotalCards(bankCardMapper.selectCount(new LambdaQueryWrapper<>()));
+        vo.setCreditCardCount(bankCardMapper.selectCount(new LambdaQueryWrapper<BankCard>().eq(BankCard::getCardType, 2)));
+        vo.setDebitCardCount(bankCardMapper.selectCount(new LambdaQueryWrapper<BankCard>().eq(BankCard::getCardType, 1)));
         vo.setPendingReminderCount(reminderTaskMapper.selectCount(
                 new LambdaQueryWrapper<com.bank.admin.module.reminder.entity.ReminderTask>()
                         .eq(com.bank.admin.module.reminder.entity.ReminderTask::getStatus, 0)));
+        vo.setOverdueBillCount(cardBillMapper.selectCount(new LambdaQueryWrapper<CardBill>().eq(CardBill::getStatus, 3)));
 
-        // 逾期账单数
-        vo.setOverdueBillCount(cardBillMapper.selectCount(
-                new LambdaQueryWrapper<CardBill>().eq(CardBill::getStatus, 3)));
-
-        // 本月收入
         BigDecimal income = transactionMapper.selectList(
                         new LambdaQueryWrapper<CardTransaction>()
                                 .eq(CardTransaction::getTxType, 1)
@@ -81,7 +63,6 @@ public class DashboardServiceImpl implements DashboardService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         vo.setMonthlyIncome(income);
 
-        // 本月支出
         BigDecimal expense = transactionMapper.selectList(
                         new LambdaQueryWrapper<CardTransaction>()
                                 .eq(CardTransaction::getTxType, 2)
@@ -91,22 +72,18 @@ public class DashboardServiceImpl implements DashboardService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         vo.setMonthlyExpense(expense);
 
-        // 即将到期（7天内）
         vo.setUpcomingCount(reminderTaskMapper.selectCount(
                 new LambdaQueryWrapper<com.bank.admin.module.reminder.entity.ReminderTask>()
                         .eq(com.bank.admin.module.reminder.entity.ReminderTask::getStatus, 0)
                         .eq(com.bank.admin.module.reminder.entity.ReminderTask::getReminderType, 1)));
 
-        // 今日到期
         vo.setTodayDueCount(reminderTaskMapper.selectCount(
                 new LambdaQueryWrapper<com.bank.admin.module.reminder.entity.ReminderTask>()
                         .eq(com.bank.admin.module.reminder.entity.ReminderTask::getStatus, 0)
                         .eq(com.bank.admin.module.reminder.entity.ReminderTask::getReminderType, 2)));
 
-        // 近7日收支趋势
         vo.setDailyTrend(buildDailyTrend(today));
 
-        // 最近操作日志（5条）
         List<OperationLog> recentLogs = operationLogMapper.selectList(
                 new LambdaQueryWrapper<OperationLog>()
                         .select(OperationLog::getId, OperationLog::getOperator,
@@ -126,7 +103,6 @@ public class DashboardServiceImpl implements DashboardService {
             return vo1;
         }).toList());
 
-        // 即将到期账单 Top 5
         List<Map<String, Object>> upcomingBills = cardBillMapper.selectUpcomingBills(today);
         vo.setUpcomingBills(upcomingBills.stream().map(m -> {
             DashboardVO.UpcomingBillVO vo2 = new DashboardVO.UpcomingBillVO();
@@ -146,7 +122,6 @@ public class DashboardServiceImpl implements DashboardService {
             return vo2;
         }).collect(Collectors.toList()));
 
-        // 银行分布统计
         List<BankCard> allCards = bankCardMapper.selectList(
                 new LambdaQueryWrapper<BankCard>()
                         .select(BankCard::getBankName));

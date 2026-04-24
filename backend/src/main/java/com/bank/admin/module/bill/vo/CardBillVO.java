@@ -32,8 +32,14 @@ public class CardBillVO {
     @Schema(description = "持卡人姓名")
     private String ownerName;
 
+    @Schema(description = "卡片归属人关系")
+    private String ownerRelation;
+
     @Schema(description = "账单月份")
     private String billMonth;
+
+    @Schema(description = "账单日")
+    private Integer billDay;
 
     @Schema(description = "账单金额")
     private BigDecimal billAmount;
@@ -43,6 +49,9 @@ public class CardBillVO {
 
     @Schema(description = "还款日")
     private LocalDate repayDate;
+
+    @Schema(description = "还款日（每月几号）")
+    private Integer repayDay;
 
     @Schema(description = "实际还款金额")
     private BigDecimal actualPayAmount;
@@ -58,6 +67,21 @@ public class CardBillVO {
 
     @Schema(description = "备注")
     private String remark;
+
+    @Schema(description = "约定费率%（如1表示1%）")
+    private BigDecimal feeRate;
+
+    @Schema(description = "本期应收手续费")
+    private BigDecimal feeAmount;
+
+    @Schema(description = "POS机使用成本")
+    private BigDecimal posCostAmount;
+
+    @Schema(description = "本期净利润")
+    private BigDecimal netProfit;
+
+    @Schema(description = "还款方式：cloudpay云闪付 / invoice开票")
+    private String repayMethod;
 
     @Schema(description = "创建时间")
     private LocalDateTime createTime;

@@ -45,4 +45,19 @@ public interface ReminderTaskService {
      * 扫描并生成卡片即将过期提醒
      */
     void scanCardExpiringReminders();
+
+    /**
+     * 关闭账单相关待处理提醒
+     */
+    void closeBillReminders(Long billId);
+
+    /**
+     * 删除账单相关提醒
+     */
+    void removeTasksByBillId(Long billId);
+
+    /**
+     * 删除银行卡相关提醒
+     */
+    void removeTasksByCardId(Long cardId);
 }

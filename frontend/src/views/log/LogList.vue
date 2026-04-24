@@ -73,7 +73,7 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'Logs' })
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { formatTime } from '@/utils/formatters'
 import SearchBar from '@/components/SearchBar/index.vue'
 import PageTable from '@/components/PageTable/index.vue'
@@ -114,6 +114,11 @@ const handleReset = () => {
   resetQuery()
   dateRange.value = []
 }
+
+// 监听查询条件变化，自动搜索
+watch(query, () => {
+  handleSearch()
+}, { deep: true })
 </script>
 
 <style scoped lang="scss">

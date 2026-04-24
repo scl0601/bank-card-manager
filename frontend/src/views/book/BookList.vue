@@ -158,9 +158,9 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'Books' })
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { Plus, Setting } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import SearchBar from '@/components/SearchBar/index.vue'
 import PageTable from '@/components/PageTable/index.vue'
 import CrudDialog from '@/components/CrudDialog/index.vue'
@@ -170,7 +170,7 @@ import ExportButton from '@/components/ExportButton/index.vue'
 import CategoryDrawer from './CategoryDrawer.vue'
 import {
   getBookPageApi, saveBookApi, updateBookApi, deleteBookApi,
-  exportBookApi, batchDeleteBookApi, getBookSummaryApi, getCategoryListApi
+  exportBookApi, getBookSummaryApi, getCategoryListApi
 } from '@/api/book'
 import { getCardListApi } from '@/api/card'
 import { usePageTable } from '@/composables/usePageTable'
@@ -260,13 +260,6 @@ const categoryOptions = computed(() => {
   return buildCascaderOptions(allCategoryTree.value)
 })
 
-/** 表单内按当前 bookType 过滤的分类列表（树形结构，用于 el-option-group） */
-const filteredCategories = computed(() => {
-  return allCategoryTree.value
-    .filter((g: any) => !formData.bookType || g.type === formData.bookType)
-    .sort((a: any, b: any) => a.sortOrder - b.sortOrder)
-})
-
 function onTypeChange() {
   formData.categoryId = undefined as any
 }
@@ -334,7 +327,7 @@ async function handleSubmit() {
     ElMessage.success('操作成功')
     dialogVisible.value = false
     handleSearch()
-    loadSummary()
+    void loadSummary()
   } finally {
     submitting.value = false
   }
@@ -344,17 +337,7 @@ async function handleDelete(id: number) {
   await deleteBookApi(id)
   ElMessage.success('删除成功')
   handleSearch()
-  loadSummary()
-}
-
-async function handleBatchDelete() {
-  if (selectedIds.value.length === 0) return
-  await ElMessageBox.confirm(`确认删除选中的 ${selectedIds.value.length} 条记录？`, '批量删除', { type: 'warning' })
-  await batchDeleteBookApi(selectedIds.value)
-  ElMessage.success('批量删除成功')
-  selectedIds.value = []
-  handleSearch()
-  loadSummary()
+  void loadSummary()
 }
 
 // ========== 分类抽屉 ==========

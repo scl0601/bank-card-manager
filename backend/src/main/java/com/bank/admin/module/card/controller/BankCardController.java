@@ -8,6 +8,7 @@ import com.bank.admin.module.card.dto.BankCardQueryDTO;
 import com.bank.admin.module.card.dto.BankCardSaveDTO;
 import com.bank.admin.module.card.service.BankCardService;
 import com.bank.admin.module.card.vo.BankCardVO;
+import com.bank.admin.module.card.vo.UserCardGroupVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -53,9 +54,8 @@ public class BankCardController {
     @Log(module = "银行卡管理", type = ActionTypeEnum.INSERT, description = "新增银行卡")
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
-    public Result<Void> save(@Valid @RequestBody BankCardSaveDTO dto) {
-        bankCardService.save(dto);
-        return Result.success();
+    public Result<Long> save(@Valid @RequestBody BankCardSaveDTO dto) {
+        return Result.success(bankCardService.save(dto));
     }
 
     @Operation(summary = "编辑银行卡")
@@ -74,5 +74,12 @@ public class BankCardController {
     public Result<Void> delete(@PathVariable Long id) {
         bankCardService.delete(id);
         return Result.success();
+    }
+
+    @Operation(summary = "按用户分组查询银行卡（含子用户卡片）")
+    @GetMapping("/grouped-by-user")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR','VIEWER')")
+    public Result<List<UserCardGroupVO>> listGroupedByUser(BankCardQueryDTO query) {
+        return Result.success(bankCardService.listGroupedByUser(query));
     }
 }

@@ -80,7 +80,7 @@
         <el-form-item label="银行卡" prop="cardId">
           <el-select v-model="form.cardId" placeholder="请选择银行卡" filterable style="width:100%">
             <el-option v-for="card in cardList" :key="card.id" :value="card.id"
-              :label="`${card.ownerName} · ${card.bankName} *${card.cardNoLast4}`" />
+              :label="`${card.userName} · ${card.bankName} *${card.cardNoLast4}`" />
           </el-select>
         </el-form-item>
         <el-form-item label="交易类型" prop="txType">
@@ -110,7 +110,7 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'Transactions' })
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, watch, onMounted, onActivated } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { formatTime } from '@/utils/formatters'
@@ -202,7 +202,16 @@ async function handleBatchDelete() {
   ElMessage.success('批量删除成功'); selectedIds.value = []; handleSearch()
 }
 
+async function fetchCardOptions() {
+  const res: any = await getCardListApi()
+  cardList.value = res.data || []
+}
+
 onMounted(() => {
-  getCardListApi().then(res => { cardList.value = res.data })
+  fetchCardOptions()
+})
+
+onActivated(() => {
+  fetchCardOptions()
 })
 </script>

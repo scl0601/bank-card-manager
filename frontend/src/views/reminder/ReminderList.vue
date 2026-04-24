@@ -155,7 +155,7 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'Reminders' })
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, watch, onMounted, computed } from 'vue'
 import { Bell, Warning, Clock, CreditCard, ArrowDown } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import SearchBar from '@/components/SearchBar/index.vue'

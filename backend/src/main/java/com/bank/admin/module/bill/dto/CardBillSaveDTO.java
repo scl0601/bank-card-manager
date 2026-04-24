@@ -26,6 +26,9 @@ public class CardBillSaveDTO {
     @NotBlank(message = "账单月份不能为空")
     private String billMonth;
 
+    @Schema(description = "账单日")
+    private Integer billDay;
+
     @Schema(description = "账单金额", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "账单金额不能为空")
     private BigDecimal billAmount;
@@ -35,6 +38,9 @@ public class CardBillSaveDTO {
 
     @Schema(description = "还款日")
     private LocalDate repayDate;
+
+    @Schema(description = "还款日（每月几号）")
+    private Integer repayDay;
 
     @Schema(description = "实际还款金额")
     private BigDecimal actualPayAmount;
@@ -47,4 +53,16 @@ public class CardBillSaveDTO {
 
     @Schema(description = "备注")
     private String remark;
+
+    @Schema(description = "约定费率%（如1表示1%）")
+    private BigDecimal feeRate;
+
+    @Schema(description = "本期应收手续费")
+    private BigDecimal feeAmount;
+
+    @Schema(description = "POS机使用成本")
+    private BigDecimal posCostAmount;
+
+    @Schema(description = "本期净利润")
+    private BigDecimal netProfit;
 }

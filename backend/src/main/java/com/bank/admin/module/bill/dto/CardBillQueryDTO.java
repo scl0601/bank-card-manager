@@ -19,8 +19,14 @@ public class CardBillQueryDTO extends PageDTO {
     @Schema(description = "持卡人ID")
     private Long ownerId;
 
+    @Schema(description = "银行卡关键字（银行名称/卡号后四位）")
+    private String cardName;
+
     @Schema(description = "账单月份（yyyy-MM）")
     private String billMonth;
+
+    @Schema(description = "统计年份")
+    private Integer year;
 
     @Schema(description = "状态：0待还款 1已还清 2部分还款 3逾期")
     private Integer status;

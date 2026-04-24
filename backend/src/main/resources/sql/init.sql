@@ -21,47 +21,50 @@ CREATE TABLE `bank_sys_user` (
   UNIQUE KEY `uk_username` (`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统用户表';
 
--- ===================== 持卡人表 =====================
-CREATE TABLE `card_owner` (
-  `id`          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `name`        VARCHAR(64)  NOT NULL                COMMENT '姓名',
-  `phone`       VARCHAR(20)  DEFAULT NULL            COMMENT '手机号',
-  `id_card`     VARCHAR(255) DEFAULT NULL            COMMENT '身份证号',
-  `remark`      VARCHAR(500) DEFAULT NULL            COMMENT '备注',
-  `status`      TINYINT      NOT NULL DEFAULT 0      COMMENT '状态：0正常 1禁用',
-  `is_deleted`  TINYINT(1)   NOT NULL DEFAULT 0,
-  `create_by`   VARCHAR(64)  DEFAULT NULL,
-  `create_time` DATETIME     DEFAULT NULL,
-  `update_by`   VARCHAR(64)  DEFAULT NULL,
-  `update_time` DATETIME     DEFAULT NULL,
+-- ===================== 用户表（两级层级：一级用户/二级用户） =====================
+CREATE TABLE `card_user` (
+  `id`          BIGINT          NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `name`        VARCHAR(64)     NOT NULL                COMMENT '姓名',
+  `phone`       VARCHAR(20)     DEFAULT NULL            COMMENT '手机号',
+  `parent_id`   BIGINT          DEFAULT NULL            COMMENT '父级ID（NULL=一级用户）',
+  `fee_rate`    DECIMAL(8,2)    NOT NULL DEFAULT 0.00 COMMENT '费率%（如1表示1%）',
+  `remark`      VARCHAR(500)    DEFAULT NULL            COMMENT '备注',
+  `status`      TINYINT         NOT NULL DEFAULT 0       COMMENT '状态：0正常 1禁用',
+  `is_deleted`  TINYINT(1)      NOT NULL DEFAULT 0,
+  `create_by`   VARCHAR(64)     DEFAULT NULL,
+  `create_time` DATETIME        DEFAULT NULL,
+  `update_by`   VARCHAR(64)     DEFAULT NULL,
+  `update_time` DATETIME        DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `idx_name` (`name`),
-  KEY `idx_phone` (`phone`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='持卡人表';
+  KEY `idx_parent_id` (`parent_id`),
+  KEY `idx_name`       (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表（两级层级）';
 
 -- ===================== 银行卡表 =====================
 CREATE TABLE `bank_card` (
   `id`              BIGINT          NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `owner_id`        BIGINT          NOT NULL                COMMENT '持卡人ID',
+  `user_id`         BIGINT          NOT NULL                COMMENT '用户ID（关联card_user）',
   `bank_name`       VARCHAR(64)     NOT NULL                COMMENT '银行名称',
-  `card_no`         VARCHAR(255)    NOT NULL                COMMENT '卡号（加密）',
   `card_no_last4`   CHAR(4)         NOT NULL                COMMENT '卡号后四位',
+  `owner_relation`  VARCHAR(32)     DEFAULT '本人'          COMMENT '卡片归属人关系：本人/配偶/子女等',
   `card_type`       TINYINT         NOT NULL DEFAULT 1      COMMENT '1借记卡 2信用卡',
   `credit_limit`    DECIMAL(18,2)   DEFAULT NULL            COMMENT '信用额度',
   `balance`         DECIMAL(18,2)   DEFAULT 0.00            COMMENT '当前余额',
-  `used_amount`     DECIMAL(18,2)   DEFAULT 0.00            COMMENT '已用额度',
+  `total_limit`     DECIMAL(18,2)   DEFAULT NULL            COMMENT '总额度（借记卡用）',
   `bill_day`        TINYINT         DEFAULT NULL            COMMENT '账单日',
   `repay_day`       TINYINT         DEFAULT NULL            COMMENT '还款日',
   `expire_date`     VARCHAR(7)      DEFAULT NULL            COMMENT '有效期（yyyy-MM）',
   `status`          TINYINT         NOT NULL DEFAULT 0      COMMENT '0正常 1冻结 2注销',
   `remark`          VARCHAR(500)    DEFAULT NULL,
+  `repay_method`    VARCHAR(20)     DEFAULT 'cloudpay'      COMMENT '还款方式：cloudpay云闪付 invoice开票',
+  `verified`        TINYINT(1)      DEFAULT NULL            COMMENT '是否核实（云闪付时有效）',
   `is_deleted`      TINYINT(1)      NOT NULL DEFAULT 0,
   `create_by`       VARCHAR(64)     DEFAULT NULL,
   `create_time`     DATETIME        DEFAULT NULL,
   `update_by`       VARCHAR(64)     DEFAULT NULL,
   `update_time`     DATETIME        DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `idx_owner_id`    (`owner_id`),
+  KEY `idx_user_id`     (`user_id`),
   KEY `idx_card_type`   (`card_type`),
   KEY `idx_status`      (`status`),
   KEY `idx_expire_date` (`expire_date`)
@@ -96,7 +99,9 @@ CREATE TABLE `card_bill` (
   `id`                BIGINT          NOT NULL AUTO_INCREMENT COMMENT '主键',
   `card_id`           BIGINT          NOT NULL                COMMENT '银行卡ID',
   `owner_id`          BIGINT          NOT NULL                COMMENT '持卡人ID',
+  `supplier_id`       BIGINT          DEFAULT NULL            COMMENT '来源方ID（冗余，用于聚合查询）',
   `bill_month`        VARCHAR(7)      NOT NULL                COMMENT '账单月份（yyyy-MM）',
+  `bill_day`          TINYINT         DEFAULT NULL            COMMENT '账单日',
   `bill_amount`       DECIMAL(18,2)   NOT NULL                COMMENT '账单金额',
   `min_pay_amount`    DECIMAL(18,2)   DEFAULT NULL            COMMENT '最低还款额',
   `repay_date`        DATE            DEFAULT NULL            COMMENT '还款日',
@@ -104,6 +109,10 @@ CREATE TABLE `card_bill` (
   `actual_pay_date`   DATE            DEFAULT NULL            COMMENT '实际还款日期',
   `status`            TINYINT         NOT NULL DEFAULT 0      COMMENT '0待还款 1已还清 2部分还款 3逾期',
   `remark`            VARCHAR(500)    DEFAULT NULL,
+  `fee_rate`          DECIMAL(8,2)    DEFAULT 0.00            COMMENT '约定费率%（如1表示1%）',
+  `fee_amount`        DECIMAL(18,2)   DEFAULT 0.00            COMMENT '本期应收手续费',
+  `pos_cost_amount`   DECIMAL(18,2)   DEFAULT 0.00            COMMENT 'POS机使用成本',
+  `net_profit`        DECIMAL(18,2)   DEFAULT 0.00            COMMENT '本期净利润',
   `is_deleted`        TINYINT(1)      NOT NULL DEFAULT 0,
   `create_by`         VARCHAR(64)     DEFAULT NULL,
   `create_time`       DATETIME        DEFAULT NULL,

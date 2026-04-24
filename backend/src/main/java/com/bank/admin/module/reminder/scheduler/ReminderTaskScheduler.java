@@ -1,5 +1,6 @@
 package com.bank.admin.module.reminder.scheduler;
 
+import com.bank.admin.module.bill.service.CardBillService;
 import com.bank.admin.module.reminder.service.ReminderTaskService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class ReminderTaskScheduler {
 
+    private final CardBillService cardBillService;
     private final ReminderTaskService reminderTaskService;
 
     /**
@@ -25,11 +27,12 @@ public class ReminderTaskScheduler {
      */
     @Scheduled(cron = "0 0 1 * * ?")
     public void scheduleBillDueReminders() {
-        log.info("[定时任务] 触发账单到期提醒扫描...");
+        log.info("[定时任务] 触发账单生命周期刷新与到期提醒扫描...");
         try {
+            cardBillService.refreshBillLifecycle();
             reminderTaskService.scanBillDueReminders();
         } catch (Exception e) {
-            log.error("[定时任务] 账单到期提醒扫描异常", e);
+            log.error("[定时任务] 账单生命周期刷新或到期提醒扫描异常", e);
         }
     }
 

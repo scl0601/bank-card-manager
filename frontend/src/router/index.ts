@@ -24,16 +24,16 @@ const router = createRouter({
           meta: { title: '首页看板', icon: 'House' }
         },
         {
-          path: 'owners',
-          name: 'Owners',
-          component: () => import('@/views/owner/OwnerList.vue'),
-          meta: { title: '持卡人管理', icon: 'User' }
-        },
-        {
           path: 'cards',
           name: 'Cards',
           component: () => import('@/views/card/CardList.vue'),
           meta: { title: '银行卡管理', icon: 'CreditCard' }
+        },
+        {
+          path: 'users',
+          name: 'CardUsers',
+          component: () => import('@/views/card/CardUserList.vue'),
+          meta: { title: '持卡人管理', icon: 'UserFilled' }
         },
         {
           path: 'transactions',
@@ -52,6 +52,12 @@ const router = createRouter({
           name: 'Bills',
           component: () => import('@/views/bill/BillList.vue'),
           meta: { title: '账单管理', icon: 'Document' }
+        },
+        {
+          path: 'profits',
+          name: 'ProfitStats',
+          component: () => import('@/views/profit/ProfitStatsView.vue'),
+          meta: { title: '收益统计', icon: 'TrendCharts' }
         },
         {
           path: 'reminders',

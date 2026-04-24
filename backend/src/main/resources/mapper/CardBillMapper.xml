@@ -10,32 +10,83 @@
             cb.card_id,
             bc.card_no_last4,
             bc.bank_name,
+            bc.owner_relation,
             cb.owner_id,
-            co.name       AS owner_name,
+            cu.name AS owner_name,
             cb.bill_month,
+            cb.bill_day,
             cb.bill_amount,
             cb.min_pay_amount,
             cb.repay_date,
+            DAY(cb.repay_date) AS repay_day,
             cb.actual_pay_amount,
             cb.actual_pay_date,
             cb.status,
             cb.remark,
+            cb.fee_rate,
+            cb.fee_amount,
+            cb.pos_cost_amount,
+            cb.net_profit,
+            bc.repay_method,
             cb.create_time
         FROM card_bill cb
-        LEFT JOIN bank_card  bc ON bc.id = cb.card_id  AND bc.is_deleted = 0
-        LEFT JOIN card_owner co ON co.id = cb.owner_id AND co.is_deleted = 0
+        LEFT JOIN bank_card bc ON bc.id = cb.card_id AND bc.is_deleted = 0
+        LEFT JOIN card_user cu ON cu.id = cb.owner_id AND cu.is_deleted = 0
         WHERE cb.is_deleted = 0
-        <if test="cardId    != null">AND cb.card_id   = #{cardId}</if>
-        <if test="ownerId   != null">AND cb.owner_id  = #{ownerId}</if>
+        <if test="cardId != null">AND cb.card_id = #{cardId}</if>
+        <if test="ownerId != null">AND cb.owner_id = #{ownerId}</if>
+        <if test="cardName != null and cardName != ''">
+            AND (
+                bc.bank_name LIKE CONCAT('%', #{cardName}, '%')
+                OR bc.card_no_last4 LIKE CONCAT('%', #{cardName}, '%')
+            )
+        </if>
         <if test="billMonth != null and billMonth != ''">AND cb.bill_month = #{billMonth}</if>
-        <if test="status    != null">AND cb.status    = #{status}</if>
-        ORDER BY cb.bill_month DESC, cb.create_time DESC
+        <if test="year != null">AND LEFT(cb.bill_month, 4) = #{year}</if>
+        <if test="status != null">AND cb.status = #{status}</if>
+        <choose>
+            <when test="cardId != null">
+                ORDER BY cb.bill_month ASC, cb.create_time ASC
+            </when>
+            <otherwise>
+                ORDER BY cb.bill_month DESC, cb.create_time DESC
+            </otherwise>
+        </choose>
+    </select>
+
+    <select id="selectOverview"
+            resultType="com.bank.admin.module.bill.vo.CardBillOverviewVO">
+        SELECT
+            COUNT(1) AS billCount,
+            SUM(CASE WHEN cb.status = 0 THEN 1 ELSE 0 END) AS pendingCount,
+            SUM(CASE WHEN cb.status = 1 THEN 1 ELSE 0 END) AS repaidCount,
+            SUM(CASE WHEN cb.status = 2 THEN 1 ELSE 0 END) AS partialCount,
+            SUM(CASE WHEN cb.status = 3 THEN 1 ELSE 0 END) AS overdueCount,
+            IFNULL(SUM(cb.bill_amount), 0) AS totalBillAmount,
+            IFNULL(SUM(cb.fee_amount), 0) AS totalFeeAmount,
+            IFNULL(SUM(cb.pos_cost_amount), 0) AS totalPosCostAmount,
+            IFNULL(SUM(cb.net_profit), 0) AS totalNetProfit
+        FROM card_bill cb
+        LEFT JOIN bank_card bc ON bc.id = cb.card_id AND bc.is_deleted = 0
+        LEFT JOIN card_user cu ON cu.id = cb.owner_id AND cu.is_deleted = 0
+        WHERE cb.is_deleted = 0
+        <if test="cardId != null">AND cb.card_id = #{cardId}</if>
+        <if test="ownerId != null">AND cb.owner_id = #{ownerId}</if>
+        <if test="cardName != null and cardName != ''">
+            AND (
+                bc.bank_name LIKE CONCAT('%', #{cardName}, '%')
+                OR bc.card_no_last4 LIKE CONCAT('%', #{cardName}, '%')
+            )
+        </if>
+        <if test="billMonth != null and billMonth != ''">AND cb.bill_month = #{billMonth}</if>
+        <if test="year != null">AND LEFT(cb.bill_month, 4) = #{year}</if>
+        <if test="status != null">AND cb.status = #{status}</if>
     </select>
 
     <select id="selectUpcomingBills" resultType="java.util.Map">
         SELECT
             cb.id,
-            co.name AS owner_name,
+            cu.name AS owner_name,
             bc.bank_name,
             bc.card_no_last4,
             cb.bill_month,
@@ -43,8 +94,8 @@
             cb.repay_date,
             cb.status
         FROM card_bill cb
-        LEFT JOIN bank_card  bc ON bc.id = cb.card_id  AND bc.is_deleted = 0
-        LEFT JOIN card_owner co ON co.id = cb.owner_id AND co.is_deleted = 0
+        LEFT JOIN bank_card bc ON bc.id = cb.card_id AND bc.is_deleted = 0
+        LEFT JOIN card_user cu ON cu.id = cb.owner_id AND cu.is_deleted = 0
         WHERE cb.is_deleted = 0
           AND cb.status IN (0, 2)
           AND cb.repay_date IS NOT NULL
