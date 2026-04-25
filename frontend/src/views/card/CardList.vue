@@ -1531,7 +1531,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 28px;
+  padding: 12px 20px;
   background: linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(248,250,253,.98) 100%);
   border-bottom: 1px solid rgba(211,223,238,.92);
   flex-shrink: 0;
@@ -1546,9 +1546,9 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 }
 
 .page-title-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 12px;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
   background: linear-gradient(180deg, rgba($primary,.12) 0%, rgba($primary,.06) 100%);
   color: $primary;
   display: flex;
@@ -1566,7 +1566,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 
 .page-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   color: $ink;
   letter-spacing: -0.3px;
@@ -1596,7 +1596,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
@@ -1697,8 +1697,8 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  padding: 12px 16px 16px;
+  gap: 10px;
+  padding: 10px 12px 12px;
   min-height: 0;
 }
 
@@ -1847,6 +1847,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  min-width: 0;
 }
 
 .panel-hint {
@@ -1860,10 +1861,12 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+  min-width: 0;
 }
 
 .mini-stats-4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  min-width: 0;
 }
 
 .mini-stat {
@@ -1875,12 +1878,16 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+  overflow: hidden;
 }
 
 .ms-label {
   font-size: 11.5px;
   color: $sub;
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ms-value {
@@ -1888,6 +1895,9 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   font-weight: 800;
   color: $ink;
   line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   &.warn { color: $warning; }
   &.danger { color: $danger; }
 }
@@ -1973,6 +1983,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   flex-direction: column;
   gap: 8px;
   min-height: 0;
+  min-width: 0;
 }
 
 .list-item {
@@ -2226,10 +2237,17 @@ button.list-item {
   border-radius: 14px;
   background: $surface;
   border: 1px solid rgba(219,226,234,.85);
+  min-width: 0;
 }
 
-.bill-month { font-size: 13px; font-weight: 900; color: $ink; }
-.bill-sub { margin-top: 3px; font-size: 11.5px; color: $sub; font-weight: 700; }
+.bill-left,
+.bill-mid,
+.bill-right {
+  min-width: 0;
+}
+
+.bill-month { font-size: 13px; font-weight: 900; color: $ink; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bill-sub { margin-top: 3px; font-size: 11.5px; color: $sub; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bill-right { text-align: right; }
 .bill-amt { font-size: 13px; font-weight: 900; color: $ink; }
 

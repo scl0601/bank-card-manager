@@ -44,14 +44,14 @@
         <if test="billMonth != null and billMonth != ''">AND cb.bill_month = #{billMonth}</if>
         <if test="year != null">AND LEFT(cb.bill_month, 4) = #{year}</if>
         <if test="status != null">AND cb.status = #{status}</if>
-        <choose>
-            <when test="cardId != null">
-                ORDER BY cb.bill_month ASC, cb.create_time ASC
-            </when>
-            <otherwise>
-                ORDER BY cb.bill_month DESC, cb.create_time DESC
-            </otherwise>
-        </choose>
+        ORDER BY CAST(SUBSTRING_INDEX(cb.bill_month, '-', 1) AS UNSIGNED) DESC,
+                 MOD(
+                     CAST(SUBSTRING_INDEX(cb.bill_month, '-', -1) AS SIGNED)
+                     - CAST(SUBSTRING_INDEX(#{currentMonth}, '-', -1) AS SIGNED)
+                     + 12,
+                     12
+                 ) ASC,
+                 cb.create_time DESC
     </select>
 
     <select id="selectOverview"

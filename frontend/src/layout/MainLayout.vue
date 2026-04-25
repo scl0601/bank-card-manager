@@ -51,7 +51,7 @@
       </header>
 
       <!-- 主内容 -->
-      <main class="content-area">
+      <main class="content-area" :class="{ 'bill-content-area': isBillRoute }">
         <router-view v-slot="{ Component, route }">
           <transition name="fade-slide" mode="out-in" appear>
             <keep-alive :include="['Dashboard','Cards','CardUsers','Transactions','Books','Bills','ProfitStats','Reminders','Feedbacks','Calendar','Logs']">
@@ -95,6 +95,7 @@ const menuItems = [
 
 
 const activeMenu = computed(() => route.path)
+const isBillRoute = computed(() => route.name === 'Bills')
 const currentTitle = computed(() =>
   menuItems.find(m => m.path === route.path)?.title || ''
 )
@@ -190,8 +191,21 @@ async function handleCommand(cmd: string) {
 
 .content-area {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 20px;
   background: var(--color-bg);
+}
+
+.content-area.bill-content-area {
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+  padding: 8px;
+}
+
+.content-area.bill-content-area :deep(.bill-page) {
+  flex: 1;
+  min-height: 0;
 }
 </style>

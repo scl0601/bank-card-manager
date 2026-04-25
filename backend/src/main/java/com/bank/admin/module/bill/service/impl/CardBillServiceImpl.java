@@ -59,6 +59,7 @@ public class CardBillServiceImpl
     @Override
     public PageResult<CardBillVO> page(CardBillQueryDTO query) {
         Page<CardBillVO> page = new Page<>(query.getCurrent(), query.getSize());
+        String currentMonth = YearMonth.now().format(MONTH_FMT);
         Page<CardBillVO> result = (Page<CardBillVO>) baseMapper.selectPageWithInfo(
                 page,
                 query.getCardId(),
@@ -66,7 +67,8 @@ public class CardBillServiceImpl
                 query.getCardName(),
                 query.getBillMonth(),
                 query.getYear(),
-                query.getStatus());
+                query.getStatus(),
+                currentMonth);
         result.getRecords().forEach(this::fillStatusDesc);
         return PageResult.of(result);
     }

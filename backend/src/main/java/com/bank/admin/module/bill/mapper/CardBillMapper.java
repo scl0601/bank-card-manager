@@ -26,7 +26,8 @@ public interface CardBillMapper extends BaseMapper<CardBill> {
             @Param("cardName") String cardName,
             @Param("billMonth") String billMonth,
             @Param("year") Integer year,
-            @Param("status") Integer status
+            @Param("status") Integer status,
+            @Param("currentMonth") String currentMonth
     );
 
     CardBillOverviewVO selectOverview(

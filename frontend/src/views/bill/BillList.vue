@@ -89,17 +89,20 @@
         </div>
 
         <PageTable
+          ref="billTableRef"
           class="bill-page-table"
-          :data="list"
+          :data="sortedList"
           :loading="loading"
           :total="total"
           :page-num="query.pageNum"
           :page-size="query.pageSize"
-          :page-sizes="[10, 20, 50]"
-          height="calc(100% - 42px)"
+          :page-sizes="[20, 30, 50]"
+          :height="currentExpandedRow ? undefined : 'calc(100% - 40px)'"
+          :max-height="currentExpandedRow ? 'calc(100% - 40px)' : undefined"
           pagination-layout="total, prev, pager, next"
           border
           row-key="id"
+          table-layout="fixed"
           @update:page-num="val => query.pageNum = val"
           @update:page-size="val => query.pageSize = val"
           @current-change="handleCurrentChange"
@@ -177,8 +180,10 @@
 
             <div class="detail-section">
               <div class="detail-header">
-                <span class="detail-title">本月明细流水</span>
-                <el-button type="success" size="small" @click="openAddDetail(row)">+ 新增</el-button>
+                <div class="detail-header-main">
+                  <span class="detail-title">本月明细流水</span>
+                  <el-button type="success" size="small" @click="openAddDetail(row)">+ 新增</el-button>
+                </div>
               </div>
 
               <BillDetailSkeleton v-if="detailLoadingMap[row.id]" />
@@ -206,24 +211,25 @@
                   size="small"
                   border
                   stripe
+                  table-layout="fixed"
                   @selection-change="(val: any) => handleDetailSelection(row.id, val)"
                 >
-                  <el-table-column type="selection" width="55" />
-                  <el-table-column prop="detailDate" label="日期" width="115" />
-                  <el-table-column prop="description" label="描述/备注" min-width="220" show-overflow-tooltip />
-                  <el-table-column label="类型" width="110" align="center">
+                  <el-table-column type="selection" width="48" />
+                  <el-table-column prop="detailDate" label="日期" min-width="108" />
+                  <el-table-column prop="description" label="描述/备注" min-width="180" />
+                  <el-table-column label="类型" min-width="96" align="center">
                     <template #default="{ row: detail }">
                       <el-tag :type="DETAIL_TYPE_TAG_TYPE[detail.detailType] ?? ''" size="small">{{ DETAIL_TYPE_MAP[detail.detailType] ?? '未知' }}</el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column label="金额" width="120" align="right">
+                  <el-table-column label="金额" min-width="108" align="right">
                     <template #default="{ row: detail }">
                       <span :class="detail.detailType === 1 ? 'amt-pos' : 'amt-neg'" class="font-mono">
                         {{ detail.detailType === 1 ? '+' : '-' }}{{ formatMoney(detail.amount) }}
                       </span>
                     </template>
                   </el-table-column>
-                  <el-table-column label="操作" width="90" fixed="right" align="center">
+                  <el-table-column label="操作" min-width="86" align="center">
                     <template #default="{ row: detail }">
                       <el-button type="primary" link size="small" @click="openEditDetail(row, detail)">编辑</el-button>
                       <el-popconfirm title="确认删除？" @confirm="handleDeleteDetail(detail.id)">
@@ -240,87 +246,84 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="持卡人" min-width="124" fixed="left">
+      <el-table-column label="持卡人" min-width="92">
         <template #default="{ row }">
           <div class="owner-cell">
-            <div class="owner-avatar">
-              <el-icon :size="16"><UserFilled /></el-icon>
-            </div>
-            <div class="owner-info">
-              <span class="owner-name">{{ row.ownerName }}</span>
-              <el-tag size="small" effect="plain" type="info">{{ row.ownerRelation || '本人' }}</el-tag>
-            </div>
+            <span class="owner-avatar">
+              <el-icon :size="12"><UserFilled /></el-icon>
+            </span>
+            <span class="owner-name">{{ row.ownerName }}</span>
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="bankName" label="银行" width="98">
+      <el-table-column prop="bankName" label="银行" min-width="112">
         <template #default="{ row }">
           <div class="bank-cell">
-            <el-icon :size="14" color="#67c23a"><CreditCard /></el-icon>
+            <el-icon :size="13" color="#67c23a"><CreditCard /></el-icon>
             <span>{{ row.bankName }}</span>
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="尾号" width="84" align="center">
+      <el-table-column label="尾号" min-width="84" align="center">
         <template #default="{ row }">
           <span class="card-no-badge">{{ row.cardNoLast4 }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="billMonth" label="月份" width="92" align="center">
+      <el-table-column prop="billMonth" label="月份" min-width="90" align="center">
         <template #default="{ row }">
           <el-tag type="primary" size="small" effect="light">{{ row.billMonth }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="账期" width="86" align="center">
+      <el-table-column label="账期" min-width="90" align="center">
         <template #default="{ row }">
           <span class="period-text">{{ billPeriodLabel(row.billMonth, row.billDay) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="还款日" width="84" align="center">
+      <el-table-column label="还款日" min-width="92" align="center">
         <template #default="{ row }">
           <span class="repay-date">{{ row.repayDate ? fmtRepayDate(row.repayDate) : '-' }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="代还" width="112" align="right">
+      <el-table-column label="代还" min-width="108" align="right">
         <template #default="{ row }">
           <div class="amount-cell">
             <span class="amount-value">{{ formatMoney(row.billAmount) }}</span>
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="费率" width="82" align="center">
+      <el-table-column label="费率" min-width="86" align="center">
         <template #default="{ row }">
           <span class="fee-rate-badge">{{ formatRate(row.feeRate) }}%</span>
         </template>
       </el-table-column>
-      <el-table-column label="手续费" width="112" align="right">
+      <el-table-column label="手续费" min-width="108" align="right">
         <template #default="{ row }">
           <span class="amt-pos amount-value">{{ formatMoney(row.feeAmount) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="POS" width="102" align="right">
+      <el-table-column label="POS" min-width="96" align="right">
         <template #default="{ row }">
           <span class="amt-neg amount-value">{{ formatMoney(row.posCostAmount) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="利润" width="112" align="right">
+      <el-table-column label="利润" min-width="108" align="right">
         <template #default="{ row }">
           <span class="amount-value" :class="Number(row.netProfit || 0) >= 0 ? 'amt-pos' : 'amt-neg'">{{ formatMoney(row.netProfit) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="还款" width="92" align="center">
+      <el-table-column label="还款" min-width="92" align="center">
         <template #default="{ row }">
           <el-tag v-if="row.repayMethod === 'cloudpay'" type="primary" size="small" effect="light">云闪付</el-tag>
           <el-tag v-else-if="row.repayMethod === 'invoice'" type="warning" size="small" effect="light">开票</el-tag>
           <span v-else class="no-data">-</span>
         </template>
       </el-table-column>
-      <el-table-column label="状态" width="80" align="center">
+      <el-table-column label="状态" min-width="96" align="center">
         <template #default="{ row }">
           <StatusTag :value="row.status" :label-map="BILL_STATUS_MAP" :type-map="BILL_STATUS_TAG_TYPE" />
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="72" fixed="right" align="center">
+      <el-table-column label="操作" width="82" align="center">
         <template #default="{ row }">
           <el-popconfirm title="确认删除该月账单？" @confirm="handleDelete(row.id)">
             <template #reference>
@@ -414,7 +417,7 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'Bills' })
-import { computed, onActivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onActivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, UserFilled, CreditCard, Money, Delete, Document, Wallet, TrendCharts, RefreshRight } from '@element-plus/icons-vue'
@@ -494,7 +497,9 @@ interface BillOverview {
 
 const route = useRoute()
 const router = useRouter()
-const currentYear = new Date().getFullYear()
+const now = new Date()
+const currentYear = now.getFullYear()
+const currentMonth = `${currentYear}-${String(now.getMonth() + 1).padStart(2, '0')}`
 const yearOptions = Array.from({ length: 6 }, (_, index) => currentYear - 2 + index)
 
 const {
@@ -510,7 +515,7 @@ const {
   refreshFirstPage
 } = usePageTable({
   fetchApi: getBillPageApi,
-  defaultQuery: { cardId: undefined as any, ownerId: undefined as any, cardName: '', year: undefined as any, billMonth: '', status: undefined as any },
+  defaultQuery: { pageSize: 20, cardId: undefined as any, ownerId: undefined as any, cardName: '', year: undefined as any, billMonth: '', status: undefined as any },
   autoSearch: true,
   beforeFetch: (params) => {
     ;(params as any).current = params.pageNum
@@ -526,6 +531,7 @@ const {
 const ownerLoading = ref(false)
 const ownerOptions = ref<any[]>([])
 const overviewLoading = ref(false)
+const billTableRef = ref<any>(null)
 const billOverview = ref<BillOverview>({
   year: undefined,
   billCount: 0,
@@ -615,6 +621,38 @@ const quickMenus = computed(() => [
 const activeQuickMenu = computed(() => {
   const matched = quickMenus.value.find(item => item.value === query.status)
   return matched?.key || 'all'
+})
+
+function parseBillMonthParts(billMonth: string | null | undefined) {
+  const match = String(billMonth || '').trim().match(/^(\d{4})-(\d{1,2})$/)
+  if (!match) return null
+  const year = Number(match[1])
+  const month = Number(match[2])
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+    return null
+  }
+  return { year, month }
+}
+
+function resolveMonthCycleOrder(month: number) {
+  return (month - (now.getMonth() + 1) + 12) % 12
+}
+
+const sortedList = computed<BillRow[]>(() => {
+  return [...(list.value as BillRow[])].sort((a, b) => {
+    const aParts = parseBillMonthParts(a.billMonth)
+    const bParts = parseBillMonthParts(b.billMonth)
+
+    if (aParts?.year !== bParts?.year) {
+      return Number(bParts?.year || 0) - Number(aParts?.year || 0)
+    }
+
+    if (aParts?.month !== bParts?.month) {
+      return resolveMonthCycleOrder(Number(aParts?.month || 0)) - resolveMonthCycleOrder(Number(bParts?.month || 0))
+    }
+
+    return Number(b.id || 0) - Number(a.id || 0)
+  })
 })
 
 function applyQuickMenu(status?: number) {
@@ -766,6 +804,11 @@ async function loadDetails(billId: number) {
     handleError(error, '加载明细列表')
   } finally {
     detailLoadingMap.value[billId] = false
+    if (currentExpandedRow.value?.id === billId) {
+      nextTick(() => {
+        billTableRef.value?.doLayout?.()
+      })
+    }
   }
 }
 
@@ -776,11 +819,13 @@ function onExpandChange(row: BillRow, expanded: boolean) {
     currentExpandedRow.value = row
     ensureEditForm(row)
     loadDetails(row.id)
-  } else {
-    if (currentExpandedRow.value?.id === row.id) {
-      currentExpandedRow.value = null
-    }
+  } else if (currentExpandedRow.value?.id === row.id) {
+    currentExpandedRow.value = null
   }
+
+  nextTick(() => {
+    billTableRef.value?.doLayout?.()
+  })
 }
 
 const detailDialogVisible = ref(false)
@@ -1018,14 +1063,17 @@ watch(
 
 <style scoped>
 .bill-page {
+  --bill-gap: 6px;
+  --bill-font-size: clamp(10px, 0.56vw, 12px);
+  --bill-small-font-size: clamp(9px, 0.5vw, 11px);
+  --bill-title-size: clamp(13px, 0.74vw, 16px);
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: -20px;
-  width: calc(100% + 40px);
-  height: calc(100% + 40px);
+  gap: var(--bill-gap);
+  width: 100%;
+  height: 100%;
   min-height: 0;
-  padding: 8px;
+  padding: 0;
   background: #f5f7fb;
   overflow: hidden;
   box-sizing: border-box;
@@ -1034,20 +1082,20 @@ watch(
 .card-shell {
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid #dbe2ea;
-  border-radius: 14px;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.045);
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
 }
 
 .page-header {
   display: grid;
-  grid-template-columns: minmax(150px, 0.72fr) minmax(360px, 1fr) auto;
+  grid-template-columns: minmax(140px, 0.72fr) minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,253,0.98) 100%);
+  gap: var(--bill-gap);
+  padding: 6px 8px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 253, 0.98) 100%);
   border: 1px solid #dbe2ea;
-  border-radius: 14px;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.035);
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.03);
   flex-shrink: 0;
 }
 
@@ -1060,59 +1108,58 @@ watch(
 .header-title-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .header-title {
-  font-size: 16px;
+  font-size: var(--bill-title-size);
   line-height: 1.1;
   font-weight: 700;
   color: #1f2a37;
 }
 
 .detail-mode-chip {
-  height: 20px;
-  padding: 0 8px;
+  min-height: 18px;
+  padding: 0 7px;
   border-radius: 999px;
   background: #eaf2ff;
   color: #0958d9;
-  font-size: 11px;
-  line-height: 20px;
+  font-size: var(--bill-small-font-size);
+  line-height: 18px;
   font-weight: 600;
 }
 
 .header-subtitle {
   margin-top: 2px;
-  font-size: 11px;
-  line-height: 1.2;
+  font-size: var(--bill-small-font-size);
+  line-height: 1.25;
   color: #8a94a6;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .header-stat-row {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
 }
 
 .header-stat {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
+  gap: 5px;
+  padding: 5px 7px;
   background: #fff;
   border: 1px solid #e5eaf1;
-  border-radius: 10px;
+  border-radius: 9px;
   min-width: 0;
 }
 
 .header-stat-icon {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1120,29 +1167,30 @@ watch(
 }
 
 .header-stat-value {
-  font-size: 15px;
+  font-size: clamp(12px, 0.72vw, 14px);
   line-height: 1;
   font-weight: 700;
   color: #1f2a37;
+  word-break: break-all;
 }
 
 .header-stat-label {
-  margin-top: 2px;
-  font-size: 10px;
+  margin-top: 1px;
+  font-size: var(--bill-small-font-size);
   color: #7c8799;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .action-btn,
 .header-actions :deep(.el-button),
 .filter-main :deep(.el-button) {
-  height: 28px;
-  padding: 0 10px;
+  height: 26px;
+  padding: 0 9px;
   border-radius: 8px;
 }
 
@@ -1150,74 +1198,83 @@ watch(
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 6px 10px;
+  gap: var(--bill-gap);
+  padding: 5px 8px;
   flex-shrink: 0;
 }
 
 .filter-main {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
   flex-wrap: wrap;
 }
 
 .filter-title {
   padding: 0 2px;
-  font-size: 11px;
+  font-size: var(--bill-small-font-size);
   font-weight: 700;
   color: #526074;
   white-space: nowrap;
 }
 
 .filter-item {
-  width: 96px;
+  width: 92px;
 }
 
 .filter-owner {
-  width: 118px;
+  width: 112px;
 }
 
 .filter-card {
-  width: 132px;
+  width: 120px;
 }
 
 .filter-month {
-  width: 108px;
+  width: 102px;
 }
 
 .filter-main :deep(.el-input__wrapper),
 .filter-main :deep(.el-select__wrapper),
 .filter-main :deep(.el-date-editor.el-input__wrapper),
 .filter-main :deep(.el-date-editor .el-input__wrapper) {
-  min-height: 28px;
+  min-height: 26px;
+}
+
+.filter-main :deep(.el-input__inner),
+.filter-main :deep(.el-select__selected-item),
+.filter-main :deep(.el-range-input),
+.filter-main :deep(.el-input-number__input) {
+  font-size: var(--bill-small-font-size);
 }
 
 .filter-extra {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
+  min-width: 0;
 }
 
 .toolbar-hint,
 .toolbar-tip {
-  font-size: 11px;
+  font-size: var(--bill-small-font-size);
   color: #7c8799;
 }
 
 .toolbar-tip {
-  max-width: 320px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  max-width: 360px;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-word;
 }
 
 .workspace-grid {
   display: grid;
-  grid-template-columns: 144px minmax(0, 1fr) 166px;
-  gap: 8px;
+  grid-template-columns: 100px minmax(0, 1fr) 120px;
+  gap: var(--bill-gap);
   flex: 1;
   min-height: 0;
 }
@@ -1228,46 +1285,48 @@ watch(
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 8px;
+  padding: 6px;
 }
 
 .panel-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 6px;
-  margin-bottom: 8px;
+  gap: 5px;
+  margin-bottom: 6px;
   flex-shrink: 0;
 }
 
 .panel-title {
-  font-size: 13px;
+  font-size: clamp(11px, 0.62vw, 13px);
   font-weight: 700;
   color: #1f2a37;
-  line-height: 1.1;
+  line-height: 1.15;
 }
 
 .panel-desc {
   margin-top: 2px;
-  font-size: 11px;
+  font-size: var(--bill-small-font-size);
   color: #8a94a6;
-  line-height: 1.2;
+  line-height: 1.25;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .menu-list {
   display: grid;
-  gap: 6px;
+  gap: 5px;
 }
 
 .menu-item {
   display: grid;
-  grid-template-columns: 8px 1fr auto;
+  grid-template-columns: 7px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 10px;
+  gap: 5px;
+  min-height: 32px;
+  padding: 5px 8px;
   border: 1px solid #e7edf4;
-  border-radius: 10px;
+  border-radius: 9px;
   background: #f8fafc;
   color: #435266;
   cursor: pointer;
@@ -1294,40 +1353,43 @@ watch(
 
 .menu-label {
   text-align: left;
-  font-size: 12px;
+  font-size: var(--bill-font-size);
   font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.15;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-word;
 }
 
 .menu-count {
-  min-width: 20px;
-  height: 18px;
-  padding: 0 5px;
+  min-width: 18px;
+  min-height: 18px;
+  padding: 0 4px;
   border-radius: 999px;
   background: rgba(9, 88, 217, 0.08);
   color: inherit;
-  font-size: 11px;
+  font-size: var(--bill-small-font-size);
   line-height: 18px;
   text-align: center;
 }
 
 .data-head {
-  align-items: center;
+  align-items: flex-start;
 }
 
 .inline-summary {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 8px;
-  height: 26px;
+  gap: 6px;
+  padding: 4px 7px;
+  min-height: 24px;
   border-radius: 8px;
   background: #f5f8fc;
   color: #667085;
-  font-size: 11px;
-  white-space: nowrap;
+  font-size: var(--bill-small-font-size);
+  white-space: normal;
+  flex-wrap: wrap;
 }
 
 .bill-page-table {
@@ -1335,67 +1397,123 @@ watch(
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 8px 10px;
+  padding: 4px 6px !important;
   background: #fff;
   border: 1px solid #e5eaf1;
-  border-radius: 12px;
-  box-shadow: none;
+  border-radius: 10px;
+  box-shadow: none !important;
+  overflow: hidden;
 }
 
-.bill-page-table :deep(.el-table) {
+.bill-page-table :deep(.el-table),
+.bill-page-table :deep(.el-table__inner-wrapper),
+.detail-section :deep(.el-table),
+.detail-section :deep(.el-table__inner-wrapper) {
   --el-table-border-color: #e5eaf1;
-  font-size: 12px;
+  font-size: var(--bill-font-size);
 }
 
-.bill-page-table :deep(.el-table .cell) {
-  padding-top: 0;
-  padding-bottom: 0;
+.bill-page-table :deep(.el-table__inner-wrapper::before),
+.detail-section :deep(.el-table__inner-wrapper::before) {
+  display: none;
+}
+
+.bill-page-table :deep(.el-table__header),
+.bill-page-table :deep(.el-table__body),
+.detail-section :deep(.el-table__header),
+.detail-section :deep(.el-table__body) {
+  width: 100% !important;
+  table-layout: fixed;
+}
+
+.bill-page-table :deep(.el-table .cell),
+.detail-section :deep(.el-table .cell) {
+  padding: 1px 3px;
   line-height: 1.2;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-word;
+  font-size: var(--bill-font-size);
 }
 
-.bill-page-table :deep(.el-table th.el-table__cell) {
-  height: 34px;
+.bill-page-table :deep(.el-table th.el-table__cell),
+.detail-section :deep(.el-table th.el-table__cell) {
+  height: auto;
+  padding: 5px 2px;
   background: #f7f9fc;
-  font-size: 11px;
+  font-size: var(--bill-small-font-size);
   color: #5b6472;
   font-weight: 600;
+  vertical-align: top;
 }
 
-.bill-page-table :deep(.el-table td.el-table__cell) {
-  height: 48px;
+.bill-page-table :deep(.el-table td.el-table__cell),
+.detail-section :deep(.el-table td.el-table__cell) {
+  height: auto;
+  padding: 3px 2px;
+  vertical-align: top;
+}
+
+.bill-page-table :deep(.el-table__body tr:not(.el-table__expanded-row) > td.el-table__cell) {
+  height: auto;
+}
+
+.bill-page-table :deep(.el-table__header-wrapper),
+.bill-page-table :deep(.el-table__body-wrapper),
+.bill-page-table :deep(.el-scrollbar__wrap),
+.detail-section :deep(.el-table__header-wrapper),
+.detail-section :deep(.el-table__body-wrapper),
+.detail-section :deep(.el-scrollbar__wrap) {
+  overflow: hidden !important;
+}
+
+.bill-page-table :deep(.el-scrollbar__bar),
+.detail-section :deep(.el-scrollbar__bar) {
+  display: none !important;
+}
+
+.bill-page-table :deep(.el-table__expanded-cell) {
+  height: auto !important;
+  padding: 8px !important;
+}
+
+.bill-page-table :deep(.el-table__expanded-cell .cell) {
+  padding: 0 !important;
 }
 
 .bill-page-table :deep(.pagination-wrapper) {
-  margin-top: 8px;
+  margin-top: 4px;
   display: flex;
   justify-content: flex-end;
 }
 
 .bill-page-table :deep(.el-pagination) {
-  transform: scale(0.94);
+  --el-pagination-button-height: 22px;
+  --el-pagination-button-width: 22px;
+  font-size: var(--bill-small-font-size);
+  transform: scale(0.92);
   transform-origin: right center;
 }
 
-.bill-page-table :deep(.el-table__body-wrapper) {
-  scrollbar-width: none;
-}
-
-.bill-page-table :deep(.el-table__body-wrapper::-webkit-scrollbar) {
-  width: 0;
-  height: 0;
+.bill-page-table :deep(.el-pagination .btn-prev),
+.bill-page-table :deep(.el-pagination .btn-next),
+.bill-page-table :deep(.el-pagination .el-pager li) {
+  min-width: 22px;
+  height: 22px;
 }
 
 .owner-cell {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   min-width: 0;
 }
 
 .owner-avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
   background: linear-gradient(135deg, #e6f0ff 0%, #cfe0ff 100%);
   color: #0958d9;
   display: flex;
@@ -1407,57 +1525,62 @@ watch(
 .owner-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0;
 }
 
-.owner-info :deep(.el-tag) {
+.owner-info :deep(.el-tag),
+.bill-page-table :deep(.el-tag),
+.detail-section :deep(.el-tag) {
   width: fit-content;
-  height: 18px;
-  padding: 0 6px;
-  font-size: 11px;
+  min-height: 16px;
+  padding: 0 5px;
+  font-size: var(--bill-small-font-size);
+  line-height: 16px;
+}
+
+.owner-name,
+.bank-cell,
+.period-text,
+.repay-date,
+.amount-value,
+.fee-rate-badge,
+.no-data {
+  font-size: var(--bill-font-size);
 }
 
 .owner-name {
   font-weight: 600;
-  font-size: 13px;
   color: #1f2a37;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-word;
 }
 
 .bank-cell {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 4px;
-  font-size: 12px;
   font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
+  white-space: normal;
+  overflow: visible;
+  word-break: break-word;
 }
 
 .card-no-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 40px;
-  height: 22px;
-  padding: 0 8px;
+  min-width: 36px;
+  min-height: 20px;
+  padding: 0 7px;
   font-weight: 700;
-  font-size: 11px;
+  font-size: var(--bill-small-font-size);
   color: #1f2a37;
   font-family: var(--font-mono);
   background: linear-gradient(135deg, #e6f7ff 0%, #f0f9ff 100%);
   border-radius: 999px;
   border: 1px solid #bae0ff;
-}
-
-.period-text,
-.repay-date,
-.amount-value,
-.fee-rate-badge {
-  font-size: 12px;
-  font-weight: 600;
 }
 
 .amount-cell {
@@ -1466,17 +1589,22 @@ watch(
   justify-content: flex-end;
 }
 
+.amount-value,
+.fee-rate-badge {
+  font-weight: 600;
+}
+
 .amount-value {
   font-family: var(--font-mono);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
 }
 
 .fee-rate-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 22px;
-  padding: 0 8px;
+  min-height: 20px;
+  padding: 0 7px;
   color: #fa8c16;
   background: linear-gradient(135deg, #fff7e6 0%, #fffbf0 100%);
   border-radius: 999px;
@@ -1486,30 +1614,29 @@ watch(
 
 .no-data {
   color: #c0c7d6;
-  font-size: 12px;
 }
 
 .delete-icon-btn {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   padding: 0;
 }
 
 .expand-bill-content {
-  padding: 10px 12px;
+  padding: 6px 8px;
   background: #f8fafc;
-  border-radius: 10px;
+  border-radius: 8px;
 }
 
 .quick-edit-bar {
   display: flex;
   align-items: flex-end;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 8px;
-  padding: 10px 12px;
+  gap: 6px;
+  margin-bottom: 6px;
+  padding: 6px 8px;
   background: #fff;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid #e5eaf1;
   box-shadow: none;
 }
@@ -1517,26 +1644,32 @@ watch(
 .qe-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .qe-item > label {
-  font-size: 11px;
+  font-size: var(--bill-small-font-size);
   color: #8a94a6;
 }
 
+.qe-item :deep(.el-input-number),
+.qe-item :deep(.el-input-number .el-input__wrapper),
+.quick-edit-bar :deep(.el-button) {
+  max-width: 100%;
+}
+
 .qe-readonly {
-  min-width: 86px;
+  min-width: 80px;
 }
 
 .qe-readonly > span {
-  font-size: 13px;
+  font-size: var(--bill-font-size);
   font-weight: 700;
 }
 
 .detail-section {
   background: #fff;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid #e5eaf1;
   overflow: hidden;
   box-shadow: none;
@@ -1544,60 +1677,67 @@ watch(
 
 .detail-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 8px 10px;
+  padding: 5px 8px;
   background: #fafbfc;
   border-bottom: 1px solid #e5eaf1;
 }
 
-.detail-title {
-  font-weight: 700;
-  font-size: 12px;
-  color: #1f2a37;
+.detail-header-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.detail-header :deep(.el-button) {
+  flex-shrink: 0;
+  height: 24px;
+  padding: 0 8px;
 }
 
 .batch-toolbar {
   display: flex;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 5px 8px;
   background: #f5f7fa;
   border-bottom: 1px solid #e5eaf1;
+  flex-wrap: wrap;
 }
 
 .side-card {
-  padding: 8px;
+  padding: 6px;
   background: #f8fafc;
   border: 1px solid #e7edf4;
-  border-radius: 12px;
+  border-radius: 10px;
 }
 
 .side-card + .side-card {
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .side-card-title {
-  margin-bottom: 8px;
-  font-size: 12px;
+  margin-bottom: 6px;
+  font-size: var(--bill-font-size);
   font-weight: 700;
   color: #1f2a37;
 }
 
 .detail-mode-text {
-  margin-bottom: 4px;
-  font-size: 11px;
-  line-height: 1.5;
+  margin-bottom: 3px;
+  font-size: var(--bill-small-font-size);
+  line-height: 1.4;
   color: #667085;
 }
 
 .action-stack {
   display: grid;
-  gap: 6px;
+  gap: 5px;
 }
 
 .action-stack :deep(.el-button) {
   width: 100%;
-  height: 30px;
+  height: 28px;
   margin-left: 0;
   border-radius: 8px;
 }
@@ -1605,60 +1745,80 @@ watch(
 .summary-list,
 .shortcut-list {
   display: grid;
-  gap: 6px;
+  gap: 5px;
 }
 
 .summary-item,
 .shortcut-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 6px;
-  font-size: 11px;
+  gap: 5px;
+  font-size: var(--bill-small-font-size);
   color: #667085;
 }
 
 .summary-item strong {
   color: #1f2a37;
-  font-size: 12px;
+  font-size: var(--bill-font-size);
+  word-break: break-all;
 }
 
 .shortcut-item kbd {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 40px;
-  height: 20px;
-  padding: 0 6px;
+  min-width: 34px;
+  min-height: 18px;
+  padding: 0 5px;
   font-family: monospace;
-  font-size: 11px;
+  font-size: var(--bill-small-font-size);
   background: #fff;
   border: 1px solid #dbe2ea;
   border-radius: 6px;
 }
 
-@media (max-width: 1480px) {
+@media (max-width: 1520px) {
   .page-header {
-    grid-template-columns: minmax(140px, 0.7fr) minmax(300px, 1fr) auto;
+    grid-template-columns: minmax(130px, 0.7fr) minmax(0, 1fr) auto;
   }
 
   .workspace-grid {
-    grid-template-columns: 132px minmax(0, 1fr) 152px;
+    grid-template-columns: 92px minmax(0, 1fr) 110px;
   }
 }
 
 @media (max-width: 1320px) {
   .header-subtitle,
   .toolbar-tip,
-  .panel-desc {
+  .panel-desc,
+  .inline-summary {
     display: none;
   }
 
   .workspace-grid {
-    grid-template-columns: 124px minmax(0, 1fr) 142px;
+    grid-template-columns: 86px minmax(0, 1fr) 98px;
   }
 
-  .inline-summary {
+  .header-stat-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1180px) {
+  .page-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .header-stat-row {
+    grid-column: 1 / -1;
+  }
+
+  .workspace-grid {
+    grid-template-columns: 88px minmax(0, 1fr);
+  }
+
+  .action-panel {
     display: none;
   }
 }
