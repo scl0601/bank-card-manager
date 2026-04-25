@@ -243,9 +243,11 @@
                 <div class="child-list" v-loading="userTreeLoading">
                   <template v-if="activeUserId && activeUserId > 0">
                     <template v-for="(cu, idx) in pagedChildUsersFilled" :key="cu?.id ?? `c-ph-${idx}`">
-                      <div
+                      <button
                         v-if="cu"
-                        :class="['list-item', 'child-item', { disabled: Number(cu.status) !== 0 }]"
+                        :class="['list-item', 'child-item', { active: Number(cu.id) === Number(activeOwnerId), disabled: Number(cu.status) !== 0 }]"
+                        :disabled="Number(cu.status) !== 0"
+                        @click="setActiveChildUser(cu)"
                       >
                         <div class="li-left">
                           <div class="li-avatar sm" :class="{ ghost: Number(cu.status) !== 0 }">
@@ -260,7 +262,7 @@
                           <span class="pill">{{ childCardCount(cu.id) }}张</span>
                           <span class="pill pill-fee">{{ formatRate(childFeeRate(cu)) }}%</span>
                         </div>
-                      </div>
+                      </button>
 
                       <div v-else class="list-item child-item placeholder" aria-hidden="true"></div>
                     </template>
@@ -686,6 +688,7 @@ const loadingGroups = ref(false)
 const groupList = ref<UserGroup[]>([])
 const activeUserId = ref<number | null>(null)
 const activeCardId = ref<number | null>(null)
+const activeOwnerId = ref<number | null>(null)
 
 const userPageIndex = ref(0)
 const cardPageIndex = ref(0)
@@ -707,7 +710,9 @@ const activeUser = computed<UserGroup | undefined>(() => {
 })
 
 const activeCards = computed<any[]>(() => {
-  return (activeUser.value?.cards || []) as any[]
+  const cards = (activeUser.value?.cards || []) as any[]
+  if (!activeOwnerId.value) return cards
+  return cards.filter((c: any) => Number(c.userId) === Number(activeOwnerId.value))
 })
 
 const activeCard = computed<any | undefined>(() => {
@@ -1001,9 +1006,17 @@ function clearKeyword() {
 
 function setActiveUser(userId: number) {
   activeUserId.value = userId
+  activeOwnerId.value = null
   cardPageIndex.value = 0
   childPageIndex.value = 0
   ensureUserTree()
+}
+
+function setActiveChildUser(cu: any) {
+  if (!cu) return
+  if (Number(cu.status) !== 0) return
+  activeOwnerId.value = Number(cu.id)
+  cardPageIndex.value = 0
 }
 
 function setActiveCard(cardId: number) {
@@ -1270,7 +1283,9 @@ const computedRules = computed(() => ({
 async function openAddCard() {
   isEdit.value = false
   Object.assign(formData, defaultForm)
-  if (activeUser.value?.userId) {
+  if (activeOwnerId.value) {
+    formData.userId = activeOwnerId.value
+  } else if (activeUser.value?.userId) {
     formData.userId = activeUser.value.userId
   }
   await syncUserOptions()
@@ -1280,7 +1295,7 @@ async function openAddCard() {
 async function openAddCardWithActiveUser() {
   if (!canAddCardForUser.value) return
   isEdit.value = false
-  Object.assign(formData, defaultForm, { userId: activeUser.value?.userId })
+  Object.assign(formData, defaultForm, { userId: activeOwnerId.value || activeUser.value?.userId })
   await syncUserOptions()
   dialogVisible.value = true
 }
@@ -1410,6 +1425,7 @@ watch(
 watch(
   () => activeUserId.value,
   () => {
+    activeOwnerId.value = null
     if (!activeUser.value) return
     childPageIndex.value = 0
     if (activeUserId.value && activeUserId.value > 0) {
@@ -1973,15 +1989,27 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   cursor: pointer;
   transition: all .16s;
   min-width: 0;
+  position: relative;
   &:hover {
     border-color: rgba($primary,.22);
     box-shadow: 0 10px 18px rgba(15,23,42,.06);
     transform: translateY(-1px);
   }
   &.active {
-    border-color: transparent;
-    background: linear-gradient(180deg, rgba(255,255,255,.99) 0%, rgba($primary,.04) 180%);
-    box-shadow: inset 0 0 0 1.5px rgba($primary,.18), 0 14px 22px rgba(15,23,42,.07);
+    border-color: rgba($primary,.38);
+    background: linear-gradient(180deg, rgba($primary,.10) 0%, rgba($primary,.04) 100%);
+    box-shadow: inset 0 0 0 2px rgba($primary,.28), 0 14px 22px rgba(15,23,42,.07);
+  }
+  &.active::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 10px;
+    bottom: 10px;
+    width: 4px;
+    border-radius: 999px;
+    background: $primary;
+    box-shadow: 0 6px 14px rgba($primary,.25);
   }
 }
 
@@ -2035,14 +2063,35 @@ button.list-item {
 
 .child-item {
   padding: 9px 9px;
-  cursor: default;
+  cursor: pointer;
+  position: relative;
+  &.active {
+    border-color: rgba($primary,.38);
+    background: linear-gradient(180deg, rgba($primary,.10) 0%, rgba($primary,.04) 100%);
+    box-shadow: inset 0 0 0 2px rgba($primary,.28), 0 14px 22px rgba(15,23,42,.07);
+  }
+  &.active::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 10px;
+    bottom: 10px;
+    width: 4px;
+    border-radius: 999px;
+    background: $primary;
+    box-shadow: 0 6px 14px rgba($primary,.25);
+  }
+  &:hover:not(:disabled) {
+    border-color: rgba($primary,.28);
+    box-shadow: 0 10px 18px rgba(15,23,42,.06);
+    transform: translateY(-1px);
+  }
   &:hover {
-    transform: none;
-    box-shadow: none;
-    border-color: rgba(219,226,234,.85);
+    border-color: rgba($primary,.22);
   }
   &.disabled {
     opacity: .78;
+    cursor: not-allowed;
   }
 }
 
