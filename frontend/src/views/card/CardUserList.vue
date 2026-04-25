@@ -1,181 +1,332 @@
 <template>
   <div class="card-user-page">
-    <!-- 顶部统计 -->
-    <div class="stat-row">
-      <div class="stat-card" v-for="(s, i) in statCards" :key="i">
-        <div class="stat-icon" :style="{ background: s.bg }"><el-icon :size="22" :color="s.color"><component :is="s.icon" /></el-icon></div>
-        <div class="stat-body">
-          <span class="stat-num">{{ s.value }}</span>
-          <span class="stat-label">{{ s.label }}</span>
+    <div class="page-header">
+      <div class="header-copy">
+        <div class="header-title">持卡人管理</div>
+        <div class="header-subtitle">极致一屏压缩布局，保留持卡人管理全部操作</div>
+      </div>
+
+      <div class="header-stat-row">
+        <div class="header-stat" v-for="item in statCards" :key="item.label">
+          <div class="header-stat-icon" :style="{ background: item.bg, color: item.color }">
+            <el-icon :size="16"><component :is="item.icon" /></el-icon>
+          </div>
+          <div class="header-stat-body">
+            <span class="header-stat-value">{{ item.value }}</span>
+            <span class="header-stat-label">{{ item.label }}</span>
+          </div>
         </div>
+      </div>
+
+      <div class="header-actions">
+        <el-input
+          v-model="query.name"
+          class="header-search"
+          placeholder="搜姓名"
+          clearable
+          :prefix-icon="Search"
+        />
+        <el-button class="action-btn" :icon="RefreshRight" @click="fetchData">刷新</el-button>
+        <el-button type="primary" class="action-btn" :icon="Plus" @click="openAddTopUser">新增账户</el-button>
       </div>
     </div>
 
-    <!-- 筛选区 -->
-    <SearchBar :model-value="query" :hide-search-button="true" @reset="resetQuery">
-      <el-form-item label="姓名">
-        <el-input v-model="query.name" placeholder="输入姓名搜索" clearable prefix-icon="Search" style="width:180px" />
-      </el-form-item>
-      <el-form-item label="电话">
-        <el-input v-model="query.phone" placeholder="电话号码" clearable style="width:160px" />
-      </el-form-item>
-      <el-form-item label="状态">
-        <el-select v-model="query.status" placeholder="全部" clearable style="width:110px">
+    <div class="filter-panel">
+      <div class="filter-left">
+        <div class="filter-title">筛选</div>
+        <el-input v-model="query.phone" placeholder="电话" clearable class="filter-item filter-phone" />
+        <el-select v-model="query.status" placeholder="状态" clearable class="filter-item">
           <el-option label="正常" :value="0" />
           <el-option label="停用" :value="1" />
         </el-select>
-      </el-form-item>
-      <template #extra-buttons>
-        <el-button type="primary" :icon="Plus" @click="openAddTopUser">新增主账户</el-button>
-      </template>
-    </SearchBar>
+        <el-select v-model="query.type" placeholder="账户类型" clearable class="filter-item">
+          <el-option label="主账户" value="main" />
+          <el-option label="子用户" value="child" />
+        </el-select>
+        <el-select v-model="query.hasCard" placeholder="绑卡情况" clearable class="filter-item">
+          <el-option label="已绑卡" :value="1" />
+          <el-option label="未绑卡" :value="0" />
+        </el-select>
+        <el-button class="action-btn" @click="resetQuery">重置</el-button>
+      </div>
 
-    <!-- 工具栏 -->
-    <div class="table-toolbar">
-      <div class="toolbar-left">
-        <el-button link :icon="expandAll ? 'Fold' : 'Expand'" size="small" @click="toggleExpandAll">{{ expandAll ? '收起全部' : '展开全部' }}</el-button>
-        <span class="toolbar-hint">共 {{ filteredCount }} 条记录</span>
+      <div class="filter-right">
+        <span class="toolbar-hint">当前 {{ filteredCount }} 条记录</span>
+        <el-button link type="primary" :icon="expandAll ? Fold : Expand" @click="toggleExpandAll">
+          {{ expandAll ? '收起全部' : '展开全部' }}
+        </el-button>
       </div>
     </div>
 
-    <!-- 树形表格 -->
-    <div v-loading="loading" class="user-table-wrap">
-      <el-table
-        ref="tableRef"
-        :data="treeData"
-        border
-        stripe
-        row-key="id"
-        :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
-        @expand-change="onExpandChange"
-        :header-cell-style="{ background:'#f5f7fa', color:'#606266', fontWeight:'600' }"
-        :row-class-name="rowClassName"
-        :cell-style="{ padding: '6px 0' }"
-        :default-expand-all="expandAll"
-      >
-        <!-- 用户信息列 -->
-        <el-table-column prop="name" label="用户信息" min-width="260">
-          <template #default="{ row }">
-            <div class="user-cell">
-              <div class="avatar-wrap" :class="{ 'avatar-child': !!row.parentId }">
-                <el-icon v-if="!row.parentId" :size="18"><UserFilled /></el-icon>
-                <el-icon v-else :size="16"><User /></el-icon>
-              </div>
-              <div class="user-info">
-                <div class="name-row">
-                  <span class="name-text">{{ row.name }}</span>
-                  <el-tag v-if="!row.parentId" type="warning" size="small" effect="light">主账户</el-tag>
-                  <el-tag v-else type="info" size="small" effect="plain">子用户</el-tag>
-                </div>
-                <div class="meta-row" v-if="row.phone || row.createTime">
-                  <span v-if="row.phone" class="meta-item">
-                    <el-icon :size="12"><Phone /></el-icon>{{ row.phone }}
-                  </span>
-                  <span v-if="row.createTime" class="meta-time">
-                    <el-icon :size="12"><Clock /></el-icon>{{ formatTime(row.createTime) }}
-                  </span>
-                </div>
-                <div v-if="row.remark" class="remark-row">
-                  <el-icon :size="12"><Document /></el-icon>
-                  <span class="remark-text">{{ row.remark }}</span>
-                </div>
-              </div>
-            </div>
-          </template>
-        </el-table-column>
+    <div class="workspace-grid">
+      <aside class="side-panel card-shell">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">快捷菜单</div>
+            <div class="panel-desc">快速切换</div>
+          </div>
+        </div>
 
-        <!-- 手续费率 -->
-        <el-table-column label="手续费率" width="180" align="center">
-          <template #default="{ row }">
-            <div class="fee-cell">
-              <template v-if="editingFeeId === row.id && !row.parentId">
-                <div class="fee-edit-wrap">
-                  <el-input-number v-model="editingFeeRate" :min="0" :max="100" :precision="2" :controls="false"
-                    size="small" style="width:90px" />
-                  <span class="pct-sign">%</span>
-                </div>
-                <div class="fee-actions">
-                  <el-button type="primary" size="small" :loading="savingFee" @click="handleSaveFeeRate(row)">保存</el-button>
-                  <el-button size="small" @click="cancelEditFee">取消</el-button>
+        <div class="menu-list">
+          <button
+            v-for="item in quickMenus"
+            :key="item.key"
+            type="button"
+            class="menu-item"
+            :class="{ active: activeCategory === item.key }"
+            @click="activeCategory = item.key"
+          >
+            <span class="menu-dot" :style="{ background: item.color }" />
+            <span class="menu-label">{{ item.label }}</span>
+            <span class="menu-count">{{ item.count }}</span>
+          </button>
+        </div>
+      </aside>
+
+      <section class="data-panel card-shell">
+        <div class="panel-head data-head">
+          <div>
+            <div class="panel-title">持卡人数据区</div>
+            <div class="panel-desc">{{ activeCategoryLabel }} · 一屏优先</div>
+          </div>
+          <div class="inline-summary">
+            <span>主 {{ visibleMainCount }}</span>
+            <span>子 {{ visibleChildCount }}</span>
+            <span>正 {{ visibleActiveCount }}</span>
+          </div>
+        </div>
+
+        <div v-loading="loading" class="user-table-wrap">
+          <el-table
+            v-if="treeData.length"
+            ref="tableRef"
+            :data="treeData"
+            row-key="id"
+            border
+            stripe
+            height="100%"
+            table-layout="fixed"
+            :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
+            :header-cell-style="{ background: '#f7f9fc', color: '#5b6472', fontWeight: '600' }"
+            :row-class-name="rowClassName"
+            :cell-style="{ padding: '2px 0' }"
+            @expand-change="onExpandChange"
+          >
+            <el-table-column prop="name" label="用户信息" min-width="220">
+              <template #default="{ row }">
+                <div class="user-cell">
+                  <div class="avatar-wrap" :class="{ 'avatar-child': !!row.parentId }">
+                    <el-icon v-if="!row.parentId" :size="16"><UserFilled /></el-icon>
+                    <el-icon v-else :size="15"><User /></el-icon>
+                  </div>
+
+                  <div class="user-info">
+                    <div class="name-row">
+                      <span class="name-text">{{ row.name }}</span>
+                      <el-tag v-if="!row.parentId" type="warning" size="small" effect="light">主账户</el-tag>
+                      <el-tag v-else type="info" size="small" effect="plain">子用户</el-tag>
+                      <el-tooltip v-if="row.remark" :content="row.remark" placement="top">
+                        <span class="remark-icon">
+                          <el-icon :size="12"><Document /></el-icon>
+                        </span>
+                      </el-tooltip>
+                    </div>
+                    <div class="meta-row">
+                      <span v-if="row.phone" class="meta-item">
+                        <el-icon :size="12"><Phone /></el-icon>{{ row.phone }}
+                      </span>
+                      <span v-if="row.createTime" class="meta-item meta-time">
+                        <el-icon :size="12"><Clock /></el-icon>{{ formatTime(row.createTime) }}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </template>
-              <template v-else>
-                <div class="fee-display">
-                  <span v-if="!row.parentId" class="fee-badge" :class="{ 'has-rate': (row.effectiveFeeRate ?? row.feeRate) > 0 }">
-                    {{ formatFeeRate(row.effectiveFeeRate ?? row.feeRate) }}%
-                  </span>
-                  <span v-else class="fee-inherit-badge">
-                    <el-icon :size="12"><Connection /></el-icon>
-                    继承 {{ formatFeeRate(row.effectiveFeeRate ?? row.feeRate) }}%
-                  </span>
+            </el-table-column>
+
+            <el-table-column label="费率" width="132" align="center">
+              <template #default="{ row }">
+                <div class="fee-cell">
+                  <template v-if="editingFeeId === row.id && !row.parentId">
+                    <div class="fee-edit-wrap">
+                      <el-input-number
+                        v-model="editingFeeRate"
+                        :min="0"
+                        :max="100"
+                        :precision="2"
+                        :controls="false"
+                        size="small"
+                        class="fee-input"
+                      />
+                      <span class="pct-sign">%</span>
+                    </div>
+                    <div class="fee-actions">
+                      <el-button type="primary" link size="small" :loading="savingFee" @click="handleSaveFeeRate(row)">保存</el-button>
+                      <el-button link size="small" @click="cancelEditFee">取消</el-button>
+                    </div>
+                  </template>
+                  <template v-else>
+                    <span v-if="!row.parentId" class="fee-badge" :class="{ 'has-rate': (row.effectiveFeeRate ?? row.feeRate) > 0 }">
+                      {{ formatFeeRate(row.effectiveFeeRate ?? row.feeRate) }}%
+                    </span>
+                    <span v-else class="fee-inherit-badge">
+                      <el-icon :size="12"><Connection /></el-icon>
+                      继承 {{ formatFeeRate(row.effectiveFeeRate ?? row.feeRate) }}%
+                    </span>
+                    <el-button v-if="!row.parentId" type="primary" link size="small" @click="startEditFee(row)">修改</el-button>
+                  </template>
                 </div>
-                <el-button v-if="!row.parentId" type="primary" link size="small" @click="startEditFee(row)">
-                  <el-icon :size="13"><EditPen /></el-icon>修改
-                </el-button>
               </template>
-            </div>
-          </template>
-        </el-table-column>
+            </el-table-column>
 
-        <!-- 卡片数 -->
-        <el-table-column prop="cardCount" label="卡片数" width="100" align="center">
-          <template #default="{ row }">
-            <div class="card-count-cell">
-              <el-badge v-if="row.cardCount > 0" :value="row.cardCount" :max="99" type="primary" class="count-badge" />
-              <span v-else class="no-data">0</span>
-            </div>
-          </template>
-        </el-table-column>
+            <el-table-column prop="cardCount" label="卡数" width="72" align="center">
+              <template #default="{ row }">
+                <div class="card-count-cell">
+                  <el-badge v-if="row.cardCount > 0" :value="row.cardCount" :max="99" type="primary" class="count-badge" />
+                  <span v-else class="no-data">0</span>
+                </div>
+              </template>
+            </el-table-column>
 
-        <!-- 状态 -->
-        <el-table-column prop="status" label="状态" width="100" align="center">
-          <template #default="{ row }">
-            <div class="status-cell">
-              <el-tag :type="row.status === 0 ? 'success' : 'danger'" size="small" effect="light">
-                <span class="status-dot" :class="row.status === 0 ? 'dot-green' : 'dot-red'" />
-                {{ row.status === 0 ? '正常' : '停用' }}
-              </el-tag>
-            </div>
-          </template>
-        </el-table-column>
+            <el-table-column prop="status" label="状态" width="82" align="center">
+              <template #default="{ row }">
+                <div class="status-cell">
+                  <el-tag :type="row.status === 0 ? 'success' : 'danger'" size="small" effect="light">
+                    <span class="status-dot" :class="row.status === 0 ? 'dot-green' : 'dot-red'" />
+                    {{ row.status === 0 ? '正常' : '停用' }}
+                  </el-tag>
+                </div>
+              </template>
+            </el-table-column>
 
-        <!-- 操作 -->
-        <el-table-column label="操作" width="300" fixed="right">
-          <template #default="{ row }">
-            <div class="action-cell">
-              <el-button v-if="!row.parentId" type="success" link size="small" @click="openAddChild(row)">
-                <el-icon :size="13"><CirclePlus /></el-icon>添加子用户
-              </el-button>
-              <el-button type="primary" link size="small" @click="openEditUser(row)">
-                <el-icon :size="13"><EditPen /></el-icon>编辑
-              </el-button>
-              <el-popconfirm :title="row.status === 0 ? '确认停用该用户？停用后将禁止继续新增关联业务' : '确认启用该用户？'"
-                @confirm="handleToggleStatus(row)" confirm-button-text="确定" cancel-button-text="取消"
-                :icon-color="row.status === 0 ? '#e6a23c' : '#67c23a'">
-                <template #reference>
-                  <el-button :type="row.status === 0 ? 'warning' : 'success'" link size="small">
-                    <el-icon :size="13"><component :is="row.status === 0 ? 'CircleClose' : 'CircleCheck'" /></el-icon>
-                    {{ row.status === 0 ? '停用' : '启用' }}
+            <el-table-column label="操作" width="146" align="center">
+              <template #default="{ row }">
+                <div class="action-cell">
+                  <el-button
+                    v-if="!row.parentId"
+                    type="success"
+                    link
+                    class="action-icon-btn"
+                    title="添加子用户"
+                    @click="openAddChild(row)"
+                  >
+                    <el-icon :size="15"><CirclePlus /></el-icon>
                   </el-button>
-                </template>
-              </el-popconfirm>
-              <el-popconfirm title="确认删除该用户？关联的子用户、银行卡及历史账单/流水需先处理。" @confirm="handleDeleteUser(row.id)" confirm-button-text="确定" cancel-button-text="取消" icon-color="#f56c6c">
-                <template #reference>
-                  <el-button type="danger" link size="small"><el-icon :size="13"><Delete /></el-icon>删除</el-button>
-                </template>
-              </el-popconfirm>
-            </div>
-          </template>
-        </el-table-column>
-      </el-table>
 
-      <el-empty v-if="!loading && treeData.length === 0" description="暂无持卡人数据">
-        <template #image><el-icon :size="64" color="#dcdfe6"><UserFilled /></el-icon></template>
-        <el-button type="primary" :icon="Plus" @click="openAddTopUser">立即添加</el-button>
-      </el-empty>
+                  <el-button type="primary" link class="action-icon-btn" title="编辑" @click="openEditUser(row)">
+                    <el-icon :size="15"><EditPen /></el-icon>
+                  </el-button>
+
+                  <el-popconfirm
+                    :title="row.status === 0 ? '确认停用该用户？停用后将禁止继续新增关联业务' : '确认启用该用户？'"
+                    confirm-button-text="确定"
+                    cancel-button-text="取消"
+                    :icon-color="row.status === 0 ? '#e6a23c' : '#67c23a'"
+                    @confirm="handleToggleStatus(row)"
+                  >
+                    <template #reference>
+                      <el-button
+                        :type="row.status === 0 ? 'warning' : 'success'"
+                        link
+                        class="action-icon-btn"
+                        :title="row.status === 0 ? '停用' : '启用'"
+                      >
+                        <el-icon :size="15"><component :is="row.status === 0 ? CircleClose : CircleCheck" /></el-icon>
+                      </el-button>
+                    </template>
+                  </el-popconfirm>
+
+                  <el-popconfirm
+                    title="确认删除该用户？关联的子用户、银行卡及历史账单/流水需先处理。"
+                    confirm-button-text="确定"
+                    cancel-button-text="取消"
+                    icon-color="#f56c6c"
+                    @confirm="handleDeleteUser(row.id)"
+                  >
+                    <template #reference>
+                      <el-button type="danger" link class="action-icon-btn" title="删除">
+                        <el-icon :size="15"><Delete /></el-icon>
+                      </el-button>
+                    </template>
+                  </el-popconfirm>
+                </div>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <el-empty v-else-if="!loading" description="暂无持卡人数据">
+            <template #image>
+              <el-icon :size="58" color="#c0c7d6"><UserFilled /></el-icon>
+            </template>
+            <el-button type="primary" :icon="Plus" @click="openAddTopUser">立即添加</el-button>
+          </el-empty>
+        </div>
+      </section>
+
+      <aside class="action-panel card-shell">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">功能操作区</div>
+            <div class="panel-desc">集中常用动作与视图摘要</div>
+          </div>
+        </div>
+
+        <div class="side-card">
+          <div class="side-card-title">快捷操作</div>
+          <div class="action-stack">
+            <el-button type="primary" :icon="Plus" @click="openAddTopUser">新增</el-button>
+            <el-button :icon="expandAll ? Fold : Expand" @click="toggleExpandAll">{{ expandAll ? '收起' : '展开' }}</el-button>
+            <el-button :icon="RefreshRight" @click="fetchData">刷新</el-button>
+            <el-button @click="resetQuery">清空</el-button>
+          </div>
+        </div>
+
+        <div class="side-card">
+          <div class="side-card-title">当前视图</div>
+          <div class="summary-list">
+            <div class="summary-item">
+              <span>当前分类</span>
+              <strong>{{ activeCategoryLabel }}</strong>
+            </div>
+            <div class="summary-item">
+              <span>展示人数</span>
+              <strong>{{ currentSummary.total }}</strong>
+            </div>
+            <div class="summary-item">
+              <span>主账户</span>
+              <strong>{{ currentSummary.main }}</strong>
+            </div>
+            <div class="summary-item">
+              <span>子用户</span>
+              <strong>{{ currentSummary.child }}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="side-card">
+          <div class="side-card-title">状态说明</div>
+          <div class="legend-list">
+            <div class="legend-item">
+              <span class="legend-dot success" />
+              <span>正常</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-dot danger" />
+              <span>停用</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-dot primary" />
+              <span>主账户</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-dot muted" />
+              <span>子用户</span>
+            </div>
+          </div>
+        </div>
+      </aside>
     </div>
 
-    <!-- 新增/编辑用户弹窗 -->
     <el-dialog v-model="editVisible" :title="editTitle" width="520px" destroy-on-close :close-on-click-modal="false">
       <el-form :model="editForm" label-width="90px" ref="formRef" :rules="formRules" size="large">
         <el-form-item label="用户类型" v-if="!editForm.id">
@@ -230,16 +381,37 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'CardUsers' })
-import { ref, reactive, computed, watch, onMounted, onActivated } from 'vue'
-import { Plus, UserFilled, User, Phone, EditPen, Delete, CirclePlus, Clock, Document, Connection, CircleClose, CircleCheck } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import SearchBar from '@/components/SearchBar/index.vue'
+
+import { ref, reactive, computed, watch, onMounted, onActivated, nextTick } from 'vue'
 import {
-  getUserTreeApi, saveUserApi, updateUserApi, deleteUserApi,
-  updateUserFeeRateApi, getUserListActiveApi
+  Plus,
+  UserFilled,
+  User,
+  Phone,
+  EditPen,
+  Delete,
+  CirclePlus,
+  Clock,
+  Document,
+  Connection,
+  CircleClose,
+  CircleCheck,
+  Search,
+  RefreshRight,
+  Fold,
+  Expand,
+  CreditCard
+} from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import {
+  getUserTreeApi,
+  saveUserApi,
+  updateUserApi,
+  deleteUserApi,
+  updateUserFeeRateApi,
+  getUserListActiveApi
 } from '@/api/card'
 
-// ====== 类型 ======
 interface UserData {
   id: number
   name: string
@@ -256,21 +428,28 @@ interface UserData {
   parentName?: string
 }
 
-// ====== 状态 ======
+type QuickMenuKey = 'all' | 'main' | 'child' | 'active' | 'disabled' | 'withCard' | 'noCard'
+
 const loading = ref(false)
 const treeData = ref<UserData[]>([])
 const rawData = ref<UserData[]>([])
 const tableRef = ref()
-const expandAll = ref(true)
+const expandAll = ref(false)
+const activeCategory = ref<QuickMenuKey>('all')
+const expandedRowIds = ref<number[]>([])
 
-const query = reactive({ name: '', phone: '', status: undefined as any })
+const query = reactive({
+  name: '',
+  phone: '',
+  status: undefined as number | undefined,
+  type: '' as '' | 'main' | 'child',
+  hasCard: '' as '' | 0 | 1
+})
 
-// 费率编辑
 const editingFeeId = ref<number | null>(null)
 const editingFeeRate = ref(0)
 const savingFee = ref(false)
 
-// 弹窗
 const editVisible = ref(false)
 const saving = ref(false)
 const formRef = ref()
@@ -280,112 +459,216 @@ const isChildMode = ref(false)
 const parentUserOptions = ref<{ id: number; name: string }[]>([])
 
 const defaultForm: Record<string, any> = {
-  id: undefined, parentId: null, name: '', phone: '', feeRate: 0, remark: '', status: 0
+  id: undefined,
+  parentId: null,
+  name: '',
+  phone: '',
+  feeRate: 0,
+  remark: '',
+  status: 0
 }
+
 const editForm = reactive({ ...defaultForm })
 const formRules = {
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
   feeRate: [{ required: true, message: '请输入手续费率', trigger: 'blur' }]
 }
 
-// ====== 统计数据 ======
 const statCards = computed(() => {
   const flat = flattenTree(rawData.value)
   const total = flat.length
-  const active = flat.filter((u: UserData) => u.status === 0).length
-  const mainAccounts = flat.filter((u: UserData) => !u.parentId).length
-  const totalCards = flat.reduce((s: number, u: UserData) => s + (u.cardCount || 0), 0)
+  const active = flat.filter((u) => u.status === 0).length
+  const mainAccounts = flat.filter((u) => !u.parentId).length
+  const totalCards = flat.reduce((sum, u) => sum + (u.cardCount || 0), 0)
+
   return [
-    { value: total, label: '总人数', icon: 'UserFilled', bg: '#ecf5ff', color: '#409eff' },
-    { value: active, label: '正常', icon: 'CircleCheck', bg: '#f0f9eb', color: '#67c23a' },
-    { value: mainAccounts, label: '主账户', icon: 'UserFilled', bg: '#fdf6ec', color: '#e6a23c' },
-    { value: totalCards, label: '银行卡总数', icon: 'CreditCard', bg: '#fef0f0', color: '#f56c6c' }
+    { value: total, label: '人数', icon: UserFilled, bg: '#eaf2ff', color: '#0958d9' },
+    { value: active, label: '正常', icon: CircleCheck, bg: '#e8f7ed', color: '#2f9e44' },
+    { value: mainAccounts, label: '主户', icon: User, bg: '#fff4db', color: '#d97706' },
+    { value: totalCards, label: '卡片', icon: CreditCard, bg: '#fdebec', color: '#cf1322' }
   ]
 })
 
-const filteredCount = computed(() => flattenTree(treeData.value).length)
+const quickMenus = computed(() => {
+  const flat = flattenTree(rawData.value)
+  return [
+    { key: 'all' as QuickMenuKey, label: '全部', count: flat.length, color: '#0958d9' },
+    { key: 'main' as QuickMenuKey, label: '主账户', count: flat.filter((u) => !u.parentId).length, color: '#d97706' },
+    { key: 'child' as QuickMenuKey, label: '子用户', count: flat.filter((u) => !!u.parentId).length, color: '#7c8799' },
+    { key: 'active' as QuickMenuKey, label: '正常', count: flat.filter((u) => u.status === 0).length, color: '#2f9e44' },
+    { key: 'disabled' as QuickMenuKey, label: '停用', count: flat.filter((u) => u.status === 1).length, color: '#cf1322' },
+    { key: 'withCard' as QuickMenuKey, label: '已绑卡', count: flat.filter((u) => (u.cardCount || 0) > 0).length, color: '#5b8ff9' },
+    { key: 'noCard' as QuickMenuKey, label: '未绑卡', count: flat.filter((u) => (u.cardCount || 0) === 0).length, color: '#98a2b3' }
+  ]
+})
 
-// ====== 数据加载 ======
+const activeCategoryLabel = computed(() => quickMenus.value.find((item) => item.key === activeCategory.value)?.label || '全部')
+const filteredCount = computed(() => flattenTree(treeData.value).length)
+const currentSummary = computed(() => {
+  const flat = flattenTree(treeData.value)
+  return {
+    total: flat.length,
+    main: flat.filter((u) => !u.parentId).length,
+    child: flat.filter((u) => !!u.parentId).length,
+    active: flat.filter((u) => u.status === 0).length
+  }
+})
+const visibleMainCount = computed(() => currentSummary.value.main)
+const visibleChildCount = computed(() => currentSummary.value.child)
+const visibleActiveCount = computed(() => currentSummary.value.active)
+
 async function fetchData() {
   loading.value = true
   try {
-    const res: any = await getUserTreeApi()
-    rawData.value = res.data || []
-    applyFilter()
-    // 加载主账户选项（用于选择父用户）
-    const res2: any = await getUserListActiveApi()
-    if (res2.data) {
-      parentUserOptions.value = (res2.data as UserData[])
-        .filter(u => !u.parentId)
-        .map(u => ({ id: u.id, name: u.name }))
+    const [treeRes, activeRes] = await Promise.all([getUserTreeApi(), getUserListActiveApi()]) as any
+    rawData.value = treeRes?.data || []
+
+    if (activeRes?.data) {
+      parentUserOptions.value = (activeRes.data as UserData[])
+        .filter((u) => !u.parentId)
+        .map((u) => ({ id: u.id, name: u.name }))
     }
-  } finally { loading.value = false }
+
+    applyFilter()
+  } finally {
+    loading.value = false
+  }
+}
+
+function normalizeTree(list: UserData[]): UserData[] {
+  return list.map((item) => {
+    const children = item.children?.length ? normalizeTree(item.children) : undefined
+    return {
+      ...item,
+      children,
+      hasChildren: !!children?.length
+    }
+  })
+}
+
+function filterTreeBy(list: UserData[], predicate: (item: UserData) => boolean): UserData[] {
+  return list
+    .map((item) => {
+      const children = item.children?.length ? filterTreeBy(item.children, predicate) : undefined
+      return {
+        ...item,
+        children: children?.length ? children : undefined,
+        hasChildren: !!children?.length
+      }
+    })
+    .filter((item) => predicate(item) || !!item.children?.length)
+}
+
+function matchesCurrentFilters(user: UserData) {
+  const name = query.name.trim()
+  const phone = query.phone.trim()
+
+  if (name && !String(user.name || '').includes(name)) return false
+  if (phone && !String(user.phone || '').includes(phone)) return false
+  if (query.status !== undefined && user.status !== query.status) return false
+  if (query.type === 'main' && !!user.parentId) return false
+  if (query.type === 'child' && !user.parentId) return false
+  if (query.hasCard !== '') {
+    const hasCard = (user.cardCount || 0) > 0 ? 1 : 0
+    if (hasCard !== query.hasCard) return false
+  }
+
+  switch (activeCategory.value) {
+    case 'main':
+      return !user.parentId
+    case 'child':
+      return !!user.parentId
+    case 'active':
+      return user.status === 0
+    case 'disabled':
+      return user.status === 1
+    case 'withCard':
+      return (user.cardCount || 0) > 0
+    case 'noCard':
+      return (user.cardCount || 0) === 0
+    default:
+      return true
+  }
 }
 
 function applyFilter() {
-  let list = [...rawData.value]
-  if (query.name?.trim()) list = filterTree(list, 'name', query.name.trim())
-  if (query.phone?.trim()) list = filterTree(list, 'phone', query.phone.trim())
-  if (query.status !== undefined && query.status !== null && query.status !== '') list = filterTree(list, 'status', query.status)
-  treeData.value = list
-}
+  const normalized = normalizeTree(rawData.value)
+  treeData.value = filterTreeBy(normalized, matchesCurrentFilters)
+  expandedRowIds.value = expandAll.value ? collectExpandableIds(treeData.value) : []
 
-function filterTree<T extends { children?: T[] }>(list: T[], field: string, value: any): T[] {
-  return list.filter(item => {
-    const matched = item[field as keyof T] != null && String(item[field as keyof T]).includes(value)
-    if (item.children?.length) item.children = filterTree(item.children, field, value) as T[]
-    return matched || (item.children && item.children.length > 0)
+  nextTick(() => {
+    if (treeData.value.length) {
+      setExpandRecursive(treeData.value, expandAll.value)
+    }
   })
 }
 
 function flattenTree<T extends { children?: T[] }>(list: T[]): T[] {
   const result: T[] = []
-  function walk(items: T[]) {
-    for (const it of items) {
-      result.push(it)
-      if (it.children?.length) walk(it.children)
-    }
+  const walk = (items: T[]) => {
+    items.forEach((item) => {
+      result.push(item)
+      if (item.children?.length) walk(item.children)
+    })
   }
   walk(list)
   return result
+}
+
+function collectExpandableIds(list: UserData[]) {
+  return flattenTree(list)
+    .filter((item) => item.children?.length)
+    .map((item) => item.id)
 }
 
 function resetQuery() {
   query.name = ''
   query.phone = ''
   query.status = undefined
+  query.type = ''
+  query.hasCard = ''
+  activeCategory.value = 'all'
+  expandAll.value = false
+  cancelEditFee()
 }
 
-// ====== 展开/收起 ======
-function onExpandChange(_row: UserData, expanded: boolean) {
-  expandAll.value = expanded
+function onExpandChange(row: UserData, expanded: boolean) {
+  if (expanded) {
+    if (!expandedRowIds.value.includes(row.id)) expandedRowIds.value.push(row.id)
+  } else {
+    expandedRowIds.value = expandedRowIds.value.filter((id) => id !== row.id)
+  }
+  syncExpandState()
+}
+
+function syncExpandState() {
+  const expandableIds = collectExpandableIds(treeData.value)
+  expandAll.value = expandableIds.length > 0 && expandableIds.every((id) => expandedRowIds.value.includes(id))
 }
 
 function toggleExpandAll() {
-  const rows = tableRef.value?.store?.states?.data?.value || []
-  if (!rows.length) return
+  if (!treeData.value.length) return
   expandAll.value = !expandAll.value
-  setExpandRecursive(rows, expandAll.value)
+  expandedRowIds.value = expandAll.value ? collectExpandableIds(treeData.value) : []
+  nextTick(() => setExpandRecursive(treeData.value, expandAll.value))
 }
 
-function setExpandRecursive(rows: any[], expanded: boolean) {
-  for (const row of rows) {
+function setExpandRecursive(rows: UserData[], expanded: boolean) {
+  rows.forEach((row) => {
     tableRef.value?.toggleRowExpansion(row, expanded)
-    if (row.children?.length) setExpandRecursive(row.children as any[], expanded)
-  }
+    if (row.children?.length) setExpandRecursive(row.children, expanded)
+  })
 }
 
 function rowClassName({ row }: { row: UserData }) {
   return row.status === 1 ? 'row-disabled' : ''
 }
 
-// ====== 时间格式化 ======
-function formatTime(t?: string) {
-  if (!t) return ''
-  return t.replace('T', ' ').substring(0, 16)
+function formatTime(time?: string) {
+  if (!time) return ''
+  return time.replace('T', ' ').substring(0, 16)
 }
 
-// ====== 费率编辑 ======
 function startEditFee(row: UserData) {
   editingFeeId.value = row.id
   editingFeeRate.value = Number(formatFeeRate(row.effectiveFeeRate ?? row.feeRate ?? 0))
@@ -398,16 +681,19 @@ async function handleSaveFeeRate(row: UserData) {
     ElMessage.success('费率已更新并同步到所有子用户')
     cancelEditFee()
     fetchData()
-  } finally { savingFee.value = false }
+  } finally {
+    savingFee.value = false
+  }
 }
 
-function cancelEditFee() { editingFeeId.value = null }
+function cancelEditFee() {
+  editingFeeId.value = null
+}
 
 function formatFeeRate(rate: number | string | null | undefined) {
   return Number(rate ?? 0).toFixed(2)
 }
 
-// ====== 手续费输入处理 ======
 function formatFeeRateOnBlur() {
   const num = parseFloat(String(editForm.feeRate))
   if (isNaN(num) || num < 0) {
@@ -419,7 +705,6 @@ function formatFeeRateOnBlur() {
   }
 }
 
-// ====== 新增主账户 ======
 function openAddTopUser() {
   isChildMode.value = false
   editTitle.value = '新增主账户'
@@ -427,7 +712,6 @@ function openAddTopUser() {
   editVisible.value = true
 }
 
-// ====== 添加子用户 ======
 function openAddChild(parentRow: UserData) {
   isChildMode.value = true
   editTitle.value = `添加子用户 - ${parentRow.name}`
@@ -436,7 +720,6 @@ function openAddChild(parentRow: UserData) {
   editVisible.value = true
 }
 
-// ====== 编辑 ======
 function openEditUser(row: UserData) {
   editTitle.value = '编辑用户'
   isChildMode.value = !!row.parentId
@@ -453,9 +736,12 @@ function openEditUser(row: UserData) {
   editVisible.value = true
 }
 
-// ====== 保存 ======
 async function handleSaveUser() {
-  try { await formRef.value?.validate() } catch { return }
+  try {
+    await formRef.value?.validate()
+  } catch {
+    return
+  }
 
   saving.value = true
   try {
@@ -478,10 +764,11 @@ async function handleSaveUser() {
     }
     editVisible.value = false
     fetchData()
-  } finally { saving.value = false }
+  } finally {
+    saving.value = false
+  }
 }
 
-// ====== 切换状态 ======
 async function handleToggleStatus(row: UserData) {
   const newStatus = row.status === 0 ? 1 : 0
   await updateUserApi({
@@ -497,7 +784,6 @@ async function handleToggleStatus(row: UserData) {
   fetchData()
 }
 
-// ====== 删除 ======
 async function handleDeleteUser(id: number) {
   try {
     await deleteUserApi(id)
@@ -508,320 +794,643 @@ async function handleDeleteUser(id: number) {
   }
 }
 
-// ====== 初始化 & 监听 ======
 onMounted(() => fetchData())
 onActivated(() => fetchData())
-
 watch(query, () => applyFilter(), { deep: true })
+watch(activeCategory, () => applyFilter())
 </script>
 
 <style scoped>
-.card-user-page { display: flex; flex-direction: column; gap: var(--spacing-lg); }
-
-/* ========== 统计卡片区 ========== */
-.stat-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--spacing-xl);
-  margin-bottom: var(--spacing-xl);
-}
-.stat-card {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-lg);
-  padding: var(--spacing-2xl) var(--spacing-xl);
-  background: var(--color-card);
-  border-radius: var(--border-radius-lg);
-  box-shadow: var(--shadow-card);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 1px solid var(--color-border-light);
-  position: relative;
-  overflow: hidden;
-}
-.stat-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--color-primary), var(--color-primary-light));
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-.stat-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-hover);
-  border-color: var(--color-primary-light);
-}
-.stat-card:hover::before {
-  opacity: 1;
-}
-.stat-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: var(--border-radius-lg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  box-shadow: var(--shadow-sm);
-}
-.stat-body {
+.card-user-page {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  flex: 1;
+  gap: 8px;
+  margin: -20px;
+  width: calc(100% + 40px);
+  height: calc(100% + 40px);
+  min-height: 0;
+  padding: 8px;
+  background: #f5f7fb;
+  overflow: hidden;
+  box-sizing: border-box;
 }
-.stat-num {
-  font-size: 32px;
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text-primary);
+
+.card-shell {
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid #dbe2ea;
+  border-radius: 14px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.045);
+}
+
+.page-header {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.72fr) minmax(300px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,253,0.98) 100%);
+  border: 1px solid #dbe2ea;
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.035);
+  flex-shrink: 0;
+}
+
+.header-copy,
+.header-stat-body,
+.user-info {
+  min-width: 0;
+}
+
+.header-title {
+  font-size: 16px;
+  line-height: 1.1;
+  font-weight: 700;
+  color: #1f2a37;
+}
+
+.header-subtitle {
+  margin-top: 2px;
+  font-size: 11px;
   line-height: 1.2;
-  font-family: var(--font-mono);
-}
-.stat-label {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  font-weight: var(--font-weight-medium);
+  color: #8a94a6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* ========== 工具栏 ========== */
-.table-toolbar {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: var(--spacing-sm) 0;
-}
-.toolbar-left { display: flex; align-items: center; gap: var(--spacing-md); }
-.toolbar-hint { font-size: var(--font-size-sm); color: var(--color-text-placeholder); }
-
-/* ========== 表格区 ========== */
-.user-table-wrap {
-  background: var(--color-card);
-  border-radius: var(--border-radius-lg);
-  padding: var(--spacing-2xl);
-  box-shadow: var(--shadow-card);
-  border: 1px solid var(--color-border-light);
-}
-:deep(.row-disabled) {
-  opacity: 0.5;
-  background-color: #fafafa;
-}
-:deep(.el-table) {
-  --el-table-border-color: var(--color-border-light);
-  font-size: var(--font-size-base);
-}
-:deep(.el-table__row) {
-  transition: background-color 0.2s ease;
-}
-:deep(.el-table .cell) {
-  padding-top: 10px;
-  padding-bottom: 10px;
-}
-:deep(.el-table th.el-table__cell) {
-  background-color: #fafafa;
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-regular);
-  font-size: var(--font-size-sm);
+.header-stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
 }
 
-/* 用户单元格 */
-.user-cell {
+.header-stat {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #fff;
+  border: 1px solid #e5eaf1;
+  border-radius: 10px;
+  min-width: 0;
 }
-.avatar-wrap {
-  width: 42px;
-  height: 42px;
-  border-radius: var(--border-radius-lg);
-  background: linear-gradient(135deg, #e6f7ff 0%, #bae0ff 100%);
-  color: var(--color-primary);
+
+.header-stat-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(22, 119, 255, 0.2);
-  transition: all 0.3s;
 }
-.avatar-wrap:hover {
-  transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(22, 119, 255, 0.3);
+
+.header-stat-value {
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 700;
+  color: #1f2a37;
 }
-.avatar-child {
-  background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
-  color: #8c8c8c;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+
+.header-stat-label {
+  margin-top: 2px;
+  font-size: 10px;
+  color: #7c8799;
 }
-.user-info {
-  flex: 1;
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.header-search {
+  width: 150px;
+}
+
+.action-btn {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+}
+
+.filter-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #dbe2ea;
+  border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.035);
+  flex-shrink: 0;
+}
+
+.filter-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
 }
-.name-row {
+
+.filter-title {
+  padding: 0 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #526074;
+  white-space: nowrap;
+}
+
+.filter-item {
+  width: 90px;
+}
+
+.filter-phone {
+  width: 118px;
+}
+
+.filter-right {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  flex-shrink: 0;
 }
-.name-text {
-  font-size: 15px;
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-primary);
+
+.toolbar-hint {
+  font-size: 11px;
+  color: #7c8799;
 }
-.meta-row {
+
+.workspace-grid {
+  display: grid;
+  grid-template-columns: 142px minmax(0, 1fr) 152px;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+}
+
+.side-panel,
+.action-panel,
+.data-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.side-panel,
+.action-panel,
+.data-panel {
+  padding: 8px;
+}
+
+.panel-head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-top: 4px;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
 }
-.meta-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+
+.panel-title {
   font-size: 13px;
-  color: var(--color-text-secondary);
+  font-weight: 700;
+  color: #1f2a37;
+  line-height: 1.1;
 }
-.meta-time {
-  display: inline-flex;
+
+.panel-desc {
+  display: none;
+}
+
+.menu-list {
+  display: grid;
+  gap: 6px;
+}
+
+.menu-item {
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
   align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--color-text-placeholder);
+  gap: 6px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #e7edf4;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #435266;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
-.remark-row {
+
+.menu-item:hover {
+  border-color: #b9c7d8;
+  background: #f2f6fb;
+}
+
+.menu-item.active {
+  border-color: #b4ceff;
+  background: #eaf2ff;
+  color: #0958d9;
+  box-shadow: inset 0 0 0 1px rgba(9, 88, 217, 0.04);
+}
+
+.menu-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.menu-label {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menu-count {
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(9, 88, 217, 0.08);
+  color: inherit;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.data-head {
+  align-items: center;
+}
+
+.inline-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  height: 26px;
+  border-radius: 8px;
+  background: #f5f8fc;
+  color: #667085;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.user-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid #e5eaf1;
+  border-radius: 12px;
+  background: #fff;
+}
+
+:deep(.el-table) {
+  height: 100% !important;
+  --el-table-border-color: #e5eaf1;
+  font-size: 12px;
+}
+
+:deep(.el-table .cell) {
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 1.2;
+}
+
+:deep(.el-table th.el-table__cell) {
+  height: 34px;
+  font-size: 11px;
+}
+
+:deep(.el-table td.el-table__cell) {
+  height: 50px;
+}
+
+:deep(.el-table__body-wrapper) {
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+:deep(.el-table__body-wrapper::-webkit-scrollbar) {
+  width: 0;
+  height: 0;
+}
+
+:deep(.row-disabled) {
+  opacity: 0.62;
+  background: #fafbfc;
+}
+
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.avatar-wrap {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #e6f0ff 0%, #cfe0ff 100%);
+  color: #0958d9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.avatar-child {
+  background: linear-gradient(135deg, #f1f4f8 0%, #e4e9f1 100%);
+  color: #6b7280;
+}
+
+.name-row {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-top: 6px;
-  padding: 6px 10px;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  background: #f5f5f5;
-  border-radius: var(--border-radius);
-  max-width: 280px;
-  border-left: 3px solid var(--color-primary-light);
+  min-width: 0;
 }
-.remark-text {
+
+.name-row :deep(.el-tag) {
+  height: 18px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+
+.name-text {
+  max-width: 92px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2a37;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
 }
 
-/* 费率 */
+.remark-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #7c8799;
+  background: #f2f5f9;
+  cursor: pointer;
+}
+
+.meta-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  min-width: 0;
+}
+
+.meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: #667085;
+}
+
+.meta-time {
+  display: none;
+}
+
 .fee-cell {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
+  gap: 2px;
 }
+
 .fee-edit-wrap {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
+
+.fee-input {
+  width: 64px;
+}
+
 .fee-actions {
   display: flex;
-  gap: 6px;
-}
-.fee-display {
-  display: flex;
   align-items: center;
-  justify-content: center;
-  margin-bottom: 4px;
+  gap: 4px;
+  line-height: 1;
 }
-.fee-badge {
-  font-size: 16px;
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text-secondary);
-  padding: 6px 14px;
-  background: #f5f5f5;
-  border-radius: var(--border-radius);
-  font-family: var(--font-mono);
-  border: 1px solid var(--color-border-light);
-}
-.fee-badge.has-rate {
-  color: #fff;
-  background: linear-gradient(135deg, #faad14 0%, #ffc53d 100%);
-  box-shadow: 0 2px 8px rgba(250, 173, 20, 0.3);
-  border: none;
-}
-.pct-sign {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-regular);
-  margin-left: 2px;
-}
+
+.fee-badge,
 .fee-inherit-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  color: var(--color-text-secondary);
-  background: #f5f5f5;
-  padding: 6px 12px;
-  border-radius: var(--border-radius);
-  border: 1px solid var(--color-border-light);
-}
-
-/* 卡片数 */
-.card-count-cell {
-  display: flex;
-  align-items: center;
   justify-content: center;
-}
-.count-badge :deep(.el-badge__content) {
-  font-weight: 600;
-}
-
-/* 状态 */
-.status-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.status-cell :deep(.el-tag) {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  font-weight: 500;
-}
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: var(--border-radius-full);
-  display: inline-block;
-  flex-shrink: 0;
-}
-.dot-green {
-  background: var(--color-success);
-  box-shadow: 0 0 6px rgba(103,194,58,.5);
-}
-.dot-red {
-  background: var(--color-danger);
-  box-shadow: 0 0 6px rgba(245,108,108,.5);
+  gap: 3px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 22px;
+  background: #f3f5f8;
+  color: #526074;
+  border: 1px solid #e5eaf1;
 }
 
-/* 操作 */
+.fee-badge.has-rate {
+  background: linear-gradient(135deg, #faad14 0%, #ffc53d 100%);
+  border-color: transparent;
+  color: #fff;
+}
+
+.pct-sign {
+  font-size: 11px;
+  color: #667085;
+}
+
+.card-count-cell,
+.status-cell,
 .action-cell {
   display: flex;
   align-items: center;
+  justify-content: center;
+}
+
+.count-badge :deep(.el-badge__content) {
+  font-weight: 700;
+}
+
+.status-cell :deep(.el-tag) {
+  display: inline-flex;
+  align-items: center;
   gap: 4px;
-  flex-wrap: wrap;
+  height: 22px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 700;
 }
 
-/* 空状态占位 */
-.no-data { color: #d9d9d9; font-size: 14px; }
-
-/* 表单提示 */
-.form-tip { font-size: 12px; color: #e6a23c; margin-top: 4px; line-height: 1.4; }
-.inherit-hint { color: #909399; font-size: 13px; background: #f5f7fa; padding: 8px 12px; border-radius: 4px; }
-
-/* 响应式 */
-@media (max-width: 1200px) {
-  .stat-row { grid-template-columns: repeat(2, 1fr); }
+.status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
 }
-@media (max-width: 768px) {
-  .stat-row { grid-template-columns: 1fr; }
+
+.dot-green {
+  background: #2f9e44;
+  box-shadow: 0 0 5px rgba(47, 158, 68, 0.3);
+}
+
+.dot-red {
+  background: #cf1322;
+  box-shadow: 0 0 5px rgba(207, 19, 34, 0.3);
+}
+
+.action-cell {
+  gap: 0;
+}
+
+.action-icon-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+}
+
+.no-data {
+  font-size: 12px;
+  color: #c0c7d6;
+}
+
+.side-card {
+  padding: 8px;
+  background: #f8fafc;
+  border: 1px solid #e7edf4;
+  border-radius: 12px;
+}
+
+.side-card + .side-card {
+  margin-top: 8px;
+}
+
+.side-card-title {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1f2a37;
+}
+
+.action-stack {
+  display: grid;
+  gap: 6px;
+}
+
+.action-stack :deep(.el-button) {
+  width: 100%;
+  height: 30px;
+  margin-left: 0;
+  border-radius: 8px;
+}
+
+.summary-list,
+.legend-list {
+  display: grid;
+  gap: 6px;
+}
+
+.summary-item,
+.legend-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 11px;
+  color: #667085;
+}
+
+.summary-item strong {
+  color: #1f2a37;
+  font-size: 12px;
+}
+
+.legend-item {
+  justify-content: flex-start;
+}
+
+.legend-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend-dot.success {
+  background: #2f9e44;
+}
+
+.legend-dot.danger {
+  background: #cf1322;
+}
+
+.legend-dot.primary {
+  background: #0958d9;
+}
+
+.legend-dot.muted {
+  background: #98a2b3;
+}
+
+.form-tip {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #d97706;
+}
+
+.inherit-hint {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: #f5f7fa;
+  color: #667085;
+  font-size: 12px;
+}
+
+@media (max-width: 1480px) {
+  .page-header {
+    grid-template-columns: minmax(140px, 0.72fr) minmax(260px, 1fr) auto;
+  }
+
+  .workspace-grid {
+    grid-template-columns: 132px minmax(0, 1fr) 144px;
+  }
+
+  .header-search {
+    width: 132px;
+  }
+}
+
+@media (max-width: 1320px) {
+  .header-subtitle,
+  .inline-summary,
+  .toolbar-hint {
+    display: none;
+  }
+
+  .workspace-grid {
+    grid-template-columns: 124px minmax(0, 1fr) 136px;
+  }
 }
 </style>
