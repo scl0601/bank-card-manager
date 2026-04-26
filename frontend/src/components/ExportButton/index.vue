@@ -24,7 +24,7 @@ interface Emits {
   (e: 'click'): void
 }
 
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   text: '导出',
   type: 'success',
   loading: false,

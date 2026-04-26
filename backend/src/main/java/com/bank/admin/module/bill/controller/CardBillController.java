@@ -157,8 +157,8 @@ public class CardBillController {
         return Result.success();
     }
 
-    @Operation(summary = "批量修改明细类型")
-    @Log(module = "账单明细", type = ActionTypeEnum.UPDATE, description = "批量修改明细类型")
+    @Operation(summary = "批量修改明细收支状态")
+    @Log(module = "账单明细", type = ActionTypeEnum.UPDATE, description = "批量修改明细收支状态")
     @PatchMapping("/details/batch-type")
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     public Result<Void> batchUpdateType(@Valid @RequestBody BatchUpdateTypeDTO dto) {

@@ -1,4 +1,4 @@
-import { ElMessage, ElNotification } from 'element-plus'
+import { ElNotification } from 'element-plus'
 
 export enum ErrorType {
   VALIDATION = 'validation',

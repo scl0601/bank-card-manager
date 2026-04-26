@@ -68,18 +68,18 @@ export const TXN_TYPE_TAG_TYPE: Record<number, string> = {
 
 // ==================== 明细类型 ====================
 export const DETAIL_TYPE_VALUE = {
-  EXPENSE: 0,  // 刷出
-  INCOME: 1    // 刷入
+  EXPENSE: 0,  // 支出
+  INCOME: 1    // 收入
 } as const
 
 export const DETAIL_TYPE_OPTIONS = [
-  { label: '刷出', value: DETAIL_TYPE_VALUE.EXPENSE },
-  { label: '刷入', value: DETAIL_TYPE_VALUE.INCOME }
+  { label: '支出', value: DETAIL_TYPE_VALUE.EXPENSE },
+  { label: '收入', value: DETAIL_TYPE_VALUE.INCOME }
 ]
 
 export const DETAIL_TYPE_MAP: Record<number, string> = {
-  [DETAIL_TYPE_VALUE.EXPENSE]: '刷出',
-  [DETAIL_TYPE_VALUE.INCOME]: '刷入'
+  [DETAIL_TYPE_VALUE.EXPENSE]: '支出',
+  [DETAIL_TYPE_VALUE.INCOME]: '收入'
 }
 
 export const DETAIL_TYPE_TAG_TYPE: Record<number, string> = {

@@ -60,6 +60,9 @@ public class CardBillSaveDTO {
     @Schema(description = "本期应收手续费")
     private BigDecimal feeAmount;
 
+    @Schema(description = "手续费是否已支付")
+    private Boolean feePaid;
+
     @Schema(description = "POS机使用成本")
     private BigDecimal posCostAmount;
 

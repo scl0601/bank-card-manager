@@ -16,6 +16,9 @@ public class CardBillQueryDTO extends PageDTO {
     @Schema(description = "银行卡ID")
     private Long cardId;
 
+    @Schema(description = "银行卡ID列表，逗号分隔")
+    private String cardIds;
+
     @Schema(description = "持卡人ID")
     private Long ownerId;
 
@@ -30,4 +33,7 @@ public class CardBillQueryDTO extends PageDTO {
 
     @Schema(description = "状态：0待还款 1已还清 2部分还款 3逾期")
     private Integer status;
+
+    @Schema(description = "手续费是否已支付")
+    private Boolean feePaid;
 }

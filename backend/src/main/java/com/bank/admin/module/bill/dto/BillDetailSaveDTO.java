@@ -34,8 +34,8 @@ public class BillDetailSaveDTO {
     @NotNull(message = "金额不能为空")
     private BigDecimal amount;
 
-    @Schema(description = "类型：0=POS刷出 1=还信用卡 2=客户还钱给我", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotNull(message = "类型不能为空")
+    @Schema(description = "收支状态：0=支出 1=收入", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotNull(message = "收支状态不能为空")
     private Integer detailType;
 
     @Schema(description = "备注")

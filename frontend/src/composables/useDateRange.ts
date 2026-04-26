@@ -23,7 +23,6 @@ export function useDateRange(options: DateRangeOptions = {}) {
   const {
     startField = 'startDate',
     endField = 'endDate',
-    format = 'YYYY-MM-DD',
     defaultRecentDays,
     onChange
   } = options

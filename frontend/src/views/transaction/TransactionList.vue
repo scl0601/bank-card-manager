@@ -32,9 +32,7 @@
       @update:page-size="val => query.pageSize = val"
       @current-change="handleCurrentChange"
       @size-change="handleSizeChange"
-      @selection-change="onSelectionChange"
     >
-      <el-table-column type="selection" width="50" />
       <el-table-column prop="ownerName" label="持卡人" width="100" />
       <el-table-column label="银行卡" width="140">
         <template #default="{ row }">{{ row.bankName }} *{{ row.cardNoLast4 }}</template>
@@ -110,17 +108,16 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'Transactions' })
-import { ref, reactive, watch, onMounted, onActivated } from 'vue'
+import { ref, reactive, onMounted, onActivated } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { formatTime } from '@/utils/formatters'
+import { ElMessage } from 'element-plus'
 import SearchBar from '@/components/SearchBar/index.vue'
 import PageTable from '@/components/PageTable/index.vue'
 import CrudDialog from '@/components/CrudDialog/index.vue'
 import StatusTag from '@/components/StatusTag/index.vue'
 import AmountDisplay from '@/components/AmountDisplay/index.vue'
 import ExportButton from '@/components/ExportButton/index.vue'
-import { getTransactionPageApi, saveTransactionApi, updateTransactionApi, deleteTransactionApi, exportTransactionApi, batchDeleteTransactionApi } from '@/api/transaction'
+import { getTransactionPageApi, saveTransactionApi, updateTransactionApi, deleteTransactionApi, exportTransactionApi } from '@/api/transaction'
 import { getCardListApi } from '@/api/card'
 import { usePageTable } from '@/composables/usePageTable'
 import { useExport } from '@/composables/useExport'
@@ -128,7 +125,6 @@ import { TXN_TYPE_OPTIONS, TXN_TYPE_MAP, TXN_TYPE_TAG_TYPE } from '@/constants/d
 
 const cardList = ref<any[]>([])
 const dateRange = ref<string[]>([])
-const selectedIds = ref<number[]>([])
 
 const {
   loading, list, total, query,
@@ -166,10 +162,6 @@ function onDateChange(val: string[] | null) {
   else { query.txDateStart = ''; query.txDateEnd = '' }
 }
 
-function onSelectionChange(selection: any[]) {
-  selectedIds.value = selection.map(item => item.id)
-}
-
 function openAdd() {
   isEdit.value = false; dialogTitle.value = '新增'
   Object.assign(formData, { id: undefined, cardId: null, txType: 1, amount: 0, txDate: '', description: '', counterpart: '', remark: '' })
@@ -193,13 +185,6 @@ async function handleSubmit() {
 async function handleDelete(id: number) {
   await deleteTransactionApi(id)
   ElMessage.success('删除成功'); handleSearch()
-}
-
-async function handleBatchDelete() {
-  if (selectedIds.value.length === 0) return
-  await ElMessageBox.confirm(`确认删除选中的 ${selectedIds.value.length} 条流水？`, '批量删除', { type: 'warning' })
-  await batchDeleteTransactionApi(selectedIds.value)
-  ElMessage.success('批量删除成功'); selectedIds.value = []; handleSearch()
 }
 
 async function fetchCardOptions() {

@@ -26,36 +26,39 @@
       </div>
     </section>
 
-    <section class="toolbar-panel card-shell">
-      <div class="filter-main">
-        <div class="filter-title">筛选</div>
-        <el-select v-model="query.year" class="filter-item" placeholder="年份">
-          <el-option v-for="year in yearOptions" :key="year" :label="`${year}年`" :value="year" />
-        </el-select>
-        <el-select v-model="query.month" class="filter-item" placeholder="月份" clearable>
-          <el-option v-for="month in monthOptions" :key="month" :label="`${month}月`" :value="month" />
-        </el-select>
-        <el-select v-model="query.userId" class="filter-item filter-user" placeholder="全部用户" clearable filterable>
+    <section class="app-search-panel card-shell profit-search-panel">
+      <div class="app-search-main">
+        <div class="app-search-title">筛选</div>
+        <el-date-picker
+          v-model="profitMonthRange"
+          class="app-search-item app-search-item-range"
+          type="monthrange"
+          value-format="YYYY-MM"
+          range-separator="至"
+          start-placeholder="请选择收益统计开始时间"
+          end-placeholder="请选择收益统计结束时间"
+          :editable="false"
+          clearable
+        />
+        <el-select v-model="query.userId" class="app-search-item app-search-item-md" placeholder="请选择持卡人" clearable filterable>
           <el-option v-for="item in userOptions" :key="item.id" :label="item.name" :value="item.id" />
         </el-select>
-        <el-select v-model="query.cardId" class="filter-item filter-card" placeholder="全部银行卡" clearable filterable>
+        <el-select v-model="query.cardId" class="app-search-item app-search-item-lg" placeholder="请选择银行卡" clearable filterable>
           <el-option v-for="item in cardOptions" :key="item.id" :label="cardLabel(item)" :value="item.id" />
+        </el-select>
+        <el-select v-model="activeTab" class="app-search-item app-search-item-sm" placeholder="请选择收益类型">
+          <el-option label="按用户收益" value="users" />
+          <el-option label="按银行卡收益" value="cards" />
+          <el-option label="按月度汇总" value="months" />
         </el-select>
       </div>
 
-      <div class="toolbar-right">
-        <div class="view-switch">
-          <button
-            v-for="item in viewMenus"
-            :key="item.key"
-            type="button"
-            class="view-chip"
-            :class="{ active: activeTab === item.key }"
-            @click="switchView(item.key)"
-          >
-            <span class="view-chip-label">{{ item.label }}</span>
-            <span class="view-chip-count">{{ item.count }}</span>
-          </button>
+      <div class="app-search-extra">
+        <span class="app-search-meta">统计范围：{{ currentScopeLabel }}</span>
+        <span class="app-search-meta">{{ searchMetaText }}</span>
+        <span class="app-search-meta">筛选条件变化后自动刷新统计结果</span>
+        <div class="app-search-actions">
+          <el-button class="app-search-btn" @click="resetQuery">重置</el-button>
         </div>
       </div>
     </section>
@@ -234,7 +237,7 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'ProfitStats' })
-import { computed, watch, onActivated, onMounted, reactive, ref } from 'vue'
+import { computed, watch, onActivated, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Wallet, Money, CreditCard, TrendCharts, RefreshRight } from '@element-plus/icons-vue'
 import { getUserTreeApi, getCardListApi } from '@/api/card'
@@ -289,16 +292,37 @@ type ViewKey = 'users' | 'cards' | 'months'
 
 const router = useRouter()
 const currentYear = new Date().getFullYear()
-const yearOptions = Array.from({ length: 6 }, (_, index) => currentYear - 2 + index)
-const monthOptions = Array.from({ length: 12 }, (_, index) => index + 1)
+
+function createDebouncedTask(fn: () => void, delay = 300) {
+  let timer = 0
+  const run = () => {
+    if (timer) window.clearTimeout(timer)
+    timer = window.setTimeout(() => {
+      timer = 0
+      fn()
+    }, delay)
+  }
+  run.cancel = () => {
+    if (timer) {
+      window.clearTimeout(timer)
+      timer = 0
+    }
+  }
+  return run
+}
 
 const activeTab = ref<ViewKey>('users')
+const profitMonthRange = ref<[string, string] | null>(null)
 const overviewLoading = ref(false)
 const userLoading = ref(false)
 const cardLoading = ref(false)
 const monthLoading = ref(false)
 const userOptions = ref<OptionItem[]>([])
 const cardOptions = ref<OptionItem[]>([])
+const triggerProfitSearch = createDebouncedTask(() => {
+  void handleSearch()
+}, 300)
+let syncingProfitFilters = false
 
 const query = reactive({
   year: currentYear,
@@ -363,12 +387,6 @@ const summaryCards = computed(() => [
   }
 ])
 
-const viewMenus = computed(() => [
-  { key: 'users' as ViewKey, label: '按用户', count: userPage.total },
-  { key: 'cards' as ViewKey, label: '按银行卡', count: cardPage.total },
-  { key: 'months' as ViewKey, label: '月度汇总', count: monthList.value.length }
-])
-
 const activeViewTitle = computed(() => {
   if (activeTab.value === 'cards') return '银行卡收益明细'
   if (activeTab.value === 'months') return '月度收益汇总'
@@ -392,6 +410,8 @@ const activeViewCount = computed(() => {
   if (activeTab.value === 'months') return monthList.value.length
   return userPage.total
 })
+
+const searchMetaText = computed(() => `${activeViewTitle.value}共 ${activeViewCount.value} 条数据`)
 
 function buildParams(extra: Record<string, any> = {}) {
   return {
@@ -477,11 +497,15 @@ async function refresh() {
 }
 
 function resetQuery() {
+  triggerProfitSearch.cancel()
+  syncingProfitFilters = true
+  profitMonthRange.value = null
   query.year = currentYear
   query.month = undefined
   query.userId = undefined
   query.cardId = undefined
-  handleSearch()
+  syncingProfitFilters = false
+  void handleSearch()
 }
 
 function handleUserSizeChange(size: number) {
@@ -521,10 +545,6 @@ function openCardBills(row: CardProfitRow) {
   router.push({ path: '/bills', query: buildBillRouteQuery({ cardId: String(row.cardId) }) })
 }
 
-function switchView(key: ViewKey) {
-  activeTab.value = key
-}
-
 function formatMoney(value: number | string | null | undefined) {
   const amount = Number(value ?? 0)
   return amount.toLocaleString('zh-CN', {
@@ -543,9 +563,38 @@ onActivated(async () => {
   await handleSearch()
 })
 
-watch(query, () => {
-  handleSearch()
-}, { deep: true })
+onUnmounted(() => {
+  triggerProfitSearch.cancel()
+})
+
+watch(
+  profitMonthRange,
+  (range) => {
+    if (syncingProfitFilters) return
+    triggerProfitSearch.cancel()
+    syncingProfitFilters = true
+    if (range && range[0]) {
+      const [yearStr, monthStr] = range[0].split('-')
+      query.year = Number(yearStr)
+      query.month = Number(monthStr) || undefined
+    } else {
+      query.year = currentYear
+      query.month = undefined
+    }
+    syncingProfitFilters = false
+    triggerProfitSearch()
+  },
+  { flush: 'sync' }
+)
+
+watch(
+  () => [query.userId, query.cardId],
+  () => {
+    if (syncingProfitFilters) return
+    triggerProfitSearch()
+  },
+  { flush: 'sync' }
+)
 </script>
 
 <style scoped>
@@ -553,9 +602,9 @@ watch(query, () => {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin: -20px;
-  width: calc(100% + 40px);
-  height: calc(100% + 40px);
+  margin: 0;
+  width: 100%;
+  height: 100%;
   min-height: 0;
   padding: 8px;
   background: #f5f7fb;
@@ -667,99 +716,8 @@ watch(query, () => {
   text-overflow: ellipsis;
 }
 
-.toolbar-panel {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 8px 10px;
+.profit-search-panel {
   flex-shrink: 0;
-}
-
-.filter-main {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  flex-wrap: wrap;
-}
-
-.filter-title {
-  padding: 0 2px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #526074;
-  white-space: nowrap;
-}
-
-.filter-item {
-  width: 98px;
-}
-
-.filter-user {
-  width: 148px;
-}
-
-.filter-card {
-  width: 220px;
-}
-
-.filter-main :deep(.el-input__wrapper),
-.filter-main :deep(.el-select__wrapper) {
-  min-height: 30px;
-}
-
-.toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.view-switch {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.view-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 12px;
-  border: 1px solid #dde5ef;
-  border-radius: 999px;
-  background: #f8fafc;
-  color: #526074;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.view-chip:hover {
-  border-color: #b8c7da;
-  background: #f2f6fb;
-}
-
-.view-chip.active {
-  border-color: #b4ceff;
-  background: #eaf2ff;
-  color: #0958d9;
-}
-
-.view-chip-label {
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.view-chip-count {
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: rgba(9, 88, 217, 0.1);
-  font-size: 11px;
-  line-height: 18px;
 }
 
 .content-grid {

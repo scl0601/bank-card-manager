@@ -123,6 +123,7 @@ defineExpose({
   tableRef,
   clearSelection: () => tableRef.value?.clearSelection(),
   toggleRowSelection: (row: any, selected?: boolean) => tableRef.value?.toggleRowSelection(row, selected),
+  toggleRowExpansion: (row: any, expanded?: boolean) => tableRef.value?.toggleRowExpansion(row, expanded),
   toggleAllSelection: () => tableRef.value?.toggleAllSelection(),
   setCurrentRow: (row: any) => tableRef.value?.setCurrentRow(row),
   clearSort: () => tableRef.value?.clearSort(),

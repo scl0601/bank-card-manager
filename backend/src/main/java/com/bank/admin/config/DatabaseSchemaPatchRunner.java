@@ -27,6 +27,7 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         ensurePatchHistoryTable();
         ensureBankCardColumns();
+        alignBankCardExpireDateColumn();
         ensureCardBillColumns();
         migrateLegacyFeeRateData();
         alignFeeRateColumns();
@@ -94,6 +95,11 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
         );
         ensureColumnExists(
                 "card_bill",
+                "fee_paid",
+                "ALTER TABLE `card_bill` ADD COLUMN `fee_paid` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '手续费是否已支付' AFTER `fee_amount`"
+        );
+        ensureColumnExists(
+                "card_bill",
                 "pos_cost_amount",
                 "ALTER TABLE `card_bill` ADD COLUMN `pos_cost_amount` DECIMAL(18,2) DEFAULT 0.00 COMMENT 'POS机使用成本' AFTER `fee_amount`"
         );
@@ -102,6 +108,20 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
                 "net_profit",
                 "ALTER TABLE `card_bill` ADD COLUMN `net_profit` DECIMAL(18,2) DEFAULT 0.00 COMMENT '本期净利润' AFTER `pos_cost_amount`"
         );
+    }
+
+    private void alignBankCardExpireDateColumn() {
+        if (!columnExists("bank_card", "expire_date")) {
+            return;
+        }
+        Integer maxLength = jdbcTemplate.queryForObject(
+                "SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'bank_card' AND COLUMN_NAME = 'expire_date'",
+                Integer.class
+        );
+        if (maxLength != null && maxLength < 32) {
+            jdbcTemplate.execute("ALTER TABLE `bank_card` MODIFY COLUMN `expire_date` VARCHAR(32) DEFAULT NULL COMMENT '有效期（原样保存用户输入）'");
+            log.info("已放宽银行卡有效期字段长度: bank_card.expire_date");
+        }
     }
 
     private void migrateLegacyFeeRateData() {

@@ -22,21 +22,25 @@ public interface CardBillMapper extends BaseMapper<CardBill> {
     IPage<CardBillVO> selectPageWithInfo(
             Page<CardBillVO> page,
             @Param("cardId") Long cardId,
+            @Param("cardIds") List<Long> cardIds,
             @Param("ownerId") Long ownerId,
             @Param("cardName") String cardName,
             @Param("billMonth") String billMonth,
             @Param("year") Integer year,
             @Param("status") Integer status,
+            @Param("feePaid") Boolean feePaid,
             @Param("currentMonth") String currentMonth
     );
 
     CardBillOverviewVO selectOverview(
             @Param("cardId") Long cardId,
+            @Param("cardIds") List<Long> cardIds,
             @Param("ownerId") Long ownerId,
             @Param("cardName") String cardName,
             @Param("billMonth") String billMonth,
             @Param("year") Integer year,
-            @Param("status") Integer status
+            @Param("status") Integer status,
+            @Param("feePaid") Boolean feePaid
     );
 
     /**

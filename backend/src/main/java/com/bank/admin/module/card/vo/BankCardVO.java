@@ -34,6 +34,9 @@ public class BankCardVO {
     @Schema(description = "卡片归属人关系")
     private String ownerRelation;
 
+    @Schema(description = "卡片归属人姓名（可选）")
+    private String ownerName;
+
     @Schema(description = "卡片类型：1借记卡 2信用卡")
     private Integer cardType;
 
@@ -58,7 +61,7 @@ public class BankCardVO {
     @Schema(description = "还款日")
     private Integer repayDay;
 
-    @Schema(description = "有效期截止")
+    @Schema(description = "有效期截止（原样展示用户输入）")
     private String expireDate;
 
     @Schema(description = "状态：0正常 1冻结 2注销")

@@ -1144,8 +1144,6 @@ const relDateClass = computed(()=>{
   if(diff===0)return'rel-today'; return diff>0?'rel-future':'rel-past'
 })
 const totalEvents = computed(()=>stats.value.todoCount+stats.value.doingCount+stats.value.doneCount+stats.value.cancelledCount)
-const activeMonthFilterLabel = computed(() => statusFilterOptions.find(item => item.value === moFilterStatus.value)?.label || '')
-const monthDonePercent = computed(() => monthPrintStats.value.total ? Math.round((monthPrintStats.value.doneCount / monthPrintStats.value.total) * 100) : 0)
 function statPercent(type:'todo'|'doing'|'done'|'cancelled'):number {
 
   const total=totalEvents.value; if(!total)return 0

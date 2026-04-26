@@ -27,6 +27,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 import java.io.OutputStream;
 import java.math.BigDecimal;
@@ -38,6 +39,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 账单 ServiceImpl（含自动生成年账单、账单日/还款日联动、收益计算）
@@ -60,14 +62,17 @@ public class CardBillServiceImpl
     public PageResult<CardBillVO> page(CardBillQueryDTO query) {
         Page<CardBillVO> page = new Page<>(query.getCurrent(), query.getSize());
         String currentMonth = YearMonth.now().format(MONTH_FMT);
+        List<Long> cardIds = parseCardIds(query.getCardIds());
         Page<CardBillVO> result = (Page<CardBillVO>) baseMapper.selectPageWithInfo(
                 page,
                 query.getCardId(),
+                cardIds,
                 query.getOwnerId(),
                 query.getCardName(),
                 query.getBillMonth(),
                 query.getYear(),
                 query.getStatus(),
+                query.getFeePaid(),
                 currentMonth);
         result.getRecords().forEach(this::fillStatusDesc);
         return PageResult.of(result);
@@ -75,13 +80,16 @@ public class CardBillServiceImpl
 
     @Override
     public CardBillOverviewVO overview(CardBillQueryDTO query) {
+        List<Long> cardIds = parseCardIds(query.getCardIds());
         CardBillOverviewVO overview = baseMapper.selectOverview(
                 query.getCardId(),
+                cardIds,
                 query.getOwnerId(),
                 query.getCardName(),
                 query.getBillMonth(),
                 query.getYear(),
-                query.getStatus());
+                query.getStatus(),
+                query.getFeePaid());
         if (overview == null) {
             overview = new CardBillOverviewVO();
         }
@@ -100,6 +108,25 @@ public class CardBillServiceImpl
         overview.setTotalPosCostAmount(scaleMoney(overview.getTotalPosCostAmount()));
         overview.setTotalNetProfit(scaleMoney(overview.getTotalNetProfit()));
         return overview;
+    }
+
+    private List<Long> parseCardIds(String rawCardIds) {
+        if (!StringUtils.hasText(rawCardIds)) {
+            return List.of();
+        }
+        return List.of(rawCardIds.split(",")).stream()
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .map(value -> {
+                    try {
+                        return Long.valueOf(value);
+                    } catch (NumberFormatException ignored) {
+                        return null;
+                    }
+                })
+                .filter(id -> id != null && id > 0)
+                .distinct()
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -127,6 +154,7 @@ public class CardBillServiceImpl
         CardBill entity = new CardBill();
         BeanUtils.copyProperties(dto, entity);
         entity.setBillAmount(scaleMoney(dto.getBillAmount()));
+        entity.setFeePaid(Boolean.TRUE.equals(dto.getFeePaid()));
         applyOwnerInfo(entity, card.getUserId());
         entity.setBillDay(dto.getBillDay() != null ? dto.getBillDay() : card.getBillDay());
         applyFeeAndRepayInfo(entity, dto, card);
@@ -157,6 +185,9 @@ public class CardBillServiceImpl
         entity.setBillAmount(scaleMoney(dto.getBillAmount()));
         entity.setMinPayAmount(dto.getMinPayAmount());
         entity.setRemark(dto.getRemark());
+        if (dto.getFeePaid() != null) {
+            entity.setFeePaid(dto.getFeePaid());
+        }
         entity.setBillDay(dto.getBillDay() != null ? dto.getBillDay() : (entity.getBillDay() != null ? entity.getBillDay() : card.getBillDay()));
         if (dto.getActualPayAmount() != null) {
             entity.setActualPayAmount(scaleMoney(dto.getActualPayAmount()));
@@ -308,6 +339,7 @@ public class CardBillServiceImpl
         heads.add(List.of("代还金额"));
         heads.add(List.of("手续费率"));
         heads.add(List.of("手续费收入"));
+        heads.add(List.of("手续费状态"));
         heads.add(List.of("POS成本"));
         heads.add(List.of("净利润"));
         heads.add(List.of("还款日"));
@@ -324,6 +356,7 @@ public class CardBillServiceImpl
             row.add(defaultZero(vo.getBillAmount()).toString());
             row.add(formatRatePercent(vo.getFeeRate()));
             row.add(defaultZero(vo.getFeeAmount()).toString());
+            row.add(Boolean.TRUE.equals(vo.getFeePaid()) ? "已付" : "未付");
             row.add(defaultZero(vo.getPosCostAmount()).toString());
             row.add(defaultZero(vo.getNetProfit()).toString());
             row.add(vo.getRepayDate());
@@ -383,6 +416,7 @@ public class CardBillServiceImpl
                 bill.setRemark(null);
                 bill.setFeeRate(normalizedFeeRate);
                 bill.setFeeAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+                bill.setFeePaid(false);
                 bill.setPosCostAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
                 bill.setNetProfit(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
                 refreshBillState(bill);

@@ -70,10 +70,54 @@
       </div>
     </div>
 
+    <div class="app-search-panel card-shell card-search-panel">
+      <div class="app-search-main">
+        <div class="app-search-title">筛选</div>
+        <el-input
+          v-model="query.bankName"
+          class="app-search-item app-search-item-lg"
+          placeholder="请输入开户行名称查询"
+          clearable
+          maxlength="30"
+        />
+        <el-input
+          v-model="query.cardNoLast4"
+          class="app-search-item app-search-item-md"
+          placeholder="请输入银行卡完整卡号或关键词查询"
+          clearable
+          maxlength="19"
+        />
+        <el-select
+          v-model="query.status"
+          class="app-search-item app-search-item-sm"
+          placeholder="请选择银行卡状态"
+          clearable
+        >
+          <el-option v-for="item in CARD_STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+        </el-select>
+        <el-select
+          v-model="query.cardType"
+          class="app-search-item app-search-item-sm"
+          placeholder="请选择银行卡类型"
+          clearable
+        >
+          <el-option v-for="item in CARD_TYPE_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+        </el-select>
+      </div>
+
+      <div class="app-search-extra">
+        <span class="app-search-meta">当前共 {{ baseStats.cardCount }} 张银行卡，涉及 {{ baseStats.userCount }} 位持卡人</span>
+        <span class="app-search-meta">支持按开户行、卡号关键词、状态和银行卡类型筛选，条件变化后自动刷新</span>
+        <div class="app-search-actions">
+          <el-button class="app-search-btn" @click="handleCardReset">重置</el-button>
+        </div>
+      </div>
+    </div>
+
     <div class="main-body">
       <div class="cards-grid">
         <!-- 持卡人信息 -->
-        <section class="panel is-users" v-loading="loadingGroups">
+        <section class="panel is-users" v-loading="groupsVisibleLoading">
           <div class="panel-head">
             <div class="panel-title"><span class="panel-dot"></span>持卡人信息</div>
             <div class="panel-actions">
@@ -194,7 +238,7 @@
                     <div v-else class="list-item placeholder" aria-hidden="true"></div>
                   </template>
 
-                  <div v-if="!loadingGroups && filteredGroupList.length === 0" class="empty-hint">暂无主用户</div>
+                  <div v-if="groupsReady && !loadingGroups && filteredGroupList.length === 0" class="empty-hint">暂无主用户</div>
                 </div>
               </div>
 
@@ -240,7 +284,7 @@
                   </div>
                 </div>
 
-                <div class="child-list" v-loading="userTreeLoading">
+                <div class="child-list" v-loading="userTreeVisibleLoading">
                   <template v-if="activeUserId && activeUserId > 0">
                     <template v-for="(cu, idx) in pagedChildUsersFilled" :key="cu?.id ?? `c-ph-${idx}`">
                       <button
@@ -267,7 +311,7 @@
                       <div v-else class="list-item child-item placeholder" aria-hidden="true"></div>
                     </template>
 
-                    <div v-if="!userTreeLoading && activeChildUsers.length === 0" class="empty-hint">暂无子用户</div>
+                    <div v-if="userTreeLoaded && !userTreeLoading && activeChildUsers.length === 0" class="empty-hint">暂无子用户</div>
                   </template>
                   <div v-else class="empty-hint">选择持卡人查看子用户</div>
                 </div>
@@ -300,7 +344,7 @@
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
               </button>
-              <button class="icon-btn" @click="openBillsPage" :disabled="!activeCardId" title="查看账单">
+              <button class="icon-btn" @click="openUserBillsPage" :disabled="!canOpenUserBills" title="当前用户全部账单">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                   <polyline points="14 2 14 8 20 8" />
@@ -349,7 +393,11 @@
                         <span class="muted"> {{ maskCardNo(c.cardNoLast4) }}</span>
                       </div>
                       <div class="li-sub">
+                        <span class="holder-chip" :title="cardHolderTooltip(c)">持卡人 {{ cardHolderName(c) }}</span>
+                        <i class="sub-divider"></i>
                         <span class="muted">{{ CARD_TYPE_MAP[c.cardType] || '-' }}</span>
+                        <i class="sub-divider"></i>
+                        <span>有效期 {{ c.expireDate || '—' }}</span>
                         <i class="sub-divider"></i>
                         <template v-if="c.cardType === CARD_TYPE_VALUE.CREDIT">
                           <span v-if="c.billDay">账单日 {{ c.billDay }}日</span>
@@ -371,6 +419,14 @@
                       <span class="amt-value font-mono">{{ formatMoneySafe(c.cardType === CARD_TYPE_VALUE.CREDIT ? c.creditLimit : c.balance) }}</span>
                     </div>
                     <div class="li-actions">
+                      <button class="mini-icon" @click.stop="openCardBillsPage(c)" title="详情">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <polyline points="14 2 14 8 20 8" />
+                          <line x1="16" y1="13" x2="8" y2="13" />
+                          <line x1="16" y1="17" x2="8" y2="17" />
+                        </svg>
+                      </button>
                       <button class="mini-icon" @click.stop="openEditCard(c)" title="编辑">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                           <path d="M12 20h9" />
@@ -401,76 +457,24 @@
           </div>
         </section>
 
-        <!-- 账单明细 -->
-        <section class="panel">
+        <!-- 账单明细 / 收益统计 -->
+        <section class="panel is-bill-profit">
           <div class="panel-head">
-            <div class="panel-title"><span class="panel-dot is-warning"></span>账单明细</div>
+            <div class="panel-title"><span class="panel-dot is-warning"></span>账单明细 / 收益统计</div>
             <div class="panel-actions">
-              <span class="panel-meta">{{ currentYear }}年</span>
-              <button class="icon-btn" @click="openBillsPage" :disabled="!activeCardId" title="全部账单">
+              <span class="panel-meta">{{ scopedCardLabel }}</span>
+              <el-select v-model="billFilter.year" class="mini-filter year-filter" placeholder="年份">
+                <el-option v-for="year in yearOptions" :key="year" :label="`${year}年`" :value="year" />
+              </el-select>
+              <el-select v-model="billFilter.month" class="mini-filter month-filter" placeholder="全年" clearable>
+                <el-option v-for="month in monthOptions" :key="month" :label="`${month}月`" :value="month" />
+              </el-select>
+              <button class="icon-btn" @click="openFilteredBillsPage" :disabled="!canOpenScopedBills" title="账单详情">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="9 18 15 12 9 6" />
                 </svg>
               </button>
-            </div>
-          </div>
-
-          <div class="panel-body">
-            <div class="mini-stats mini-stats-4" v-loading="billOverviewLoading">
-              <div class="mini-stat">
-                <span class="ms-label">账单数</span>
-                <span class="ms-value">{{ billOverview.billCount }}</span>
-              </div>
-              <div class="mini-stat">
-                <span class="ms-label">待还</span>
-                <span class="ms-value warn">{{ billOverview.pendingCount }}</span>
-              </div>
-              <div class="mini-stat">
-                <span class="ms-label">逾期</span>
-                <span class="ms-value danger">{{ billOverview.overdueCount }}</span>
-              </div>
-              <div class="mini-stat">
-                <span class="ms-label">代还总额</span>
-                <span class="ms-value font-mono">¥{{ formatMoneySafe(billOverview.totalBillAmount) }}</span>
-              </div>
-            </div>
-
-            <div class="bill-list" v-loading="recentBillsLoading">
-              <template v-if="recentBills.length">
-                <div v-for="b in recentBills" :key="b.id" class="bill-item">
-                  <div class="bill-left">
-                    <div class="bill-month">{{ b.billMonth }}</div>
-                    <div class="bill-sub">
-                      <span v-if="b.repayDate" class="muted">还款日 {{ fmtRepayDate(b.repayDate) }}</span>
-                      <span v-else class="muted">—</span>
-                    </div>
-                  </div>
-                  <div class="bill-mid">
-                    <StatusTag :value="b.status" :label-map="BILL_STATUS_MAP" :type-map="BILL_STATUS_TAG_TYPE" size="small" effect="light" />
-                  </div>
-                  <div class="bill-right">
-                    <span class="bill-amt font-mono">¥{{ formatMoneySafe(b.billAmount) }}</span>
-                  </div>
-                </div>
-              </template>
-              <div v-else class="empty-hint">
-                <div v-if="!activeCardId">请选择一张银行卡查看账单</div>
-                <div v-else>暂无账单记录</div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- 收益统计 -->
-        <section class="panel">
-          <div class="panel-head">
-            <div class="panel-title"><span class="panel-dot is-success"></span>收益统计</div>
-            <div class="panel-actions">
-              <div class="scope-switch">
-                <button :class="['chip', 'sm', { active: profitScope === 'month' }]" @click="profitScope = 'month'">本月</button>
-                <button :class="['chip', 'sm', { active: profitScope === 'year' }]" @click="profitScope = 'year'">本年</button>
-              </div>
-              <button class="icon-btn" @click="goProfits" title="收益详情">
+              <button class="icon-btn" @click="goProfits" :disabled="!canOpenScopedBills" title="收益详情">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="3 17 9 11 13 15 21 7" />
                   <polyline points="14 7 21 7 21 14" />
@@ -479,31 +483,92 @@
             </div>
           </div>
 
-          <div class="panel-body" v-loading="profitLoading">
-            <div class="profit-kpi">
-              <div class="pk-label">{{ profitScopeLabel }}</div>
-              <div class="pk-value" :class="Number(profitOverview.totalNetProfit || 0) >= 0 ? 'pos' : 'neg'">
-                ¥{{ formatMoneySafe(profitOverview.totalNetProfit) }}
-              </div>
-              <div class="pk-sub">手续费收入 - POS成本</div>
-            </div>
+          <div class="panel-body">
+            <div class="bill-profit-grid">
+              <div class="bill-profit-block">
+                <div class="block-head">
+                  <span>账单明细</span>
+                  <strong>{{ billFilterLabel }}</strong>
+                </div>
 
-            <div class="profit-grid">
-              <div class="profit-metric">
-                <span class="pm-label">手续费收入</span>
-                <span class="pm-value pos font-mono">¥{{ formatMoneySafe(profitOverview.totalFeeAmount) }}</span>
+                <div class="mini-stats mini-stats-4" v-loading="billOverviewVisibleLoading">
+                  <div class="mini-stat">
+                    <span class="ms-label">账单数</span>
+                    <span class="ms-value">{{ billOverview.billCount }}</span>
+                  </div>
+                  <div class="mini-stat">
+                    <span class="ms-label">待还</span>
+                    <span class="ms-value warn">{{ billOverview.pendingCount }}</span>
+                  </div>
+                  <div class="mini-stat">
+                    <span class="ms-label">逾期</span>
+                    <span class="ms-value danger">{{ billOverview.overdueCount }}</span>
+                  </div>
+                  <div class="mini-stat">
+                    <span class="ms-label">代还总额</span>
+                    <span class="ms-value font-mono">¥{{ formatMoneySafe(billOverview.totalBillAmount) }}</span>
+                  </div>
+                </div>
+
+                <div class="bill-list" v-loading="recentBillsVisibleLoading">
+                  <template v-if="recentBills.length">
+                    <div v-for="b in recentBills" :key="b.id" class="bill-item" :class="{ current: b.billMonth === currentBillMonth }">
+                      <div class="bill-left">
+                        <div class="bill-month">{{ b.billMonth }}</div>
+                        <div class="bill-sub">
+                          <span>{{ billCardLabel(b) }}</span>
+                          <i class="sub-divider"></i>
+                          <span v-if="b.repayDate" class="muted">还款日 {{ fmtRepayDate(b.repayDate) }}</span>
+                          <span v-else class="muted">—</span>
+                        </div>
+                      </div>
+                      <div class="bill-mid">
+                        <StatusTag :value="b.status" :label-map="BILL_STATUS_MAP" :type-map="BILL_STATUS_TAG_TYPE" size="small" effect="light" />
+                      </div>
+                      <div class="bill-right">
+                        <span class="bill-amt font-mono">¥{{ formatMoneySafe(b.billAmount) }}</span>
+                      </div>
+                    </div>
+                  </template>
+                  <div v-else-if="recentBillsReady" class="empty-hint">
+                    <div v-if="!scopedCardIds.length">当前银行卡格子暂无数据</div>
+                    <div v-else>暂无账单记录</div>
+                  </div>
+                </div>
               </div>
-              <div class="profit-metric">
-                <span class="pm-label">POS成本</span>
-                <span class="pm-value neg font-mono">¥{{ formatMoneySafe(profitOverview.totalPosCostAmount) }}</span>
-              </div>
-              <div class="profit-metric">
-                <span class="pm-label">代还金额</span>
-                <span class="pm-value font-mono">¥{{ formatMoneySafe(profitOverview.totalBillAmount) }}</span>
+
+              <div class="bill-profit-block" v-loading="profitVisibleLoading">
+                <div class="block-head">
+                  <span>收益统计</span>
+                  <strong>{{ profitScopeLabel }}</strong>
+                </div>
+
+                <div class="profit-kpi">
+                  <div class="pk-label">净利润</div>
+                  <div class="pk-value" :class="Number(profitOverview.totalNetProfit || 0) >= 0 ? 'pos' : 'neg'">
+                    ¥{{ formatMoneySafe(profitOverview.totalNetProfit) }}
+                  </div>
+                  <div class="pk-sub">手续费收入 - POS成本</div>
+                </div>
+
+                <div class="profit-grid">
+                  <div class="profit-metric">
+                    <span class="pm-label">手续费收入</span>
+                    <span class="pm-value pos font-mono">¥{{ formatMoneySafe(profitOverview.totalFeeAmount) }}</span>
+                  </div>
+                  <div class="profit-metric">
+                    <span class="pm-label">POS成本</span>
+                    <span class="pm-value neg font-mono">¥{{ formatMoneySafe(profitOverview.totalPosCostAmount) }}</span>
+                  </div>
+                  <div class="profit-metric">
+                    <span class="pm-label">代还金额</span>
+                    <span class="pm-value font-mono">¥{{ formatMoneySafe(profitOverview.totalBillAmount) }}</span>
+                  </div>
+                </div>
+
+                <div class="panel-hint">统计范围：银行卡管理格子内 {{ scopedCardIds.length }} 张卡</div>
               </div>
             </div>
-
-            <div class="panel-hint" v-if="activeCard">当前卡片：{{ activeCard.bankName }} {{ maskCardNo(activeCard.cardNoLast4) }}</div>
           </div>
         </section>
       </div>
@@ -523,9 +588,9 @@
       <template #default="{ form }">
         <el-form-item label="用户" prop="userId">
           <el-select v-model="form.userId" placeholder="选择用户" clearable filterable style="width:100%">
-            <el-option v-for="u in userOptions" :key="u.id" :label="u.name" :value="u.id">
+            <el-option v-for="u in userOptions" :key="u.id" :label="u.displayName" :value="u.id">
               <div class="user-opt">
-                <span>{{ u.name }}</span>
+                <span>{{ u.displayName }}</span>
                 <el-tag v-if="!u.parentId" size="small" type="" effect="light" round style="margin-left:6px">主账户</el-tag>
                 <el-tag v-else size="small" type="info" effect="plain" round style="margin-left:6px">子用户</el-tag>
               </div>
@@ -570,12 +635,12 @@
           </el-form-item>
         </template>
         <el-form-item label="有效期">
-          <el-input v-model="form.expireDate" placeholder="格式：2028-06" />
+          <el-input v-model="form.expireDate" placeholder="月/年，如：06/28、06-28、06月28年" />
         </el-form-item>
         <el-form-item label="还款方式" prop="repayMethod">
           <el-radio-group v-model="form.repayMethod">
             <el-radio value="cloudpay">云闪付</el-radio>
-            <el-radio value="invoice">开票</el-radio>
+            <el-radio value="invoice">POS机</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item v-if="form.repayMethod === 'cloudpay'" label="是否核实">
@@ -596,7 +661,7 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'Cards' })
-import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onActivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import CrudDialog from '@/components/CrudDialog/index.vue'
@@ -608,8 +673,7 @@ import {
   deleteCardApi,
   getUserTreeApi
 } from '@/api/card'
-import { getBillOverviewApi, getBillPageApi } from '@/api/bill'
-import { getProfitOverviewApi } from '@/api/profit'
+import { getBillPageApi } from '@/api/bill'
 import { formatMoney, formatRate, maskCardNo, maskPhone } from '@/utils/formatters'
 import {
   BILL_STATUS_MAP,
@@ -635,9 +699,16 @@ interface UserGroup {
 interface BillRow {
   id: number
   cardId: number
+  ownerId?: number
+  bankName?: string
+  cardNoLast4?: string
+  ownerName?: string
   billMonth: string
   repayDate: string | null
   billAmount: number | null
+  feeAmount?: number | null
+  posCostAmount?: number | null
+  netProfit?: number | null
   status: number
 }
 
@@ -673,6 +744,27 @@ interface UserTreeNode {
 const router = useRouter()
 const currentYear = new Date().getFullYear()
 const currentMonth = new Date().getMonth() + 1
+const currentBillMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}`
+const yearOptions = Array.from({ length: 6 }, (_, index) => currentYear - 2 + index)
+const monthOptions = Array.from({ length: 12 }, (_, index) => index + 1)
+
+function createDebouncedTask(fn: () => void, delay = 300) {
+  let timer = 0
+  const run = () => {
+    if (timer) window.clearTimeout(timer)
+    timer = window.setTimeout(() => {
+      timer = 0
+      fn()
+    }, delay)
+  }
+  run.cancel = () => {
+    if (timer) {
+      window.clearTimeout(timer)
+      timer = 0
+    }
+  }
+  return run
+}
 
 // ====== 顶部筛选 ======
 const keyword = ref('')
@@ -680,15 +772,30 @@ const searchFocused = ref(false)
 const query = reactive({
   bankName: '',
   cardNoLast4: '',
-  cardType: undefined as number | undefined
+  cardType: undefined as number | undefined,
+  status: undefined as number | undefined
 })
 
 // ====== 列表数据 ======
 const loadingGroups = ref(false)
 const groupList = ref<UserGroup[]>([])
+const groupsReady = ref(false)
 const activeUserId = ref<number | null>(null)
 const activeCardId = ref<number | null>(null)
 const activeOwnerId = ref<number | null>(null)
+const hasActivatedOnce = ref(false)
+const groupsFetchedAt = ref(0)
+const userTreeFetchedAt = ref(0)
+const VIEW_CACHE_TTL = 30 * 1000
+
+let groupsLoadingPromise: Promise<void> | null = null
+let groupsLoadingKey = ''
+let groupsRequestSeq = 0
+const groupsVisibleLoading = computed(() => loadingGroups.value && !groupsReady.value)
+const triggerGroupSearch = createDebouncedTask(() => {
+  fetchGroups({ silent: true })
+}, 300)
+let syncingKeywordQuery = false
 
 const userPageIndex = ref(0)
 const cardPageIndex = ref(0)
@@ -821,32 +928,43 @@ function clearUserKeyword() {
 const userTreeLoading = ref(false)
 const userTreeLoaded = ref(false)
 const topToChildrenMap = ref<Map<number, UserTreeNode[]>>(new Map())
+let userTreeLoadingPromise: Promise<void> | null = null
+const userTreeVisibleLoading = computed(() => userTreeLoading.value && !userTreeLoaded.value && activeChildUsers.value.length === 0)
 
-async function ensureUserTree(force = false) {
-  if (userTreeLoading.value) return
+async function ensureUserTree(force = false, silent = false) {
+  if (userTreeLoadingPromise) return userTreeLoadingPromise
   if (!force && userTreeLoaded.value) return
-  userTreeLoading.value = true
-  try {
-    const res: any = await getUserTreeApi()
-    const list = (res.data || []) as UserTreeNode[]
-    const childrenMap = new Map<number, UserTreeNode[]>()
 
-    for (const top of list) {
-      if (!top) continue
-      const children = (top.children || []).map(c => ({ ...c, parentId: Number(top.id) }))
-      childrenMap.set(Number(top.id), children)
+  const showLoading = !silent
+  if (showLoading) userTreeLoading.value = true
+
+  userTreeLoadingPromise = (async () => {
+    try {
+      const res: any = await getUserTreeApi()
+      const list = (res.data || []) as UserTreeNode[]
+      const childrenMap = new Map<number, UserTreeNode[]>()
+
+      for (const top of list) {
+        if (!top) continue
+        const children = (top.children || []).map(c => ({ ...c, parentId: Number(top.id) }))
+        childrenMap.set(Number(top.id), children)
+      }
+
+      topToChildrenMap.value = childrenMap
+      userTreeLoaded.value = true
+      userTreeFetchedAt.value = Date.now()
+      userTreeList.value = list
+    } catch {
+      topToChildrenMap.value = new Map()
+      userTreeLoaded.value = false
+      userTreeList.value = []
+    } finally {
+      if (showLoading) userTreeLoading.value = false
+      userTreeLoadingPromise = null
     }
+  })()
 
-    topToChildrenMap.value = childrenMap
-    userTreeLoaded.value = true
-    userTreeList.value = list
-  } catch {
-    topToChildrenMap.value = new Map()
-    userTreeLoaded.value = false
-    userTreeList.value = []
-  } finally {
-    userTreeLoading.value = false
-  }
+  return userTreeLoadingPromise
 }
 
 const activeChildUsers = computed<UserTreeNode[]>(() => {
@@ -912,9 +1030,28 @@ function childCardCount(childId: number) {
   return Number(count || 0)
 }
 
+function cardHolderName(card: any) {
+  return String(card?.userName || card?.ownerName || '未设置')
+}
+
+function cardHolderTooltip(card: any) {
+  const holder = cardHolderName(card)
+  const ownerName = card?.ownerName && card.ownerName !== holder ? `，归属人：${card.ownerName}` : ''
+  const relation = card?.ownerRelation ? `（${card.ownerRelation}）` : ''
+  return `持卡人：${holder}${ownerName}${relation}`
+}
+
 const canAddCardForUser = computed(() => {
   return !!activeUser.value && Number(activeUser.value.userId) > 0
 })
+
+const billScopeOwnerId = computed(() => {
+  const ownerId = activeOwnerId.value || activeUser.value?.userId
+  const normalized = Number(ownerId || 0)
+  return Number.isFinite(normalized) && normalized > 0 ? normalized : undefined
+})
+
+const canOpenUserBills = computed(() => !!billScopeOwnerId.value)
 
 // 主用户区域：3条/页更稳，且与子用户对称
 const USER_PAGE_SIZE = 3
@@ -976,14 +1113,28 @@ function formatMoneySafe(val: any) {
 
 function setCardType(type: number | undefined) {
   query.cardType = type
+}
+
+function handleCardReset() {
+  triggerGroupSearch.cancel()
+  syncingKeywordQuery = true
+  keyword.value = ''
+  query.bankName = ''
+  query.cardNoLast4 = ''
+  query.cardType = undefined
+  query.status = undefined
+  syncingKeywordQuery = false
   fetchGroups()
 }
 
 function applyKeyword() {
   const v = keyword.value.trim()
+  triggerGroupSearch.cancel()
+  syncingKeywordQuery = true
   if (!v) {
     query.bankName = ''
     query.cardNoLast4 = ''
+    syncingKeywordQuery = false
     fetchGroups()
     return
   }
@@ -994,13 +1145,17 @@ function applyKeyword() {
     query.bankName = v
     query.cardNoLast4 = ''
   }
-  fetchGroups()
+  syncingKeywordQuery = false
+  triggerGroupSearch()
 }
 
 function clearKeyword() {
+  triggerGroupSearch.cancel()
+  syncingKeywordQuery = true
   keyword.value = ''
   query.bankName = ''
   query.cardNoLast4 = ''
+  syncingKeywordQuery = false
   fetchGroups()
 }
 
@@ -1009,7 +1164,7 @@ function setActiveUser(userId: number) {
   activeOwnerId.value = null
   cardPageIndex.value = 0
   childPageIndex.value = 0
-  ensureUserTree()
+  ensureUserTree(false, true)
 }
 
 function setActiveChildUser(cu: any) {
@@ -1057,15 +1212,36 @@ function syncActiveSelection() {
   }
 }
 
-async function fetchGroups() {
-  loadingGroups.value = true
-  try {
-    const res: any = await getCardsGroupedByUserApi(query)
-    groupList.value = res.data || []
-    syncActiveSelection()
-  } finally {
-    loadingGroups.value = false
+async function fetchGroups(options: { silent?: boolean } = {}) {
+  const params = { ...query }
+  const requestKey = JSON.stringify(params)
+  if (groupsLoadingPromise && groupsLoadingKey === requestKey) {
+    return groupsLoadingPromise
   }
+
+  const requestSeq = ++groupsRequestSeq
+  const showLoading = !options.silent && !groupsReady.value
+  groupsLoadingKey = requestKey
+  if (showLoading) loadingGroups.value = true
+
+  groupsLoadingPromise = (async () => {
+    try {
+      const res: any = await getCardsGroupedByUserApi(params)
+      if (requestSeq !== groupsRequestSeq) return
+      groupList.value = res.data || []
+      groupsReady.value = true
+      groupsFetchedAt.value = Date.now()
+      syncActiveSelection()
+    } finally {
+      if (requestSeq === groupsRequestSeq) {
+        loadingGroups.value = false
+        groupsLoadingPromise = null
+        groupsLoadingKey = ''
+      }
+    }
+  })()
+
+  return groupsLoadingPromise
 }
 
 function refreshAll() {
@@ -1074,7 +1250,12 @@ function refreshAll() {
 }
 
 // ====== 账单模块 ======
+const billFilter = reactive({
+  year: currentYear,
+  month: currentMonth as number | undefined
+})
 const billOverviewLoading = ref(false)
+const billOverviewReady = ref(false)
 const billOverview = ref<BillOverview>({
   billCount: 0,
   pendingCount: 0,
@@ -1083,80 +1264,112 @@ const billOverview = ref<BillOverview>({
 })
 
 const recentBillsLoading = ref(false)
+const recentBillsReady = ref(false)
 const recentBills = ref<BillRow[]>([])
+let billScopeRequestSeq = 0
+const billOverviewVisibleLoading = computed(() => billOverviewLoading.value && !billOverviewReady.value)
+const recentBillsVisibleLoading = computed(() => recentBillsLoading.value && !recentBillsReady.value)
 
-async function fetchBillOverview() {
-  if (!activeCardId.value) {
-    billOverview.value = { billCount: 0, pendingCount: 0, overdueCount: 0, totalBillAmount: 0 }
-    return
-  }
+const scopedCardIds = computed(() => {
+  return pagedCards.value
+    .map((card: any) => Number(card?.id || 0))
+    .filter(id => Number.isFinite(id) && id > 0)
+})
 
-  billOverviewLoading.value = true
-  try {
-    const res: any = await getBillOverviewApi({
-      cardId: activeCardId.value,
-      ownerId: undefined,
-      cardName: '',
-      year: currentYear,
-      billMonth: '',
-      status: undefined
-    })
+const selectedBillMonth = computed(() => {
+  return billFilter.month ? `${billFilter.year}-${String(billFilter.month).padStart(2, '0')}` : ''
+})
 
-    billOverview.value = {
-      billCount: Number(res.data?.billCount ?? 0),
-      pendingCount: Number(res.data?.pendingCount ?? 0),
-      overdueCount: Number(res.data?.overdueCount ?? 0),
-      totalBillAmount: Number(res.data?.totalBillAmount ?? 0)
-    }
-  } finally {
-    billOverviewLoading.value = false
+const billFilterLabel = computed(() => {
+  return billFilter.month ? `${billFilter.year}年${billFilter.month}月` : `${billFilter.year}年全年`
+})
+
+const scopedCardLabel = computed(() => {
+  const count = scopedCardIds.value.length
+  return count ? `当前格子 ${count} 张卡` : '当前格子暂无卡片'
+})
+
+const canOpenScopedBills = computed(() => scopedCardIds.value.length > 0)
+
+function emptyBillOverview(): BillOverview {
+  return { billCount: 0, pendingCount: 0, overdueCount: 0, totalBillAmount: 0 }
+}
+
+function buildBillQueryParams() {
+  return {
+    cardIds: scopedCardIds.value.join(','),
+    ownerId: undefined,
+    cardName: '',
+    year: billFilter.year,
+    billMonth: selectedBillMonth.value || undefined,
+    status: undefined
   }
 }
 
-async function fetchRecentBills() {
-  if (!activeCardId.value) {
+function buildBillOverviewFromRows(list: BillRow[]): BillOverview {
+  return list.reduce((acc, item) => {
+    acc.billCount += 1
+    if (Number(item?.status) === 0) acc.pendingCount += 1
+    if (Number(item?.status) === 3) acc.overdueCount += 1
+    acc.totalBillAmount += Number(item?.billAmount ?? 0)
+    return acc
+  }, emptyBillOverview())
+}
+
+function billMonthOrder(row: BillRow) {
+  const match = String(row?.billMonth || '').match(/^(\d{4})-(\d{2})$/)
+  if (!match) return 999999
+  return Number(match[1]) * 100 + Number(match[2])
+}
+
+async function fetchBillScopeData(options: { silent?: boolean } = {}) {
+  const cardIds = scopedCardIds.value
+  const requestSeq = ++billScopeRequestSeq
+  if (!cardIds.length) {
+    billOverviewLoading.value = false
+    billOverview.value = emptyBillOverview()
     recentBills.value = []
+    recentBillsLoading.value = false
+    profitLoading.value = false
+    profitOverview.value = emptyProfitOverview()
+    billOverviewReady.value = groupsReady.value
+    recentBillsReady.value = groupsReady.value
+    profitReady.value = groupsReady.value
     return
   }
 
-  recentBillsLoading.value = true
+  const showLoading = !options.silent && (!billOverviewReady.value || !recentBillsReady.value || !profitReady.value)
+  if (showLoading) {
+    billOverviewLoading.value = true
+    recentBillsLoading.value = true
+    profitLoading.value = true
+  }
   try {
     const res: any = await getBillPageApi({
       current: 1,
-      size: 12,
-      cardId: activeCardId.value,
-      ownerId: undefined,
-      cardName: '',
-      year: currentYear,
-      billMonth: '',
-      status: undefined
+      size: 100,
+      ...buildBillQueryParams()
     })
-    recentBills.value = (res.data?.records || []) as BillRow[]
-
-    // 账单明细格子：仅展示本年；按“从本月开始依次往后”，不回绕到1月
-    const cur = `${currentYear}-${String(currentMonth).padStart(2, '0')}`
-    recentBills.value = recentBills.value
-      .filter(r => String(r?.billMonth || '').startsWith(`${currentYear}-`))
-      .filter(r => {
-        const m = String(r?.billMonth || '').match(/^(\d{4})-(\d{2})$/)
-        if (!m) return false
-        const mo = Number(m[2])
-        return Number.isFinite(mo) && mo >= currentMonth
-      })
-
-    recentBills.value.sort((a, b) => {
-      const aMonth = String(a?.billMonth || '')
-      const bMonth = String(b?.billMonth || '')
-
-      const aIsCur = aMonth === cur
-      const bIsCur = bMonth === cur
-      if (aIsCur && !bIsCur) return -1
-      if (!aIsCur && bIsCur) return 1
-
-      return aMonth.localeCompare(bMonth)
+    if (requestSeq !== billScopeRequestSeq) return
+    const records = ((res.data?.records || []) as BillRow[]).sort((a, b) => {
+      const monthDelta = billMonthOrder(a) - billMonthOrder(b)
+      if (monthDelta !== 0) return monthDelta
+      const aCard = `${a.bankName || ''}${a.cardNoLast4 || ''}`
+      const bCard = `${b.bankName || ''}${b.cardNoLast4 || ''}`
+      return aCard.localeCompare(bCard)
     })
+    recentBills.value = records
+    billOverview.value = buildBillOverviewFromRows(records)
+    profitOverview.value = buildProfitOverviewFromRows(records)
+    billOverviewReady.value = true
+    recentBillsReady.value = true
+    profitReady.value = true
   } finally {
-    recentBillsLoading.value = false
+    if (requestSeq === billScopeRequestSeq) {
+      billOverviewLoading.value = false
+      recentBillsLoading.value = false
+      profitLoading.value = false
+    }
   }
 }
 
@@ -1165,20 +1378,50 @@ function fmtRepayDate(date: string) {
   return match ? `${Number(match[2])}月${Number(match[3])}日` : date
 }
 
-function openBillsPage() {
-  if (!activeCardId.value) return
+function billCardLabel(row: BillRow) {
+  const card = `${row.bankName || ''}${row.cardNoLast4 ? ` ${maskCardNo(row.cardNoLast4)}` : ''}`.trim()
+  return card || `银行卡 ${row.cardId}`
+}
+
+function openUserBillsPage() {
+  if (!billScopeOwnerId.value) return
   router.push({
     path: '/bills',
-    query: { cardId: String(activeCardId.value), year: String(currentYear) }
+    query: { ownerId: String(billScopeOwnerId.value), year: String(currentYear) }
+  })
+}
+
+function openFilteredBillsPage() {
+  if (!scopedCardIds.value.length) return
+  const routeQuery: Record<string, string> = {
+    year: String(billFilter.year)
+  }
+  if (selectedBillMonth.value) {
+    routeQuery.billMonth = selectedBillMonth.value
+  }
+  if (scopedCardIds.value.length === 1) {
+    routeQuery.cardId = String(scopedCardIds.value[0])
+  } else if (billScopeOwnerId.value) {
+    routeQuery.ownerId = String(billScopeOwnerId.value)
+  }
+  router.push({ path: '/bills', query: routeQuery })
+}
+
+function openCardBillsPage(card: any) {
+  const cardId = Number(card?.id || 0)
+  if (!cardId) return
+  router.push({
+    path: '/bills',
+    query: { cardId: String(cardId), year: String(currentYear) }
   })
 }
 
 // ====== 收益模块 ======
-const profitScope = ref<'month' | 'year'>('month')
 const profitLoading = ref(false)
+const profitReady = ref(false)
 const profitOverview = ref<ProfitOverview>({
   year: currentYear,
-  month: undefined,
+  month: currentMonth,
   userCount: 0,
   cardCount: 0,
   totalBillAmount: 0,
@@ -1186,54 +1429,60 @@ const profitOverview = ref<ProfitOverview>({
   totalPosCostAmount: 0,
   totalNetProfit: 0
 })
+const profitVisibleLoading = computed(() => profitLoading.value && !profitReady.value)
 
 const profitScopeLabel = computed(() => {
-  return profitScope.value === 'month' ? `${currentYear}年${currentMonth}月` : `${currentYear}年`
+  return billFilterLabel.value
 })
 
-async function fetchProfitOverview() {
-  if (!activeCardId.value) {
-    profitOverview.value = {
-      year: currentYear,
-      month: undefined,
-      userCount: 0,
-      cardCount: 0,
-      totalBillAmount: 0,
-      totalFeeAmount: 0,
-      totalPosCostAmount: 0,
-      totalNetProfit: 0
-    }
-    return
-  }
-
-  profitLoading.value = true
-  try {
-    const res: any = await getProfitOverviewApi({
-      year: currentYear,
-      month: profitScope.value === 'month' ? currentMonth : undefined,
-      cardId: activeCardId.value,
-      userId: undefined
-    })
-
-    profitOverview.value = {
-      year: res.data?.year ?? currentYear,
-      month: res.data?.month,
-      userCount: Number(res.data?.userCount ?? 0),
-      cardCount: Number(res.data?.cardCount ?? 0),
-      totalBillAmount: Number(res.data?.totalBillAmount ?? 0),
-      totalFeeAmount: Number(res.data?.totalFeeAmount ?? 0),
-      totalPosCostAmount: Number(res.data?.totalPosCostAmount ?? 0),
-      totalNetProfit: Number(res.data?.totalNetProfit ?? 0)
-    }
-  } finally {
-    profitLoading.value = false
+function emptyProfitOverview(): ProfitOverview {
+  return {
+    year: billFilter.year,
+    month: billFilter.month,
+    userCount: 0,
+    cardCount: 0,
+    totalBillAmount: 0,
+    totalFeeAmount: 0,
+    totalPosCostAmount: 0,
+    totalNetProfit: 0
   }
 }
 
+function buildProfitOverviewFromRows(list: BillRow[]): ProfitOverview {
+  const ownerIds = new Set<number>()
+  for (const row of list) {
+    const ownerId = Number(row?.ownerId || 0)
+    if (ownerId > 0) ownerIds.add(ownerId)
+  }
+  return list.reduce((acc, item) => {
+    acc.totalBillAmount += Number(item?.billAmount ?? 0)
+    acc.totalFeeAmount += Number(item?.feeAmount ?? 0)
+    acc.totalPosCostAmount += Number(item?.posCostAmount ?? 0)
+    acc.totalNetProfit += Number(item?.netProfit ?? 0)
+    return acc
+  }, {
+    ...emptyProfitOverview(),
+    userCount: ownerIds.size,
+    cardCount: scopedCardIds.value.length
+  })
+}
+
 function goProfits() {
+  if (!scopedCardIds.value.length) return
+  const routeQuery: Record<string, string> = {
+    year: String(billFilter.year)
+  }
+  if (billFilter.month) {
+    routeQuery.month = String(billFilter.month)
+  }
+  if (scopedCardIds.value.length === 1) {
+    routeQuery.cardId = String(scopedCardIds.value[0])
+  } else if (activeUser.value?.userId) {
+    routeQuery.userId = String(activeUser.value.userId)
+  }
   router.push({
     path: '/profits',
-    query: activeCardId.value ? { cardId: String(activeCardId.value), year: String(currentYear) } : {}
+    query: routeQuery
   })
 }
 
@@ -1300,9 +1549,10 @@ async function openAddCardWithActiveUser() {
   dialogVisible.value = true
 }
 
-function openEditCard(row: any) {
+async function openEditCard(row: any) {
   isEdit.value = true
-  Object.assign(formData, row)
+  Object.assign(formData, row, { userId: Number(row?.userId || 0) || null })
+  await syncUserOptions()
   dialogVisible.value = true
 }
 
@@ -1396,16 +1646,22 @@ async function syncUserOptions() {
   }
 
   const flatUsers: any[] = []
-  function flatten(list: any[]) {
+  function flatten(list: any[], parentName = '') {
     for (const u of list) {
+      const isChild = !!u.parentId
+      const displayName = isChild && (u.parentName || parentName)
+        ? `${u.name}（${u.parentName || parentName}的子用户）`
+        : u.name
       flatUsers.push({
         id: u.id,
         name: u.name,
+        displayName,
         parentId: u.parentId,
+        parentName: u.parentName || parentName,
         status: u.status,
         effectiveFeeRate: u.effectiveFeeRate ?? u.feeRate ?? 0
       })
-      if (u.children) flatten(u.children)
+      if (u.children) flatten(u.children, u.name)
     }
   }
   flatten(userTreeList.value)
@@ -1417,8 +1673,19 @@ async function syncUserOptions() {
 watch(
   () => keyword.value,
   () => {
+    if (syncingKeywordQuery) return
     applyKeyword()
-  }
+  },
+  { flush: 'sync' }
+)
+
+watch(
+  () => [query.bankName, query.cardNoLast4, query.cardType, query.status],
+  () => {
+    if (syncingKeywordQuery) return
+    triggerGroupSearch()
+  },
+  { flush: 'sync' }
 )
 
 // ====== 联动刷新 ======
@@ -1429,7 +1696,7 @@ watch(
     if (!activeUser.value) return
     childPageIndex.value = 0
     if (activeUserId.value && activeUserId.value > 0) {
-      ensureUserTree()
+      ensureUserTree(false, true)
     }
     const cards = (activeUser.value.cards || []) as any[]
     if (!cards.length) {
@@ -1449,7 +1716,7 @@ watch(
   () => userKeyword.value,
   async () => {
     userPageIndex.value = 0
-    await ensureUserTree()
+    await ensureUserTree(false, true)
 
     const kw = userKeyword.value.trim()
     if (!kw) return
@@ -1475,22 +1742,33 @@ watch(
 )
 
 watch(
-  () => [activeCardId.value, profitScope.value],
+  () => [scopedCardIds.value.join(','), billFilter.year, billFilter.month],
   () => {
-    fetchBillOverview()
-    fetchRecentBills()
-    fetchProfitOverview()
+    fetchBillScopeData({ silent: true })
   },
   { immediate: true }
 )
 
 onMounted(() => {
-  fetchGroups()
+  fetchGroups({ silent: true })
+  ensureUserTree(false, true)
+})
+
+onUnmounted(() => {
+  triggerGroupSearch.cancel()
 })
 
 onActivated(() => {
-  fetchGroups()
-  ensureUserTree(true)
+  if (!hasActivatedOnce.value) {
+    hasActivatedOnce.value = true
+    return
+  }
+  if (!groupsReady.value || Date.now() - groupsFetchedAt.value > VIEW_CACHE_TTL) {
+    fetchGroups({ silent: true })
+  }
+  if (!userTreeLoaded.value || Date.now() - userTreeFetchedAt.value > VIEW_CACHE_TTL) {
+    ensureUserTree(false, true)
+  }
 })
 </script>
 
@@ -1513,12 +1791,13 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 .cards-page {
   display: flex;
   flex-direction: column;
-  margin: -20px;
-  width: calc(100% + 40px);
-  height: calc(100% + 40px);
+  margin: 0;
+  width: 100%;
+  height: 100%;
   min-height: 0;
   background: $bg;
   overflow: hidden;
+  box-sizing: border-box;
   outline: none;
 
   /* 局部覆盖主题色，保持与日历模块一致 */
@@ -1598,6 +1877,16 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+}
+
+.card-search-panel {
+  margin: 0 12px 10px;
+  flex-shrink: 0;
+}
+
+.search-box,
+.type-switch {
+  display: none !important;
 }
 
 .search-box {
@@ -1700,6 +1989,10 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   gap: 10px;
   padding: 10px 12px 12px;
   min-height: 0;
+}
+
+.panel.is-bill-profit {
+  grid-column: 1 / -1;
 }
 
 /* 持卡人信息面板：更紧凑，避免第4行裁切 */
@@ -1837,6 +2130,26 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   border-radius: 999px;
   background: rgba(148,163,184,.10);
   border: 1px solid rgba(219,226,234,.7);
+}
+
+.mini-filter {
+  width: 88px;
+}
+
+.year-filter {
+  width: 94px;
+}
+
+.mini-filter :deep(.el-select__wrapper) {
+  min-height: 28px;
+  border-radius: $rs;
+  box-shadow: 0 0 0 1px $border inset;
+}
+
+.mini-filter :deep(.el-select__placeholder),
+.mini-filter :deep(.el-select__selected-item) {
+  font-size: 11.5px;
+  font-weight: 700;
 }
 
 .panel-body {
@@ -2045,6 +2358,16 @@ button.list-item {
 .li-sub { font-size: 11.5px; color: $sub; display: flex; align-items: center; gap: 6px; min-width: 0; }
 .li-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
+.holder-chip {
+  max-width: 120px;
+  color: $primary;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
+}
+
 .li-avatar {
   width: 34px;
   height: 34px;
@@ -2224,8 +2547,42 @@ button.list-item {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
   overflow: hidden;
+}
+
+.bill-profit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.bill-profit-block {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: $sub;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.block-head strong {
+  color: $ink;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .bill-item {
@@ -2240,6 +2597,11 @@ button.list-item {
   min-width: 0;
 }
 
+.bill-item.current {
+  border-color: rgba($warning,.55);
+  background: linear-gradient(180deg, rgba(255,255,255,.99) 0%, rgba($warning,.08) 150%);
+}
+
 .bill-left,
 .bill-mid,
 .bill-right {
@@ -2247,7 +2609,23 @@ button.list-item {
 }
 
 .bill-month { font-size: 13px; font-weight: 900; color: $ink; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bill-sub { margin-top: 3px; font-size: 11.5px; color: $sub; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bill-sub {
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: $sub;
+  font-weight: 700;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.bill-sub span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .bill-right { text-align: right; }
 .bill-amt { font-size: 13px; font-weight: 900; color: $ink; }
 
@@ -2311,5 +2689,6 @@ button.list-item {
   .type-switch { display: none; }
   .bill-item { grid-template-columns: minmax(0, 1fr) 86px 110px; }
   .profit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bill-profit-grid { grid-template-columns: minmax(0, 1fr); }
 }
 </style>

@@ -51,13 +51,11 @@
       </header>
 
       <!-- 主内容 -->
-      <main class="content-area" :class="{ 'bill-content-area': isBillRoute }">
+      <main class="content-area" :class="{ 'dense-content-area': isDenseRoute }">
         <router-view v-slot="{ Component, route }">
-          <transition name="fade-slide" mode="out-in" appear>
-            <keep-alive :include="['Dashboard','Cards','CardUsers','Transactions','Books','Bills','ProfitStats','Reminders','Feedbacks','Calendar','Logs']">
-              <component :is="Component" :key="route.name || route.path" />
-            </keep-alive>
-          </transition>
+          <keep-alive :include="['Dashboard','Cards','CardUsers','Transactions','Books','Bills','ProfitStats','Reminders','Feedbacks','Calendar','Logs']">
+            <component :is="Component" :key="route.name || route.path" />
+          </keep-alive>
         </router-view>
       </main>
     </div>
@@ -95,7 +93,8 @@ const menuItems = [
 
 
 const activeMenu = computed(() => route.path)
-const isBillRoute = computed(() => route.name === 'Bills')
+const denseRouteNames = new Set(['Cards', 'CardUsers', 'Bills', 'ProfitStats'])
+const isDenseRoute = computed(() => denseRouteNames.has(String(route.name || '')))
 const currentTitle = computed(() =>
   menuItems.find(m => m.path === route.path)?.title || ''
 )
@@ -197,14 +196,17 @@ async function handleCommand(cmd: string) {
   background: var(--color-bg);
 }
 
-.content-area.bill-content-area {
+.content-area.dense-content-area {
   display: flex;
   min-height: 0;
   overflow: hidden;
   padding: 8px;
 }
 
-.content-area.bill-content-area :deep(.bill-page) {
+.content-area.dense-content-area :deep(.cards-page),
+.content-area.dense-content-area :deep(.card-user-page),
+.content-area.dense-content-area :deep(.bill-page),
+.content-area.dense-content-area :deep(.profit-page) {
   flex: 1;
   min-height: 0;
 }

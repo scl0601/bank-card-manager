@@ -49,7 +49,7 @@ public class BankCard extends BaseEntity {
     /** 还款日（每月几号，信用卡用） */
     private Integer repayDay;
 
-    /** 有效期截止（格式：YYYY-MM） */
+    /** 有效期截止（原样保存用户输入，如 06/28、06-28、06月28年） */
     private String expireDate;
 
     /**

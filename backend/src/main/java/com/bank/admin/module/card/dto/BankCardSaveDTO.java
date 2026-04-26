@@ -52,7 +52,7 @@ public class BankCardSaveDTO {
     @Schema(description = "还款日（每月几号）")
     private Integer repayDay;
 
-    @Schema(description = "有效期截止（格式：YYYY-MM）")
+    @Schema(description = "有效期截止（原样保存用户输入，如 06/28、06-28、06月28年）")
     private String expireDate;
 
     @Schema(description = "状态：0正常 1冻结 2注销")

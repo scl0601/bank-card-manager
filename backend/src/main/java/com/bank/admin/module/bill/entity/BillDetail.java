@@ -29,7 +29,7 @@ public class BillDetail extends BaseEntity {
     private BigDecimal amount;
 
     /**
-     * 明细类型：0=刷出 1=刷入
+     * 明细类型：0=支出 1=收入
      */
     private Integer detailType;
 

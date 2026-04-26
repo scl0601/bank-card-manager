@@ -250,12 +250,10 @@ const bankDistOption = computed(() => {
 
 // 账单状态映射
 function billStatusDesc(status: number) {
-  const map: Record<number, string> = { 0: '待还款', 1: '已还清', 2: '部分还款', 3: '逾期' }
-  return map[status] || '未知'
+  return BILL_STATUS_MAP[status] || '未知'
 }
 function billStatusTag(status: number) {
-  const map: Record<number, string> = { 0: 'warning', 1: 'success', 2: 'info', 3: 'danger' }
-  return map[status] || 'info'
+  return BILL_STATUS_TAG_TYPE[status] || 'info'
 }
 
 onMounted(async () => {

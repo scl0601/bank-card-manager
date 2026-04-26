@@ -27,26 +27,51 @@
       </div>
     </div>
 
-    <div class="filter-panel card-shell">
-      <div class="filter-main">
-        <div class="filter-title">筛选</div>
-        <el-select v-model="query.ownerId" class="filter-item filter-owner" placeholder="持卡人" clearable filterable :loading="ownerLoading" @focus="fetchOwners">
-          <el-option v-for="u in ownerOptions" :key="u.id" :label="u.name" :value="u.id" />
-        </el-select>
-        <el-input v-model="query.cardName" class="filter-item filter-card" placeholder="银行/尾号" clearable />
-        <el-select v-model="query.year" class="filter-item" placeholder="年份" clearable>
-          <el-option v-for="year in yearOptions" :key="year" :label="`${year}年`" :value="year" />
-        </el-select>
-        <el-date-picker v-model="query.billMonth" class="filter-item filter-month" type="month" value-format="YYYY-MM" placeholder="账单月份" clearable />
-        <el-select v-model="query.status" class="filter-item" placeholder="状态" clearable>
+    <div class="app-search-panel card-shell bill-search-panel">
+      <div class="app-search-main">
+        <div class="app-search-title">筛选</div>
+        <el-input
+          v-model="query.ownerName"
+          class="app-search-item app-search-item-md"
+          placeholder="请输入持卡人姓名模糊查询"
+          clearable
+          maxlength="20"
+        />
+        <el-input
+          v-model="query.cardName"
+          class="app-search-item app-search-item-lg"
+          placeholder="请输入开户行名称或银行卡尾号查询"
+          clearable
+          maxlength="30"
+        />
+        <el-date-picker
+          v-model="billMonthRange"
+          class="app-search-item app-search-item-range"
+          type="monthrange"
+          value-format="YYYY-MM"
+          range-separator="至"
+          start-placeholder="请选择账单生成开始时间"
+          end-placeholder="请选择账单生成结束时间"
+          :editable="false"
+          clearable
+        />
+        <el-select v-model="query.status" class="app-search-item app-search-item-sm" placeholder="请选择账单状态" clearable>
           <el-option v-for="item in BILL_STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
         </el-select>
-        <el-button class="action-btn" @click="handleResetAll">重置</el-button>
+        <el-select v-model="query.feePaid" class="app-search-item app-search-item-sm" placeholder="请选择手续费支付状态" clearable>
+          <el-option label="已支付" :value="true" />
+          <el-option label="未支付" :value="false" />
+        </el-select>
       </div>
 
-      <div class="filter-extra">
-        <span class="toolbar-hint">共 {{ total }} 条</span>
-        <span v-if="detailModeMessage" class="toolbar-tip">{{ detailModeMessage }}</span>
+      <div class="app-search-extra">
+        <span class="app-search-meta">共 {{ total }} 条账单记录</span>
+        <span v-if="billScopeLabel" class="app-search-meta">账单时间：{{ billScopeLabel }}</span>
+        <span class="app-search-meta">筛选条件变化后自动刷新列表</span>
+        <span v-if="detailModeMessage" class="app-search-meta">{{ detailModeMessage }}</span>
+        <div class="app-search-actions">
+          <el-button class="app-search-btn" @click="handleResetAll">重置</el-button>
+        </div>
       </div>
     </div>
 
@@ -96,97 +121,32 @@
           :total="total"
           :page-num="query.pageNum"
           :page-size="query.pageSize"
-          :page-sizes="[20, 30, 50]"
-          :height="currentExpandedRow ? undefined : 'calc(100% - 40px)'"
-          :max-height="currentExpandedRow ? 'calc(100% - 40px)' : undefined"
+          :page-sizes="[20, 50, ANNUAL_PAGE_SIZE]"
+          height="calc(100% - 40px)"
           pagination-layout="total, prev, pager, next"
           border
           row-key="id"
+          :expand-row-keys="expandedRowKeys"
           table-layout="fixed"
+          :row-class-name="billRowClassName"
           @update:page-num="val => query.pageNum = val"
           @update:page-size="val => query.pageSize = val"
           @current-change="handleCurrentChange"
           @size-change="handleSizeChange"
-          @expand-change="onExpandChange"
         >
-      <el-table-column type="expand">
+      <el-table-column type="expand" width="1" class-name="expand-toggle-col" label-class-name="expand-toggle-col">
         <template #default="{ row }">
           <div class="expand-bill-content">
-            <div class="quick-edit-bar">
-              <div class="qe-item">
-                <label>本月代还金额</label>
-                <el-input-number
-                  :model-value="editFormMap[row.id]?.billAmount"
-                  :min="0"
-                  :precision="2"
-                  size="small"
-                  controls-position="right"
-                  style="width: 150px"
-                  @update:model-value="(val:any) => updateEditField(row.id, 'billAmount', val)"
-                />
-              </div>
-              <div class="qe-item">
-                <label>账单日</label>
-                <el-input-number
-                  :model-value="editFormMap[row.id]?.billDay"
-                  :min="1"
-                  :max="31"
-                  size="small"
-                  controls-position="right"
-                  style="width: 120px"
-                  @update:model-value="(val:any) => updateEditField(row.id, 'billDay', val)"
-                />
-              </div>
-              <div class="qe-item">
-                <label>POS成本</label>
-                <el-input-number
-                  :model-value="editFormMap[row.id]?.posCostAmount"
-                  :min="0"
-                  :precision="2"
-                  size="small"
-                  controls-position="right"
-                  style="width: 150px"
-                  @update:model-value="(val:any) => updateEditField(row.id, 'posCostAmount', val)"
-                />
-              </div>
-              <div class="qe-item qe-readonly">
-                <label>手续费率</label>
-                <span>{{ formatRate(row.feeRate) }}%</span>
-              </div>
-              <div class="qe-item qe-readonly">
-                <label>手续费收入</label>
-                <span class="amt-pos">¥{{ formatMoney(editFormMap[row.id]?.feeAmount) }}</span>
-              </div>
-              <div class="qe-item qe-readonly">
-                <label>净利润</label>
-                <span :class="Number(editFormMap[row.id]?.netProfit ?? 0) >= 0 ? 'amt-pos' : 'amt-neg'">
-                  ¥{{ formatMoney(editFormMap[row.id]?.netProfit) }}
-                </span>
-              </div>
-              <div class="qe-item">
-                <label>还款日</label>
-                <el-input-number
-                  :model-value="editFormMap[row.id]?.repayDay"
-                  :min="1"
-                  :max="31"
-                  size="small"
-                  controls-position="right"
-                  style="width: 120px"
-                  @update:model-value="(val:any) => updateEditField(row.id, 'repayDay', val)"
-                />
-              </div>
-              <el-button type="primary" size="small" :loading="savingId === row.id" @click="handleInlineSave(row)">保存</el-button>
-            </div>
-
-            <div class="detail-section">
+            <div class="detail-section" v-loading="detailLoadingMap[row.id] && detailLoadedMap[row.id]">
               <div class="detail-header">
                 <div class="detail-header-main">
                   <span class="detail-title">本月明细流水</span>
+                  <span class="detail-limit-tip">单侧最多展示 30 条</span>
                   <el-button type="success" size="small" @click="openAddDetail(row)">+ 新增</el-button>
                 </div>
               </div>
 
-              <BillDetailSkeleton v-if="detailLoadingMap[row.id]" />
+              <BillDetailSkeleton v-if="detailLoadingMap[row.id] && !detailLoadedMap[row.id]" />
 
               <template v-else-if="detailListMap[row.id]?.length">
                 <div v-if="selectedDetailsMap[row.id]?.length > 0" class="batch-toolbar">
@@ -195,49 +155,142 @@
                   </el-button>
                   <el-dropdown @command="(type: number) => handleBatchUpdateType(row.id, type)">
                     <el-button size="small">
-                      批量修改类型 <el-icon><arrow-down /></el-icon>
+                      批量修改收支状态 <el-icon><arrow-down /></el-icon>
                     </el-button>
                     <template #dropdown>
                       <el-dropdown-menu>
-                        <el-dropdown-item :command="0">刷出</el-dropdown-item>
-                        <el-dropdown-item :command="1">刷入</el-dropdown-item>
+                        <el-dropdown-item :command="DETAIL_TYPE_VALUE.EXPENSE">支出</el-dropdown-item>
+                        <el-dropdown-item :command="DETAIL_TYPE_VALUE.INCOME">收入</el-dropdown-item>
                       </el-dropdown-menu>
                     </template>
                   </el-dropdown>
                 </div>
 
-                <el-table
-                  :data="detailListMap[row.id]"
-                  size="small"
-                  border
-                  stripe
-                  table-layout="fixed"
-                  @selection-change="(val: any) => handleDetailSelection(row.id, val)"
-                >
-                  <el-table-column type="selection" width="48" />
-                  <el-table-column prop="detailDate" label="日期" min-width="108" />
-                  <el-table-column prop="description" label="描述/备注" min-width="180" />
-                  <el-table-column label="类型" min-width="96" align="center">
-                    <template #default="{ row: detail }">
-                      <el-tag :type="DETAIL_TYPE_TAG_TYPE[detail.detailType] ?? ''" size="small">{{ DETAIL_TYPE_MAP[detail.detailType] ?? '未知' }}</el-tag>
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="金额" min-width="108" align="right">
-                    <template #default="{ row: detail }">
-                      <span :class="detail.detailType === 1 ? 'amt-pos' : 'amt-neg'" class="font-mono">
-                        {{ detail.detailType === 1 ? '+' : '-' }}{{ formatMoney(detail.amount) }}
-                      </span>
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="操作" min-width="86" align="center">
-                    <template #default="{ row: detail }">
-                      <el-button type="primary" link size="small" @click="openEditDetail(row, detail)">编辑</el-button>
-                      <el-popconfirm title="确认删除？" @confirm="handleDeleteDetail(detail.id)">
-                        <template #reference><el-button type="danger" link size="small">删</el-button></template>
-                      </el-popconfirm>
-                    </template>
-                  </el-table-column>
-                </el-table>
+                <div class="detail-split-grid">
+                  <div class="detail-pane">
+                    <div class="detail-pane-head">
+                      <div class="detail-pane-head-main">
+                        <div class="detail-pane-title">
+                          <span>收入</span>
+                          <el-tag type="success" size="small" effect="light">{{ detailTypeTotalCount(row.id, DETAIL_TYPE_VALUE.INCOME) }}</el-tag>
+                        </div>
+                        <span class="detail-pane-sub">左侧展示收入</span>
+                      </div>
+                      <div class="detail-pane-total">
+                        <span class="detail-pane-total-label">总额</span>
+                        <span class="detail-pane-total-value amt-pos">¥{{ formatMoney(detailTypeTotalAmount(row.id, DETAIL_TYPE_VALUE.INCOME)) }}</span>
+                      </div>
+                    </div>
+                    <div v-if="detailTypeDisplayList(row.id, DETAIL_TYPE_VALUE.INCOME).length" class="detail-lite-list">
+                      <div class="detail-lite-head">
+                        <div class="detail-check-col">
+                          <el-checkbox
+                            :model-value="isPaneAllSelected(row.id, 'income', DETAIL_TYPE_VALUE.INCOME)"
+                            :indeterminate="isPaneSelectionIndeterminate(row.id, 'income', DETAIL_TYPE_VALUE.INCOME)"
+                            @change="(checked: any) => togglePaneSelectAll(row.id, 'income', DETAIL_TYPE_VALUE.INCOME, Boolean(checked))"
+                          />
+                        </div>
+                        <div class="detail-date-col">日期</div>
+                        <div class="detail-amount-col">金额</div>
+                        <div class="detail-note-col">描述/备注</div>
+                        <div class="detail-action-col">操作</div>
+                      </div>
+                      <div
+                        v-for="detail in detailTypeDisplayList(row.id, DETAIL_TYPE_VALUE.INCOME)"
+                        :key="detail.id"
+                        class="detail-lite-row"
+                      >
+                        <div class="detail-check-col">
+                          <el-checkbox
+                            :model-value="isDetailSelected(row.id, 'income', detail.id)"
+                            @change="(checked: any) => toggleDetailChecked(row.id, 'income', detail, Boolean(checked))"
+                          />
+                        </div>
+                        <div class="detail-date-col">{{ detail.detailDate }}</div>
+                        <div class="detail-amount-col">
+                          <span :class="detail.detailType === DETAIL_TYPE_VALUE.INCOME ? 'amt-pos' : 'amt-neg'" class="font-mono">
+                            {{ detail.detailType === DETAIL_TYPE_VALUE.INCOME ? '+' : '-' }}{{ formatMoney(detail.amount) }}
+                          </span>
+                        </div>
+                        <div class="detail-note-col">
+                          <div class="detail-note-cell">
+                            <span class="detail-note-main">{{ detail.description || '-' }}</span>
+                            <span v-if="detail.remark" class="detail-note-sub">{{ detail.remark }}</span>
+                          </div>
+                        </div>
+                        <div class="detail-action-col">
+                          <el-button type="primary" link size="small" @click="openEditDetail(row, detail)">编辑</el-button>
+                          <el-popconfirm title="确认删除？" @confirm="handleDeleteDetail(detail.id)">
+                            <template #reference><el-button type="danger" link size="small">删</el-button></template>
+                          </el-popconfirm>
+                        </div>
+                      </div>
+                    </div>
+                    <div v-else class="detail-empty">暂无收入明细</div>
+                  </div>
+
+                  <div class="detail-pane">
+                    <div class="detail-pane-head">
+                      <div class="detail-pane-head-main">
+                        <div class="detail-pane-title">
+                          <span>支出</span>
+                          <el-tag type="danger" size="small" effect="light">{{ detailTypeTotalCount(row.id, DETAIL_TYPE_VALUE.EXPENSE) }}</el-tag>
+                        </div>
+                        <span class="detail-pane-sub">右侧展示支出</span>
+                      </div>
+                      <div class="detail-pane-total">
+                        <span class="detail-pane-total-label">总额</span>
+                        <span class="detail-pane-total-value amt-neg">¥{{ formatMoney(detailTypeTotalAmount(row.id, DETAIL_TYPE_VALUE.EXPENSE)) }}</span>
+                      </div>
+                    </div>
+                    <div v-if="detailTypeDisplayList(row.id, DETAIL_TYPE_VALUE.EXPENSE).length" class="detail-lite-list">
+                      <div class="detail-lite-head">
+                        <div class="detail-check-col">
+                          <el-checkbox
+                            :model-value="isPaneAllSelected(row.id, 'expense', DETAIL_TYPE_VALUE.EXPENSE)"
+                            :indeterminate="isPaneSelectionIndeterminate(row.id, 'expense', DETAIL_TYPE_VALUE.EXPENSE)"
+                            @change="(checked: any) => togglePaneSelectAll(row.id, 'expense', DETAIL_TYPE_VALUE.EXPENSE, Boolean(checked))"
+                          />
+                        </div>
+                        <div class="detail-date-col">日期</div>
+                        <div class="detail-amount-col">金额</div>
+                        <div class="detail-note-col">描述/备注</div>
+                        <div class="detail-action-col">操作</div>
+                      </div>
+                      <div
+                        v-for="detail in detailTypeDisplayList(row.id, DETAIL_TYPE_VALUE.EXPENSE)"
+                        :key="detail.id"
+                        class="detail-lite-row"
+                      >
+                        <div class="detail-check-col">
+                          <el-checkbox
+                            :model-value="isDetailSelected(row.id, 'expense', detail.id)"
+                            @change="(checked: any) => toggleDetailChecked(row.id, 'expense', detail, Boolean(checked))"
+                          />
+                        </div>
+                        <div class="detail-date-col">{{ detail.detailDate }}</div>
+                        <div class="detail-amount-col">
+                          <span :class="detail.detailType === DETAIL_TYPE_VALUE.INCOME ? 'amt-pos' : 'amt-neg'" class="font-mono">
+                            {{ detail.detailType === DETAIL_TYPE_VALUE.INCOME ? '+' : '-' }}{{ formatMoney(detail.amount) }}
+                          </span>
+                        </div>
+                        <div class="detail-note-col">
+                          <div class="detail-note-cell">
+                            <span class="detail-note-main">{{ detail.description || '-' }}</span>
+                            <span v-if="detail.remark" class="detail-note-sub">{{ detail.remark }}</span>
+                          </div>
+                        </div>
+                        <div class="detail-action-col">
+                          <el-button type="primary" link size="small" @click="openEditDetail(row, detail)">编辑</el-button>
+                          <el-popconfirm title="确认删除？" @confirm="handleDeleteDetail(detail.id)">
+                            <template #reference><el-button type="danger" link size="small">删</el-button></template>
+                          </el-popconfirm>
+                        </div>
+                      </div>
+                    </div>
+                    <div v-else class="detail-empty">暂无支出明细</div>
+                  </div>
+                </div>
               </template>
 
               <el-empty v-else description="暂无明细" :image-size="50" />
@@ -246,9 +299,21 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="持卡人" min-width="92">
+      <el-table-column label="持卡人" width="70" align="center" header-align="center">
         <template #default="{ row }">
           <div class="owner-cell">
+            <el-button
+              type="primary"
+              link
+              size="small"
+              class="row-action-btn detail-toggle-btn owner-expand-btn"
+              :loading="pendingExpandBillId === row.id"
+              :class="{ expanded: currentExpandedRow?.id === row.id }"
+              :title="currentExpandedRow?.id === row.id ? '鏀惰捣鏄庣粏' : '灞曞紑鏄庣粏'"
+              @click.stop="toggleBillDetail(row)"
+            >
+              <el-icon :size="14"><ArrowRight /></el-icon>
+            </el-button>
             <span class="owner-avatar">
               <el-icon :size="12"><UserFilled /></el-icon>
             </span>
@@ -256,82 +321,101 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="bankName" label="银行" min-width="112">
+      <el-table-column prop="bankName" label="银行/尾号" width="116" align="center" header-align="center">
         <template #default="{ row }">
-          <div class="bank-cell">
-            <el-icon :size="13" color="#67c23a"><CreditCard /></el-icon>
-            <span>{{ row.bankName }}</span>
+          <div class="bank-cell bank-card-cell">
+            <div class="bank-line">
+              <el-icon :size="13" color="#67c23a"><CreditCard /></el-icon>
+              <span>{{ displayBankName(row.bankName) }}</span>
+            </div>
+            <span class="card-no-badge">{{ row.cardNoLast4 }}</span>
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="尾号" min-width="84" align="center">
-        <template #default="{ row }">
-          <span class="card-no-badge">{{ row.cardNoLast4 }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="billMonth" label="月份" min-width="90" align="center">
+      <el-table-column prop="billMonth" label="月份" width="66" align="center">
         <template #default="{ row }">
           <el-tag type="primary" size="small" effect="light">{{ row.billMonth }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="账期" min-width="90" align="center">
+      <el-table-column label="日期" width="96" align="center" header-align="center">
         <template #default="{ row }">
-          <span class="period-text">{{ billPeriodLabel(row.billMonth, row.billDay) }}</span>
+          <div class="table-stack table-stack-center">
+            <span class="table-stack-line">账 {{ billPeriodLabel(row.billMonth, row.billDay) }}</span>
+            <span class="table-stack-line">还 {{ row.repayDate ? fmtRepayDate(row.repayDate) : '-' }}</span>
+          </div>
         </template>
       </el-table-column>
-      <el-table-column label="还款日" min-width="92" align="center">
-        <template #default="{ row }">
-          <span class="repay-date">{{ row.repayDate ? fmtRepayDate(row.repayDate) : '-' }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="代还" min-width="108" align="right">
+      <el-table-column label="代还" width="72" align="center" header-align="center">
         <template #default="{ row }">
           <div class="amount-cell">
             <span class="amount-value">{{ formatMoney(row.billAmount) }}</span>
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="费率" min-width="86" align="center">
+      <el-table-column label="费率" width="50" align="center">
         <template #default="{ row }">
           <span class="fee-rate-badge">{{ formatRate(row.feeRate) }}%</span>
         </template>
       </el-table-column>
-      <el-table-column label="手续费" min-width="108" align="right">
+      <el-table-column label="手续费" width="108" align="center" header-align="center">
         <template #default="{ row }">
-          <span class="amt-pos amount-value">{{ formatMoney(row.feeAmount) }}</span>
+          <div class="table-stack table-stack-center">
+            <span class="table-stack-line amt-pos amount-value">{{ formatMoney(row.feeAmount) }}</span>
+            <span class="table-stack-line">
+              <el-tag v-if="row.feePaid" type="success" size="small" effect="light">已付</el-tag>
+              <el-tag v-else type="info" size="small" effect="plain">未付</el-tag>
+            </span>
+          </div>
         </template>
       </el-table-column>
-      <el-table-column label="POS" min-width="96" align="right">
+      <el-table-column label="收益" width="110" align="center" header-align="center">
         <template #default="{ row }">
-          <span class="amt-neg amount-value">{{ formatMoney(row.posCostAmount) }}</span>
+          <div class="table-stack table-stack-center">
+            <span class="table-stack-line amt-neg amount-value">POS {{ formatMoney(row.posCostAmount) }}</span>
+            <span class="table-stack-line amount-value" :class="Number(row.netProfit || 0) >= 0 ? 'amt-pos' : 'amt-neg'">利 {{ formatMoney(row.netProfit) }}</span>
+          </div>
         </template>
       </el-table-column>
-      <el-table-column label="利润" min-width="108" align="right">
+      <el-table-column label="状态" width="102" align="center" header-align="center">
         <template #default="{ row }">
-          <span class="amount-value" :class="Number(row.netProfit || 0) >= 0 ? 'amt-pos' : 'amt-neg'">{{ formatMoney(row.netProfit) }}</span>
+          <div class="table-stack table-stack-center">
+            <span class="table-stack-line">
+              <el-tag v-if="row.repayMethod === 'cloudpay'" type="primary" size="small" effect="light">云闪付</el-tag>
+              <el-tag v-else-if="row.repayMethod === 'invoice'" type="warning" size="small" effect="light">POS机</el-tag>
+              <span v-else class="no-data">-</span>
+            </span>
+            <span class="table-stack-line">
+              <StatusTag :value="row.status" :label-map="BILL_STATUS_MAP" :type-map="BILL_STATUS_TAG_TYPE" />
+            </span>
+          </div>
         </template>
       </el-table-column>
-      <el-table-column label="还款" min-width="92" align="center">
+      <el-table-column label="操作" width="92" align="center">
         <template #default="{ row }">
-          <el-tag v-if="row.repayMethod === 'cloudpay'" type="primary" size="small" effect="light">云闪付</el-tag>
-          <el-tag v-else-if="row.repayMethod === 'invoice'" type="warning" size="small" effect="light">开票</el-tag>
-          <span v-else class="no-data">-</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="状态" min-width="96" align="center">
-        <template #default="{ row }">
-          <StatusTag :value="row.status" :label-map="BILL_STATUS_MAP" :type-map="BILL_STATUS_TAG_TYPE" />
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="82" align="center">
-        <template #default="{ row }">
-          <el-popconfirm title="确认删除该月账单？" @confirm="handleDelete(row.id)">
-            <template #reference>
-              <el-button type="danger" link size="small" class="delete-icon-btn" title="删除">
-                <el-icon :size="14"><Delete /></el-icon>
-              </el-button>
-            </template>
-          </el-popconfirm>
+          <div class="row-action-buttons">
+            <el-button
+              type="primary"
+              link
+              size="small"
+              class="row-action-btn detail-toggle-btn"
+              :loading="pendingExpandBillId === row.id"
+              :class="{ expanded: currentExpandedRow?.id === row.id }"
+              :title="currentExpandedRow?.id === row.id ? '收起明细' : '展开明细'"
+              @click.stop="toggleBillDetail(row)"
+            >
+              <el-icon :size="14"><ArrowRight /></el-icon>
+            </el-button>
+            <el-button type="primary" link size="small" class="row-action-btn" title="编辑账单" @click="openBillEdit(row)">
+              <el-icon :size="14"><Edit /></el-icon>
+            </el-button>
+            <el-popconfirm title="确认删除该月账单？" @confirm="handleDelete(row.id)">
+              <template #reference>
+                <el-button type="danger" link size="small" class="row-action-btn" title="删除">
+                  <el-icon :size="14"><Delete /></el-icon>
+                </el-button>
+              </template>
+            </el-popconfirm>
+          </div>
         </template>
       </el-table-column>
         </PageTable>
@@ -386,15 +470,85 @@
       </aside>
     </div>
 
+    <el-dialog v-model="billEditDialogVisible" title="编辑账单" width="480px" destroy-on-close>
+      <template v-if="billEditRow">
+        <el-form label-width="92px">
+          <el-form-item label="本月代还金额">
+            <el-input-number
+              :model-value="editFormMap[billEditRowId]?.billAmount"
+              :min="0"
+              :precision="2"
+              controls-position="right"
+              style="width: 100%"
+              @update:model-value="(val:any) => updateEditField(billEditRowId, 'billAmount', val)"
+            />
+          </el-form-item>
+          <el-form-item label="账单日">
+            <el-input-number
+              :model-value="editFormMap[billEditRowId]?.billDay"
+              :min="1"
+              :max="31"
+              controls-position="right"
+              style="width: 100%"
+              @update:model-value="(val:any) => updateEditField(billEditRowId, 'billDay', val)"
+            />
+          </el-form-item>
+          <el-form-item label="还款日">
+            <el-input-number
+              :model-value="editFormMap[billEditRowId]?.repayDay"
+              :min="1"
+              :max="31"
+              controls-position="right"
+              style="width: 100%"
+              @update:model-value="(val:any) => updateEditField(billEditRowId, 'repayDay', val)"
+            />
+          </el-form-item>
+          <el-form-item label="POS成本">
+            <el-input-number
+              :model-value="editFormMap[billEditRowId]?.posCostAmount"
+              :min="0"
+              :precision="2"
+              controls-position="right"
+              style="width: 100%"
+              @update:model-value="(val:any) => updateEditField(billEditRowId, 'posCostAmount', val)"
+            />
+          </el-form-item>
+          <el-form-item label="手续费支付">
+            <el-switch
+              :model-value="editFormMap[billEditRowId]?.feePaid"
+              active-text="已付"
+              inactive-text="未付"
+              @update:model-value="(val:any) => updateEditField(billEditRowId, 'feePaid', val)"
+            />
+          </el-form-item>
+          <el-form-item label="手续费率">
+            <span class="bill-edit-static">{{ formatRate(billEditRow.feeRate) }}%</span>
+          </el-form-item>
+          <el-form-item label="手续费收入">
+            <span class="bill-edit-static amt-pos">¥{{ formatMoney(editFormMap[billEditRowId]?.feeAmount) }}</span>
+          </el-form-item>
+          <el-form-item label="净利润">
+            <span class="bill-edit-static" :class="Number(editFormMap[billEditRowId]?.netProfit ?? 0) >= 0 ? 'amt-pos' : 'amt-neg'">
+              ¥{{ formatMoney(editFormMap[billEditRowId]?.netProfit) }}
+            </span>
+          </el-form-item>
+        </el-form>
+      </template>
+      <template #footer>
+        <el-button @click="billEditDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="savingId === billEditRow?.id" @click="handleSaveBillEdit">保存</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="detailDialogVisible" :title="detailDialogTitle" width="500px" destroy-on-close>
       <el-form :model="detailForm" label-width="90px" :rules="detailRules" ref="detailFormRef">
         <el-form-item label="日期" prop="detailDate">
           <el-date-picker v-model="detailForm.detailDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
         </el-form-item>
         <el-form-item label="描述" prop="description">
-          <el-input v-model="detailForm.description" placeholder="如：帮客户代还信用卡" />
+          <el-input v-model="detailForm.description" placeholder="如：代还服务收入" />
         </el-form-item>
-        <el-form-item label="类型" prop="detailType">
+        <el-form-item label="收支状态" prop="detailType">
           <el-radio-group v-model="detailForm.detailType">
             <el-radio v-for="t in DETAIL_TYPE_OPTIONS" :key="t.value" :value="t.value">{{ t.label }}</el-radio>
           </el-radio-group>
@@ -417,10 +571,10 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'Bills' })
-import { computed, nextTick, onActivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, UserFilled, CreditCard, Money, Delete, Document, Wallet, TrendCharts, RefreshRight } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowRight, UserFilled, CreditCard, Money, Delete, Wallet, TrendCharts, RefreshRight, Edit, Document } from '@element-plus/icons-vue'
 import PageTable from '@/components/PageTable/index.vue'
 import StatusTag from '@/components/StatusTag/index.vue'
 import ExportButton from '@/components/ExportButton/index.vue'
@@ -441,15 +595,13 @@ import {
   batchDeleteDetailsApi,
   batchUpdateTypeApi
 } from '@/api/bill'
-import { getUserTreeApi } from '@/api/card'
-import { formatTime, formatMoney, formatRate, toNumber } from '@/utils/formatters'
+import { formatMoney, formatRate, toNumber } from '@/utils/formatters'
 import {
   BILL_STATUS_OPTIONS,
   BILL_STATUS_MAP,
   BILL_STATUS_TAG_TYPE,
-  DETAIL_TYPE_OPTIONS,
-  DETAIL_TYPE_MAP,
-  DETAIL_TYPE_TAG_TYPE
+  DETAIL_TYPE_VALUE,
+  DETAIL_TYPE_OPTIONS
 } from '@/constants/dict'
 
 interface BillRow {
@@ -465,6 +617,7 @@ interface BillRow {
   billAmount: number | null
   feeRate: number | null
   feeAmount: number | null
+  feePaid: boolean
   posCostAmount: number | null
   netProfit: number | null
   status: number
@@ -478,6 +631,7 @@ interface EditFormItem {
   billDay: number | null
   posCostAmount: number
   repayDay: number | null
+  feePaid: boolean
   feeAmount: string
   netProfit: string
 }
@@ -495,12 +649,54 @@ interface BillOverview {
   totalNetProfit: number
 }
 
+interface BillDetailRow {
+  id: number
+  billId: number
+  detailDate: string
+  description: string
+  amount: number | string
+  detailType: number
+  remark?: string
+}
+
+interface BillDetailBucket {
+  incomeRows: BillDetailRow[]
+  expenseRows: BillDetailRow[]
+  incomeDisplayRows: BillDetailRow[]
+  expenseDisplayRows: BillDetailRow[]
+}
+
 const route = useRoute()
 const router = useRouter()
 const now = new Date()
 const currentYear = now.getFullYear()
-const currentMonth = `${currentYear}-${String(now.getMonth() + 1).padStart(2, '0')}`
-const yearOptions = Array.from({ length: 6 }, (_, index) => currentYear - 2 + index)
+const currentMonthNumber = now.getMonth() + 1
+const currentMonth = `${currentYear}-${String(currentMonthNumber).padStart(2, '0')}`
+const ANNUAL_PAGE_SIZE = 100
+const DETAIL_DISPLAY_LIMIT = 30
+const DETAIL_PREFETCH_DELAY = 80
+const DETAIL_PREFETCH_CONCURRENCY = 2
+const DETAIL_PREFETCH_ANNUAL_LIMIT = 20
+
+function createDebouncedTask(fn: () => void, delay = 300) {
+  let timer = 0
+  const run = () => {
+    if (timer) window.clearTimeout(timer)
+    timer = window.setTimeout(() => {
+      timer = 0
+      fn()
+    }, delay)
+  }
+  run.cancel = () => {
+    if (timer) {
+      window.clearTimeout(timer)
+      timer = 0
+    }
+  }
+  return run
+}
+
+const billMonthRange = ref<string[]>([])
 
 const {
   loading,
@@ -515,9 +711,22 @@ const {
   refreshFirstPage
 } = usePageTable({
   fetchApi: getBillPageApi,
-  defaultQuery: { pageSize: 20, cardId: undefined as any, ownerId: undefined as any, cardName: '', year: undefined as any, billMonth: '', status: undefined as any },
-  autoSearch: true,
+  defaultQuery: {
+    pageSize: 20,
+    cardId: undefined as any,
+    ownerId: undefined as any,
+    ownerName: '',
+    cardName: '',
+    startBillMonth: '',
+    endBillMonth: '',
+    status: undefined as any,
+    feePaid: undefined as any
+  },
+  autoSearch: false,
   beforeFetch: (params) => {
+    if (isAnnualBillScope(params)) {
+      params.pageSize = Math.max(Number(params.pageSize || 0), ANNUAL_PAGE_SIZE)
+    }
     ;(params as any).current = params.pageNum
     ;(params as any).size = params.pageSize
     delete (params as any).pageNum
@@ -525,11 +734,10 @@ const {
   },
   afterFetch: () => {
     fetchBillOverview()
+    scheduleDetailPrefetch()
   }
 })
 
-const ownerLoading = ref(false)
-const ownerOptions = ref<any[]>([])
 const overviewLoading = ref(false)
 const billTableRef = ref<any>(null)
 const billOverview = ref<BillOverview>({
@@ -545,23 +753,26 @@ const billOverview = ref<BillOverview>({
   totalNetProfit: 0
 })
 
+const billScopeLabel = computed(() => formatBillRangeLabel(query.startBillMonth, query.endBillMonth))
+const triggerBillSearch = createDebouncedTask(() => {
+  submitBillSearch()
+}, 300)
+let syncingBillFilters = false
+let skipRouteDrivenSearch = false
+
 const detailModeMessage = computed(() => {
+  const scopeText = billScopeLabel.value
   if (route.query.cardId) {
-    return query.billMonth
-      ? `当前为单张银行卡账单明细模式，已定位到 ${query.billMonth}。`
-      : `当前为单张银行卡年度账单模式${query.year ? `，已定位 ${query.year} 年。` : '。'}`
+    return scopeText ? `当前为单张银行卡账单模式，已定位到 ${scopeText}。` : '当前为单张银行卡账单模式。'
   }
   if (route.query.ownerId) {
-    return query.billMonth
-      ? `当前为单个持卡人账单明细模式，已定位到 ${query.billMonth}。`
-      : `当前为单个持卡人年度账单模式${query.year ? `，已定位 ${query.year} 年。` : '。'}`
+    return scopeText ? `当前为持卡人/子用户账单模式，已定位到 ${scopeText}。` : '当前为持卡人/子用户账单模式。'
   }
   return ''
 })
 
 const currentScopeLabel = computed(() => {
-  if (query.billMonth) return `${query.billMonth} 账单`
-  if (query.year) return `${query.year} 年账单`
+  if (billScopeLabel.value) return `${billScopeLabel.value}账单`
   return '全部账单'
 })
 
@@ -634,8 +845,54 @@ function parseBillMonthParts(billMonth: string | null | undefined) {
   return { year, month }
 }
 
-function resolveMonthCycleOrder(month: number) {
-  return (month - (now.getMonth() + 1) + 12) % 12
+function formatBillRangeLabel(startBillMonth?: string | null, endBillMonth?: string | null) {
+  const start = String(startBillMonth || '').trim()
+  const end = String(endBillMonth || '').trim()
+  if (!start && !end) return ''
+  if (start && end) {
+    return start === end ? start : `${start} 至 ${end}`
+  }
+  return start || end
+}
+
+function isWholeYearRange(startBillMonth?: string | null, endBillMonth?: string | null) {
+  const start = parseBillMonthParts(startBillMonth)
+  const end = parseBillMonthParts(endBillMonth)
+  return !!start && !!end && start.year === end.year && start.month === 1 && end.month === 12
+}
+
+function isAnnualBillScope(params: any) {
+  return isWholeYearRange(params?.startBillMonth, params?.endBillMonth)
+}
+
+function syncBillMonthQuery() {
+  const [startBillMonth = '', endBillMonth = ''] = billMonthRange.value || []
+  query.startBillMonth = startBillMonth
+  query.endBillMonth = endBillMonth
+}
+
+function applyBillMonthRange(startBillMonth?: string | null, endBillMonth?: string | null) {
+  const start = String(startBillMonth || '').trim()
+  const end = String(endBillMonth || '').trim()
+  billMonthRange.value = start && end ? [start, end] : []
+  query.startBillMonth = start
+  query.endBillMonth = end
+}
+
+function submitBillSearch() {
+  triggerBillSearch.cancel()
+  syncBillMonthQuery()
+  currentExpandedRow.value = null
+  handleSearch()
+}
+
+function resolveMonthOrder(month: number) {
+  const hasCardId = Number(query.cardId || 0) > 0
+  const hasOwnerId = Number(query.ownerId || 0) > 0
+  if (hasCardId && !hasOwnerId) {
+    return month
+  }
+  return (month - currentMonthNumber + 12) % 12
 }
 
 const sortedList = computed<BillRow[]>(() => {
@@ -648,36 +905,19 @@ const sortedList = computed<BillRow[]>(() => {
     }
 
     if (aParts?.month !== bParts?.month) {
-      return resolveMonthCycleOrder(Number(aParts?.month || 0)) - resolveMonthCycleOrder(Number(bParts?.month || 0))
+      return resolveMonthOrder(Number(aParts?.month || 0)) - resolveMonthOrder(Number(bParts?.month || 0))
     }
 
     return Number(b.id || 0) - Number(a.id || 0)
   })
 })
 
+function billRowClassName({ row }: { row: BillRow }) {
+  return row?.billMonth === currentMonth ? 'current-month-row' : ''
+}
+
 function applyQuickMenu(status?: number) {
   query.status = status as any
-}
-
-async function fetchOwners() {
-  if (ownerOptions.value.length) return
-  ownerLoading.value = true
-  try {
-    const res: any = await getUserTreeApi()
-    ownerOptions.value = flattenUsers(res.data || [])
-  } finally {
-    ownerLoading.value = false
-  }
-}
-
-function flattenUsers(list: any[]): any[] {
-  return list.reduce((acc: any[], item: any) => {
-    acc.push(item)
-    if (item.children?.length) {
-      acc.push(...flattenUsers(item.children))
-    }
-    return acc
-  }, [])
 }
 
 const { exporting, handleExport: doExport } = useExport({
@@ -693,10 +933,12 @@ function buildExportParams() {
   return {
     cardId: query.cardId,
     ownerId: query.ownerId,
+    ownerName: query.ownerName,
     cardName: query.cardName,
-    year: query.year,
-    billMonth: query.billMonth,
-    status: query.status
+    startBillMonth: query.startBillMonth,
+    endBillMonth: query.endBillMonth,
+    status: query.status,
+    feePaid: query.feePaid
   }
 }
 
@@ -733,15 +975,40 @@ function toRouteBillStatus(value: unknown) {
   return [0, 1, 2, 3].includes(num) ? num : undefined
 }
 
-function toRouteYear(value: unknown) {
+function toRouteYearValue(value: unknown) {
   const target = Array.isArray(value) ? value[0] : value
   const num = Number(target)
   return Number.isFinite(num) && num >= 2000 ? num : undefined
 }
 
-function toRouteBillMonth(value: unknown) {
+function toRouteBillMonthValue(value: unknown) {
   const target = Array.isArray(value) ? value[0] : value
   return typeof target === 'string' && /^\d{4}-\d{2}$/.test(target) ? target : ''
+}
+
+function normalizeRouteBillRange(
+  startValue: unknown,
+  endValue: unknown,
+  yearValue: unknown,
+  billMonthValue: unknown
+) {
+  const exactMonth = toRouteBillMonthValue(billMonthValue)
+  if (exactMonth) {
+    return [exactMonth, exactMonth] as [string, string]
+  }
+
+  const startBillMonth = toRouteBillMonthValue(startValue)
+  const endBillMonth = toRouteBillMonthValue(endValue)
+  if (startBillMonth && endBillMonth) {
+    return [startBillMonth, endBillMonth] as [string, string]
+  }
+
+  const year = toRouteYearValue(yearValue)
+  if (year) {
+    return [`${year}-01`, `${year}-12`] as [string, string]
+  }
+
+  return ['', ''] as [string, string]
 }
 
 function clearRouteFilters() {
@@ -751,14 +1018,23 @@ function clearRouteFilters() {
   delete nextQuery.status
   delete nextQuery.year
   delete nextQuery.billMonth
+  delete nextQuery.startBillMonth
+  delete nextQuery.endBillMonth
   router.replace({ path: route.path, query: nextQuery })
 }
 
 async function handleResetAll() {
-  if (route.query.cardId || route.query.ownerId || route.query.status || route.query.year || route.query.billMonth) {
+  triggerBillSearch.cancel()
+  syncingBillFilters = true
+  const hasRouteFilters = !!(route.query.cardId || route.query.ownerId || route.query.status || route.query.year || route.query.billMonth || route.query.startBillMonth || route.query.endBillMonth)
+  if (hasRouteFilters) {
+    skipRouteDrivenSearch = true
     clearRouteFilters()
   }
+  billMonthRange.value = []
+  currentExpandedRow.value = null
   await resetQuery()
+  syncingBillFilters = false
 }
 
 const editFormMap = ref<Record<number, EditFormItem>>({})
@@ -772,6 +1048,7 @@ function ensureEditForm(row: BillRow) {
       billDay: row.billDay ?? null,
       posCostAmount: toNumber(row.posCostAmount),
       repayDay: parseRepayDay(row.repayDate),
+      feePaid: !!row.feePaid,
       feeAmount: '0.00',
       netProfit: '0.00'
     }
@@ -790,42 +1067,242 @@ function syncInlineAmounts(billId: number) {
   form.netProfit = buildNetProfit(form.billAmount, row.feeRate, form.posCostAmount).toFixed(2)
 }
 
-const detailListMap = ref<Record<number, any[]>>({})
+const detailListMap = ref<Record<number, BillDetailRow[]>>({})
+const detailBucketMap = ref<Record<number, BillDetailBucket>>({})
 const detailLoadingMap = ref<Record<number, boolean>>({})
+const detailLoadedMap = ref<Record<number, boolean>>({})
 const selectedDetailsMap = ref<Record<number, any[]>>({})
+const selectedIncomeDetailsMap = ref<Record<number, BillDetailRow[]>>({})
+const selectedExpenseDetailsMap = ref<Record<number, BillDetailRow[]>>({})
+const detailRequestMap = new Map<number, Promise<void>>()
+let billTableLayoutFrame = 0
+let detailPrefetchTimer = 0
+let detailPrefetchToken = 0
+const emptyDetailBucket: BillDetailBucket = {
+  incomeRows: [],
+  expenseRows: [],
+  incomeDisplayRows: [],
+  expenseDisplayRows: []
+}
 
-async function loadDetails(billId: number) {
-  detailLoadingMap.value[billId] = true
-  try {
-    const res: any = await fetchDetailListApi(billId)
-    detailListMap.value[billId] = res.data || []
-  } catch (error) {
-    detailListMap.value[billId] = []
-    handleError(error, '加载明细列表')
-  } finally {
-    detailLoadingMap.value[billId] = false
-    if (currentExpandedRow.value?.id === billId) {
-      nextTick(() => {
-        billTableRef.value?.doLayout?.()
-      })
+function scheduleBillTableLayout() {
+  if (billTableLayoutFrame) return
+  billTableLayoutFrame = window.requestAnimationFrame(() => {
+    billTableLayoutFrame = 0
+    billTableRef.value?.doLayout?.()
+  })
+}
+
+function scrollExpandedContentIntoView() {
+  window.requestAnimationFrame(() => {
+    const wrap = document.querySelector('.bill-page-table .el-scrollbar__wrap') as HTMLElement | null
+    const expandedRow = document.querySelector('.bill-page-table .el-table__expanded-row') as HTMLElement | null
+    if (!wrap || !expandedRow) return
+
+    const wrapRect = wrap.getBoundingClientRect()
+    const expandedRect = expandedRow.getBoundingClientRect()
+    const padding = 12
+
+    if (expandedRect.bottom > wrapRect.bottom) {
+      wrap.scrollTop += expandedRect.bottom - wrapRect.bottom + padding
+    } else if (expandedRect.top < wrapRect.top) {
+      wrap.scrollTop -= wrapRect.top - expandedRect.top + padding
     }
+  })
+}
+
+function resetDetailSelection(billId: number) {
+  selectedIncomeDetailsMap.value[billId] = []
+  selectedExpenseDetailsMap.value[billId] = []
+  selectedDetailsMap.value[billId] = []
+}
+
+function buildDetailBucket(details: BillDetailRow[]): BillDetailBucket {
+  const incomeRows: BillDetailRow[] = []
+  const expenseRows: BillDetailRow[] = []
+
+  details.forEach(detail => {
+    if (Number(detail.detailType) === Number(DETAIL_TYPE_VALUE.INCOME)) {
+      incomeRows.push(detail)
+      return
+    }
+    expenseRows.push(detail)
+  })
+
+  return {
+    incomeRows,
+    expenseRows,
+    incomeDisplayRows: incomeRows.slice(0, DETAIL_DISPLAY_LIMIT),
+    expenseDisplayRows: expenseRows.slice(0, DETAIL_DISPLAY_LIMIT)
   }
 }
 
-const currentExpandedRow = ref<BillRow | null>(null)
+function setBillDetails(billId: number, details: BillDetailRow[]) {
+  detailListMap.value[billId] = details
+  detailBucketMap.value[billId] = buildDetailBucket(details)
+}
 
-function onExpandChange(row: BillRow, expanded: boolean) {
-  if (expanded) {
-    currentExpandedRow.value = row
-    ensureEditForm(row)
-    loadDetails(row.id)
-  } else if (currentExpandedRow.value?.id === row.id) {
-    currentExpandedRow.value = null
+function getDetailPrefetchIds() {
+  const rows = sortedList.value as BillRow[]
+  if (!rows.length) return []
+
+  const maxCount = isAnnualBillScope(query) ? DETAIL_PREFETCH_ANNUAL_LIMIT : rows.length
+  return rows
+    .map(item => Number(item.id))
+    .filter(id => id > 0 && !detailLoadedMap.value[id])
+    .slice(0, maxCount)
+}
+
+async function runDetailPrefetch(token: number, billIds: number[]) {
+  const queue = [...billIds]
+  const workerCount = Math.min(DETAIL_PREFETCH_CONCURRENCY, queue.length)
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (queue.length) {
+      if (token !== detailPrefetchToken) return
+      const billId = queue.shift()
+      if (!billId || detailLoadedMap.value[billId]) continue
+      await loadDetails(billId, { silent: true })
+    }
+  })
+  await Promise.all(workers)
+}
+
+function cancelDetailPrefetch() {
+  detailPrefetchToken += 1
+  if (detailPrefetchTimer) {
+    window.clearTimeout(detailPrefetchTimer)
+    detailPrefetchTimer = 0
+  }
+}
+
+function scheduleDetailPrefetch() {
+  cancelDetailPrefetch()
+
+  const billIds = getDetailPrefetchIds()
+  if (!billIds.length) return
+
+  const currentToken = detailPrefetchToken
+  detailPrefetchTimer = window.setTimeout(() => {
+    detailPrefetchTimer = 0
+    void runDetailPrefetch(currentToken, billIds)
+  }, DETAIL_PREFETCH_DELAY)
+}
+
+async function loadDetails(billId: number, options: { force?: boolean; silent?: boolean } = {}) {
+  if (!options.force && detailLoadedMap.value[billId]) {
+    resetDetailSelection(billId)
+    return
+  }
+  if (detailLoadingMap.value[billId]) {
+    await (detailRequestMap.get(billId) || Promise.resolve())
+    return
   }
 
-  nextTick(() => {
-    billTableRef.value?.doLayout?.()
+  detailLoadingMap.value[billId] = true
+  const request = (async () => {
+    try {
+      const res: any = await fetchDetailListApi(billId)
+      setBillDetails(billId, (res.data || []) as BillDetailRow[])
+      detailLoadedMap.value[billId] = true
+      resetDetailSelection(billId)
+    } catch (error) {
+      setBillDetails(billId, [])
+      detailLoadedMap.value[billId] = false
+      resetDetailSelection(billId)
+      if (!options.silent) {
+        handleError(error, '加载明细列表')
+      }
+    } finally {
+      detailLoadingMap.value[billId] = false
+      detailRequestMap.delete(billId)
+      if (currentExpandedRow.value?.id === billId) {
+        nextTick(scheduleBillTableLayout)
+      }
+    }
+  })()
+
+  detailRequestMap.set(billId, request)
+  await request
+}
+
+const currentExpandedRow = ref<BillRow | null>(null)
+const expandedRowKeys = computed(() => currentExpandedRow.value?.id ? [currentExpandedRow.value.id] : [])
+const pendingExpandBillId = ref<number | null>(null)
+let expandRequestToken = 0
+
+function detailTypeRows(billId: number, detailType: number) {
+  const bucket = detailBucketMap.value[billId] || emptyDetailBucket
+  return Number(detailType) === Number(DETAIL_TYPE_VALUE.INCOME) ? bucket.incomeRows : bucket.expenseRows
+}
+
+function detailTypeDisplayList(billId: number, detailType: number) {
+  const bucket = detailBucketMap.value[billId] || emptyDetailBucket
+  return Number(detailType) === Number(DETAIL_TYPE_VALUE.INCOME) ? bucket.incomeDisplayRows : bucket.expenseDisplayRows
+}
+
+function detailTypeTotalCount(billId: number, detailType: number) {
+  return detailTypeRows(billId, detailType).length
+}
+
+function detailTypeTotalAmount(billId: number, detailType: number) {
+  return detailTypeRows(billId, detailType).reduce((sum, item) => sum + toNumber(item.amount), 0)
+}
+
+function syncSelectedDetails(billId: number) {
+  const incomeList = selectedIncomeDetailsMap.value[billId] || []
+  const expenseList = selectedExpenseDetailsMap.value[billId] || []
+  const mergedMap = new Map<number, BillDetailRow>()
+  ;[...incomeList, ...expenseList].forEach(item => {
+    if (item?.id != null) mergedMap.set(Number(item.id), item)
   })
+  selectedDetailsMap.value[billId] = [...mergedMap.values()]
+}
+
+function getPaneSelection(billId: number, pane: 'income' | 'expense') {
+  return pane === 'income'
+    ? (selectedIncomeDetailsMap.value[billId] || [])
+    : (selectedExpenseDetailsMap.value[billId] || [])
+}
+
+function setPaneSelection(billId: number, pane: 'income' | 'expense', selection: BillDetailRow[]) {
+  if (pane === 'income') {
+    selectedIncomeDetailsMap.value[billId] = selection
+  } else {
+    selectedExpenseDetailsMap.value[billId] = selection
+  }
+}
+
+function isDetailSelected(billId: number, pane: 'income' | 'expense', detailId: number) {
+  return getPaneSelection(billId, pane).some(item => Number(item.id) === Number(detailId))
+}
+
+function isPaneAllSelected(billId: number, pane: 'income' | 'expense', detailType: number) {
+  const rows = detailTypeDisplayList(billId, detailType)
+  return rows.length > 0 && rows.every(item => isDetailSelected(billId, pane, item.id))
+}
+
+function isPaneSelectionIndeterminate(billId: number, pane: 'income' | 'expense', detailType: number) {
+  const rows = detailTypeDisplayList(billId, detailType)
+  if (!rows.length) return false
+  const selectedCount = rows.filter(item => isDetailSelected(billId, pane, item.id)).length
+  return selectedCount > 0 && selectedCount < rows.length
+}
+
+function toggleDetailChecked(billId: number, pane: 'income' | 'expense', detail: BillDetailRow, checked: boolean) {
+  const current = getPaneSelection(billId, pane)
+  const next = checked
+    ? [...current.filter(item => Number(item.id) !== Number(detail.id)), detail]
+    : current.filter(item => Number(item.id) !== Number(detail.id))
+  setPaneSelection(billId, pane, next)
+  syncSelectedDetails(billId)
+}
+
+function togglePaneSelectAll(billId: number, pane: 'income' | 'expense', detailType: number, checked: boolean) {
+  const rows = detailTypeDisplayList(billId, detailType)
+  const rowIds = new Set(rows.map(item => Number(item.id)))
+  const retained = getPaneSelection(billId, pane).filter(item => !rowIds.has(Number(item.id)))
+  setPaneSelection(billId, pane, checked ? [...retained, ...rows] : retained)
+  syncSelectedDetails(billId)
 }
 
 const detailDialogVisible = ref(false)
@@ -833,24 +1310,27 @@ const detailDialogTitle = ref('新增明细')
 const detailSaving = ref(false)
 const detailFormRef = ref<any>()
 const currentBillRow = ref<BillRow | null>(null)
+const billEditDialogVisible = ref(false)
+const billEditRow = ref<BillRow | null>(null)
+const billEditRowId = computed(() => Number(billEditRow.value?.id || 0))
 const detailForm = reactive({
   id: undefined as number | undefined,
   billId: 0,
-  detailDate: '',
+  detailDate: currentDateString(),
   description: '',
   amount: 0,
-  detailType: 0,
+  detailType: DETAIL_TYPE_VALUE.EXPENSE,
   remark: ''
 })
 const detailRules = {
   detailDate: [{ required: true, message: '请选择日期', trigger: 'change' }],
   description: [{ required: true, message: '请输入描述', trigger: 'blur' }],
-  detailType: [{ required: true, message: '请选择类型', trigger: 'change' }]
+  detailType: [{ required: true, message: '请选择收支状态', trigger: 'change' }]
 }
 
 function openAddDetail(row: BillRow) {
   currentBillRow.value = row
-  Object.assign(detailForm, { id: undefined, billId: row.id, detailDate: '', description: '', amount: 0, detailType: 0, remark: '' })
+  Object.assign(detailForm, { id: undefined, billId: row.id, detailDate: currentDateString(), description: '', amount: 0, detailType: DETAIL_TYPE_VALUE.EXPENSE, remark: '' })
   detailDialogTitle.value = '新增明细'
   detailDialogVisible.value = true
 }
@@ -878,7 +1358,7 @@ async function handleSaveDetail() {
     ElMessage.success('操作成功')
     detailDialogVisible.value = false
     if (currentBillRow.value) {
-      await loadDetails(currentBillRow.value.id)
+      await loadDetails(currentBillRow.value.id, { force: true })
       handleSearch()
     }
   } catch (error) {
@@ -893,16 +1373,12 @@ async function handleDeleteDetail(id: number) {
     await deleteDetailApi(id)
     ElMessage.success('删除成功')
     if (currentBillRow.value) {
-      await loadDetails(currentBillRow.value.id)
+      await loadDetails(currentBillRow.value.id, { force: true })
     }
     handleSearch()
   } catch (error) {
     handleError(error, '删除明细')
   }
-}
-
-function handleDetailSelection(billId: number, selection: any[]) {
-  selectedDetailsMap.value[billId] = selection
 }
 
 async function handleBatchDelete(billId: number) {
@@ -916,7 +1392,9 @@ async function handleBatchDelete(billId: number) {
     await batchDeleteDetailsApi(ids)
     ElMessage.success('批量删除成功')
     selectedDetailsMap.value[billId] = []
-    await loadDetails(billId)
+    selectedIncomeDetailsMap.value[billId] = []
+    selectedExpenseDetailsMap.value[billId] = []
+    await loadDetails(billId, { force: true })
     handleSearch()
   } catch (error: any) {
     if (error !== 'cancel') {
@@ -933,10 +1411,12 @@ async function handleBatchUpdateType(billId: number, detailType: number) {
     await batchUpdateTypeApi({ ids, detailType })
     ElMessage.success('批量修改成功')
     selectedDetailsMap.value[billId] = []
-    await loadDetails(billId)
+    selectedIncomeDetailsMap.value[billId] = []
+    selectedExpenseDetailsMap.value[billId] = []
+    await loadDetails(billId, { force: true })
     handleSearch()
   } catch (error) {
-    handleError(error, '批量修改类型')
+    handleError(error, '批量修改收支状态')
   }
 }
 
@@ -964,6 +1444,7 @@ async function handleInlineSave(row: BillRow) {
   const form = editFormMap.value[row.id]
   if (!form) return
   savingId.value = row.id
+  let saved = false
   try {
     const rowData = row as any
     await updateBillApi({
@@ -978,6 +1459,7 @@ async function handleInlineSave(row: BillRow) {
       actualPayAmount: toNumber(rowData.actualPayAmount),
       actualPayDate: rowData.actualPayDate,
       feeRate: row.feeRate,
+      feePaid: !!form.feePaid,
       posCostAmount: toNumber(form.posCostAmount),
       status: row.status,
       remark: row.remark || ''
@@ -985,23 +1467,88 @@ async function handleInlineSave(row: BillRow) {
 
     ElMessage.success(`保存成功，净利润 ¥${form.netProfit}`)
     handleSearch()
+    saved = true
   } catch (error) {
     handleError(error, '保存账单')
   } finally {
     savingId.value = null
   }
+  return saved
+}
+
+function openBillEdit(row: BillRow) {
+  billEditRow.value = row
+  ensureEditForm(row)
+  billEditDialogVisible.value = true
+}
+
+async function handleSaveBillEdit() {
+  if (!billEditRow.value) return
+  const saved = await handleInlineSave(billEditRow.value)
+  if (saved) {
+    billEditDialogVisible.value = false
+  }
+}
+
+async function toggleBillDetail(row: BillRow) {
+  if (currentExpandedRow.value?.id === row.id) {
+    currentExpandedRow.value = null
+    if (pendingExpandBillId.value === row.id) {
+      pendingExpandBillId.value = null
+    }
+    nextTick(scheduleBillTableLayout)
+    return
+  }
+
+  const billId = Number(row.id)
+
+  if (detailLoadedMap.value[billId]) {
+    pendingExpandBillId.value = null
+    currentExpandedRow.value = row
+    nextTick(() => {
+      scheduleBillTableLayout()
+      scrollExpandedContentIntoView()
+    })
+    return
+  }
+
+  pendingExpandBillId.value = billId
+  const requestToken = ++expandRequestToken
+
+  try {
+    await loadDetails(billId)
+    if (requestToken !== expandRequestToken || pendingExpandBillId.value !== billId) return
+    currentExpandedRow.value = sortedList.value.find(item => Number(item.id) === billId) || row
+  } finally {
+    if (pendingExpandBillId.value === billId) {
+      pendingExpandBillId.value = null
+    }
+    nextTick(() => {
+      scheduleBillTableLayout()
+      scrollExpandedContentIntoView()
+    })
+  }
+}
+
+function currentDateString() {
+  const date = new Date()
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 // 快捷键支持
 function handleKeydown(e: KeyboardEvent) {
   if (e.ctrlKey && e.key === 's') {
     e.preventDefault()
-    if (currentExpandedRow.value) {
-      handleInlineSave(currentExpandedRow.value)
+    if (billEditDialogVisible.value && billEditRow.value) {
+      handleSaveBillEdit()
     }
   }
 
   if (e.key === 'Escape') {
+    billEditDialogVisible.value = false
     detailDialogVisible.value = false
   }
 
@@ -1014,12 +1561,17 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 onMounted(() => {
-  fetchOwners()
   document.addEventListener('keydown', handleKeydown)
 })
 
 onUnmounted(() => {
+  triggerBillSearch.cancel()
   document.removeEventListener('keydown', handleKeydown)
+  if (billTableLayoutFrame) {
+    window.cancelAnimationFrame(billTableLayoutFrame)
+    billTableLayoutFrame = 0
+  }
+  cancelDetailPrefetch()
 })
 
 function buildFeeAmount(amount: number, feeRate: number | null | undefined) {
@@ -1047,14 +1599,74 @@ function billPeriodLabel(billMonth: string | null | undefined, billDay: number |
   return `${month}月${billDay}日`
 }
 
+function displayBankName(name: string | null | undefined) {
+  const value = String(name || '').trim()
+  if (!value) return '-'
+  return value.includes('银行') ? value : `${value}银行`
+}
+
 watch(
-  () => [route.query.cardId, route.query.ownerId, route.query.status, route.query.year, route.query.billMonth],
-  ([cardId, ownerId, status, year, billMonth]) => {
+  () => loading.value,
+  (isLoading) => {
+    if (isLoading) {
+      cancelDetailPrefetch()
+    }
+  }
+)
+
+watch(
+  () => sortedList.value.map(item => item.id),
+  (ids) => {
+    if (!currentExpandedRow.value?.id) return
+
+    if (!ids.includes(currentExpandedRow.value.id)) {
+      currentExpandedRow.value = null
+      nextTick(scheduleBillTableLayout)
+      return
+    }
+
+    const latestRow = sortedList.value.find(item => item.id === currentExpandedRow.value?.id)
+    if (latestRow && latestRow !== currentExpandedRow.value) {
+      currentExpandedRow.value = latestRow
+    }
+  }
+)
+
+watch(
+  billMonthRange,
+  () => {
+    if (syncingBillFilters) return
+    syncBillMonthQuery()
+  },
+  { flush: 'sync' }
+)
+
+watch(
+  () => [query.ownerName, query.cardName, query.status, query.feePaid, query.startBillMonth, query.endBillMonth],
+  () => {
+    if (syncingBillFilters) return
+    triggerBillSearch()
+  },
+  { flush: 'sync' }
+)
+
+watch(
+  () => [route.query.cardId, route.query.ownerId, route.query.status, route.query.year, route.query.billMonth, route.query.startBillMonth, route.query.endBillMonth],
+  ([cardId, ownerId, status, year, billMonth, startBillMonth, endBillMonth]) => {
+    triggerBillSearch.cancel()
+    const previousSyncState = syncingBillFilters
+    syncingBillFilters = true
+    const [routeStartBillMonth, routeEndBillMonth] = normalizeRouteBillRange(startBillMonth, endBillMonth, year, billMonth)
     query.cardId = toRouteNumber(cardId) as any
     query.ownerId = toRouteNumber(ownerId) as any
     query.status = toRouteBillStatus(status) as any
-    query.year = toRouteYear(year) as any
-    query.billMonth = toRouteBillMonth(billMonth)
+    applyBillMonthRange(routeStartBillMonth, routeEndBillMonth)
+    syncingBillFilters = previousSyncState
+    currentExpandedRow.value = null
+    if (skipRouteDrivenSearch) {
+      skipRouteDrivenSearch = false
+      return
+    }
     refreshFirstPage()
   },
   { immediate: true }
@@ -1195,12 +1807,7 @@ watch(
 }
 
 .filter-panel {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--bill-gap);
-  padding: 5px 8px;
-  flex-shrink: 0;
+  display: none !important;
 }
 
 .filter-main {
@@ -1233,6 +1840,10 @@ watch(
 
 .filter-month {
   width: 102px;
+}
+
+.filter-fee-paid {
+  width: 108px;
 }
 
 .filter-main :deep(.el-input__wrapper),
@@ -1437,7 +2048,16 @@ watch(
   font-size: var(--bill-font-size);
 }
 
-.bill-page-table :deep(.el-table th.el-table__cell),
+.bill-page-table :deep(.el-table th.el-table__cell) {
+  height: auto;
+  padding: 5px 2px;
+  background: #f7f9fc;
+  font-size: var(--bill-small-font-size);
+  color: #5b6472;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
 .detail-section :deep(.el-table th.el-table__cell) {
   height: auto;
   padding: 5px 2px;
@@ -1448,21 +2068,75 @@ watch(
   vertical-align: top;
 }
 
-.bill-page-table :deep(.el-table td.el-table__cell),
+.bill-page-table :deep(.el-table td.el-table__cell) {
+  height: auto;
+  padding: 4px 2px;
+  vertical-align: middle;
+}
+
 .detail-section :deep(.el-table td.el-table__cell) {
   height: auto;
   padding: 3px 2px;
   vertical-align: top;
 }
 
+.table-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.table-stack-right {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.table-stack-center {
+  align-items: center;
+  text-align: center;
+}
+
+.table-stack-line {
+  display: inline-flex;
+  align-items: center;
+  justify-content: inherit;
+  gap: 4px;
+  min-width: 0;
+  color: #1f2a37;
+  line-height: 1.15;
+}
+
 .bill-page-table :deep(.el-table__body tr:not(.el-table__expanded-row) > td.el-table__cell) {
   height: auto;
 }
 
+.bill-page-table :deep(.el-table__body tr.current-month-row > td.el-table__cell) {
+  background: #fff7e6 !important;
+  box-shadow: inset 0 1px 0 #ffd591, inset 0 -1px 0 #ffd591;
+}
+
+.bill-page-table :deep(.el-table__body tr.current-month-row > td.el-table__cell:first-child) {
+  box-shadow: inset 3px 0 0 #fa8c16, inset 0 1px 0 #ffd591, inset 0 -1px 0 #ffd591;
+}
+
+.bill-page-table :deep(.el-table__body tr.current-month-row:hover > td.el-table__cell) {
+  background: #fff1cc !important;
+}
+
 .bill-page-table :deep(.el-table__header-wrapper),
+.detail-section :deep(.el-table__header-wrapper) {
+  overflow: hidden !important;
+}
+
 .bill-page-table :deep(.el-table__body-wrapper),
-.bill-page-table :deep(.el-scrollbar__wrap),
-.detail-section :deep(.el-table__header-wrapper),
+.bill-page-table :deep(.el-scrollbar__wrap) {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
 .detail-section :deep(.el-table__body-wrapper),
 .detail-section :deep(.el-scrollbar__wrap) {
   overflow: hidden !important;
@@ -1503,11 +2177,27 @@ watch(
   height: 22px;
 }
 
+.bill-page-table :deep(.el-table__header colgroup col:nth-child(2)),
+.bill-page-table :deep(.el-table__body colgroup col:nth-child(2)) {
+  width: 104px !important;
+}
+
+.bill-page-table :deep(.el-table__header colgroup col:nth-child(11)),
+.bill-page-table :deep(.el-table__body colgroup col:nth-child(11)) {
+  width: 64px !important;
+}
+
 .owner-cell {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 4px;
+  width: 100%;
   min-width: 0;
+}
+
+.owner-expand-btn {
+  flex-shrink: 0;
 }
 
 .owner-avatar {
@@ -1540,6 +2230,12 @@ watch(
 
 .owner-name,
 .bank-cell,
+.table-stack,
+.table-stack-line,
+.date-cell,
+.fee-cell,
+.profit-cell,
+.status-cell,
 .period-text,
 .repay-date,
 .amount-value,
@@ -1549,8 +2245,11 @@ watch(
 }
 
 .owner-name {
+  flex: 1;
+  min-width: 0;
   font-weight: 600;
   color: #1f2a37;
+  text-align: left;
   white-space: normal;
   overflow: visible;
   text-overflow: clip;
@@ -1559,12 +2258,54 @@ watch(
 
 .bank-cell {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
   gap: 4px;
   font-weight: 600;
+  text-align: center;
   white-space: normal;
   overflow: visible;
   word-break: break-word;
+}
+
+.bank-card-cell {
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.bank-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.bank-line span {
+  min-width: 0;
+  word-break: break-word;
+}
+
+.date-cell,
+.fee-cell,
+.profit-cell,
+.status-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.date-cell,
+.status-cell {
+  align-items: center;
+}
+
+.fee-cell,
+.profit-cell {
+  align-items: flex-end;
 }
 
 .card-no-badge {
@@ -1586,7 +2327,7 @@ watch(
 .amount-cell {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
 }
 
 .amount-value,
@@ -1616,55 +2357,36 @@ watch(
   color: #c0c7d6;
 }
 
-.delete-icon-btn {
-  width: 26px;
-  height: 26px;
+.row-action-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+}
+
+.row-action-btn {
+  width: 24px;
+  height: 24px;
   padding: 0;
+}
+
+.row-action-buttons > .detail-toggle-btn {
+  display: none !important;
+}
+
+.detail-toggle-btn :deep(.el-icon) {
+  transition: transform 0.18s ease;
+}
+
+.detail-toggle-btn.expanded :deep(.el-icon) {
+  transform: rotate(90deg);
 }
 
 .expand-bill-content {
   padding: 6px 8px;
   background: #f8fafc;
   border-radius: 8px;
-}
-
-.quick-edit-bar {
-  display: flex;
-  align-items: flex-end;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 6px;
-  padding: 6px 8px;
-  background: #fff;
-  border-radius: 8px;
-  border: 1px solid #e5eaf1;
-  box-shadow: none;
-}
-
-.qe-item {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.qe-item > label {
-  font-size: var(--bill-small-font-size);
-  color: #8a94a6;
-}
-
-.qe-item :deep(.el-input-number),
-.qe-item :deep(.el-input-number .el-input__wrapper),
-.quick-edit-bar :deep(.el-button) {
-  max-width: 100%;
-}
-
-.qe-readonly {
-  min-width: 80px;
-}
-
-.qe-readonly > span {
-  font-size: var(--bill-font-size);
-  font-weight: 700;
 }
 
 .detail-section {
@@ -1690,6 +2412,11 @@ watch(
   flex-wrap: wrap;
 }
 
+.detail-limit-tip {
+  font-size: var(--bill-small-font-size);
+  color: #98a2b3;
+}
+
 .detail-header :deep(.el-button) {
   flex-shrink: 0;
   height: 24px;
@@ -1703,6 +2430,171 @@ watch(
   background: #f5f7fa;
   border-bottom: 1px solid #e5eaf1;
   flex-wrap: wrap;
+}
+
+.detail-split-grid {
+  --detail-grid-columns: 34px 92px 110px minmax(0, 1fr) 74px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px;
+}
+
+.detail-pane {
+  min-width: 0;
+  border: 1px solid #e5eaf1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.detail-lite-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-lite-head,
+.detail-lite-row {
+  display: grid;
+  grid-template-columns: var(--detail-grid-columns);
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+}
+
+.detail-lite-head {
+  background: #fcfcfd;
+  border-bottom: 1px solid #eef2f6;
+  color: #7c8799;
+  font-size: var(--bill-small-font-size);
+}
+
+.detail-lite-row + .detail-lite-row {
+  border-top: 1px solid #f0f3f7;
+}
+
+.detail-check-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.detail-date-col {
+  color: #526074;
+  white-space: nowrap;
+}
+
+.detail-amount-col {
+  display: flex;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.detail-note-col {
+  min-width: 0;
+}
+
+.detail-action-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.detail-pane-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  background: #fafbfc;
+  border-bottom: 1px solid #e5eaf1;
+}
+
+.detail-pane-head-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.detail-pane-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--bill-font-size);
+  font-weight: 700;
+  color: #1f2a37;
+}
+
+.detail-pane-sub {
+  font-size: var(--bill-small-font-size);
+  color: #98a2b3;
+}
+
+.detail-pane-total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 72px;
+  text-align: right;
+}
+
+.detail-pane-total-label {
+  font-size: var(--bill-small-font-size);
+  color: #98a2b3;
+  line-height: 1.2;
+}
+
+.detail-pane-total-value {
+  font-family: var(--font-mono);
+  font-size: var(--bill-font-size);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.detail-empty {
+  padding: 22px 12px;
+  text-align: center;
+  font-size: var(--bill-small-font-size);
+  color: #98a2b3;
+}
+
+.detail-note-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.detail-note-main {
+  color: #1f2a37;
+}
+
+.detail-note-sub {
+  font-size: var(--bill-small-font-size);
+  color: #98a2b3;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.bill-page-table :deep(.expand-toggle-col) {
+  width: 1px !important;
+  min-width: 1px !important;
+  padding: 0 !important;
+  border-right: none !important;
+}
+
+.bill-page-table :deep(.expand-toggle-col .cell) {
+  display: none !important;
+  padding: 0 !important;
+}
+
+.bill-edit-static {
+  font-size: var(--bill-font-size);
+  font-weight: 700;
 }
 
 .side-card {
@@ -1802,6 +2694,12 @@ watch(
 
   .header-stat-row {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1380px) {
+  .detail-split-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

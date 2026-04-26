@@ -29,7 +29,7 @@ public class BillDetailVO {
     @Schema(description = "金额")
     private BigDecimal amount;
 
-    @Schema(description = "类型：0=POS刷出 1=还信用卡 2=客户还钱给我")
+    @Schema(description = "类型：0=支出 1=收入")
     private Integer detailType;
 
     @Schema(description = "类型描述")

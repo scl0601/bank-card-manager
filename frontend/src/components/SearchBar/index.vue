@@ -44,7 +44,7 @@ interface Emits {
   (e: 'update:modelValue', value: Record<string, any>): void
 }
 
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   labelWidth: 'auto',
   hideSearchButton: false
 })

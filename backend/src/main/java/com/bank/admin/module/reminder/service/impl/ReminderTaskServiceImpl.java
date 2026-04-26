@@ -222,12 +222,15 @@ public class ReminderTaskServiceImpl
                 .map(ReminderTask::getCardId)
                 .collect(Collectors.toSet());
 
-        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM");
         List<ReminderTask> toInsert = new ArrayList<>();
 
         for (BankCard card : cards) {
             try {
-                YearMonth expireYM = YearMonth.parse(card.getExpireDate(), fmt);
+                YearMonth expireYM = parseCardExpireYearMonth(card.getExpireDate());
+                if (expireYM == null) {
+                    log.warn("[提醒扫描] 卡片 {} 有效期格式异常：{}", card.getId(), card.getExpireDate());
+                    continue;
+                }
                 LocalDate expireEnd = expireYM.atEndOfMonth();
                 long daysLeft = expireEnd.toEpochDay() - today.toEpochDay();
 
@@ -261,6 +264,48 @@ public class ReminderTaskServiceImpl
             log.info("[提醒扫描] 卡片即将过期提醒：新增 {} 条", toInsert.size());
         } else {
             log.info("[提醒扫描] 卡片即将过期提醒：今日已全部提醒或无需提醒");
+        }
+    }
+
+    private YearMonth parseCardExpireYearMonth(String expireDate) {
+        if (expireDate == null || expireDate.trim().isEmpty()) {
+            return null;
+        }
+        String raw = expireDate.trim();
+        try {
+            return YearMonth.parse(raw, DateTimeFormatter.ofPattern("yyyy-MM"));
+        } catch (Exception ignored) {
+            // 有效期原样保存，提醒扫描只做兼容解析。
+        }
+
+        String compact = raw.replaceAll("\\D+", "");
+        if (compact.length() == 4) {
+            return buildYearMonth(compact.substring(2), compact.substring(0, 2));
+        }
+
+        String[] parts = raw.split("\\D+");
+        if (parts.length < 2) {
+            return null;
+        }
+        if (parts[0].length() == 4) {
+            return buildYearMonth(parts[0], parts[1]);
+        }
+        return buildYearMonth(parts[1], parts[0]);
+    }
+
+    private YearMonth buildYearMonth(String yearText, String monthText) {
+        try {
+            int year = Integer.parseInt(yearText);
+            int month = Integer.parseInt(monthText);
+            if (year < 100) {
+                year += 2000;
+            }
+            if (month < 1 || month > 12) {
+                return null;
+            }
+            return YearMonth.of(year, month);
+        } catch (Exception e) {
+            return null;
         }
     }
 

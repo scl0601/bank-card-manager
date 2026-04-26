@@ -679,7 +679,6 @@ const monthEventMap = computed(() => buildEventMap(monthData.value))
 const filteredMonthEventMap = computed(() => buildEventMap(filteredMonthData.value))
 const selectedDayStats = computed(() => createStats(dayEvents.value))
 const monthStats = computed(() => createStats(monthData.value))
-const filteredMonthStats = computed(() => createStats(filteredMonthData.value))
 
 const monthCompletionRate = computed(() => {
   const total = monthStats.value.total - monthStats.value.cancelledCount

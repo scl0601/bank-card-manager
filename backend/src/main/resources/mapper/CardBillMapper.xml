@@ -25,6 +25,7 @@
             cb.remark,
             cb.fee_rate,
             cb.fee_amount,
+            cb.fee_paid,
             cb.pos_cost_amount,
             cb.net_profit,
             bc.repay_method,
@@ -34,23 +35,43 @@
         LEFT JOIN card_user cu ON cu.id = cb.owner_id AND cu.is_deleted = 0
         WHERE cb.is_deleted = 0
         <if test="cardId != null">AND cb.card_id = #{cardId}</if>
-        <if test="ownerId != null">AND cb.owner_id = #{ownerId}</if>
+        <if test="cardIds != null and cardIds.size() > 0">
+            AND cb.card_id IN
+            <foreach collection="cardIds" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        <if test="ownerId != null">
+            AND (
+                cb.owner_id = #{ownerId}
+                OR cu.parent_id = #{ownerId}
+            )
+        </if>
         <if test="cardName != null and cardName != ''">
             AND (
                 bc.bank_name LIKE CONCAT('%', #{cardName}, '%')
+                OR CONCAT(bc.bank_name, CASE WHEN bc.bank_name LIKE '%银行' THEN '' ELSE '银行' END) LIKE CONCAT('%', #{cardName}, '%')
                 OR bc.card_no_last4 LIKE CONCAT('%', #{cardName}, '%')
             )
         </if>
         <if test="billMonth != null and billMonth != ''">AND cb.bill_month = #{billMonth}</if>
         <if test="year != null">AND LEFT(cb.bill_month, 4) = #{year}</if>
         <if test="status != null">AND cb.status = #{status}</if>
+        <if test="feePaid != null">AND cb.fee_paid = #{feePaid}</if>
         ORDER BY CAST(SUBSTRING_INDEX(cb.bill_month, '-', 1) AS UNSIGNED) DESC,
-                 MOD(
-                     CAST(SUBSTRING_INDEX(cb.bill_month, '-', -1) AS SIGNED)
-                     - CAST(SUBSTRING_INDEX(#{currentMonth}, '-', -1) AS SIGNED)
-                     + 12,
-                     12
-                 ) ASC,
+                 <choose>
+                     <when test="cardId != null and ownerId == null">
+                         CAST(SUBSTRING_INDEX(cb.bill_month, '-', -1) AS UNSIGNED) ASC,
+                     </when>
+                     <otherwise>
+                         MOD(
+                             CAST(SUBSTRING_INDEX(cb.bill_month, '-', -1) AS SIGNED)
+                             - CAST(SUBSTRING_INDEX(#{currentMonth}, '-', -1) AS SIGNED)
+                             + 12,
+                             12
+                         ) ASC,
+                     </otherwise>
+                 </choose>
                  cb.create_time DESC
     </select>
 
@@ -71,16 +92,29 @@
         LEFT JOIN card_user cu ON cu.id = cb.owner_id AND cu.is_deleted = 0
         WHERE cb.is_deleted = 0
         <if test="cardId != null">AND cb.card_id = #{cardId}</if>
-        <if test="ownerId != null">AND cb.owner_id = #{ownerId}</if>
+        <if test="cardIds != null and cardIds.size() > 0">
+            AND cb.card_id IN
+            <foreach collection="cardIds" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        <if test="ownerId != null">
+            AND (
+                cb.owner_id = #{ownerId}
+                OR cu.parent_id = #{ownerId}
+            )
+        </if>
         <if test="cardName != null and cardName != ''">
             AND (
                 bc.bank_name LIKE CONCAT('%', #{cardName}, '%')
+                OR CONCAT(bc.bank_name, CASE WHEN bc.bank_name LIKE '%银行' THEN '' ELSE '银行' END) LIKE CONCAT('%', #{cardName}, '%')
                 OR bc.card_no_last4 LIKE CONCAT('%', #{cardName}, '%')
             )
         </if>
         <if test="billMonth != null and billMonth != ''">AND cb.bill_month = #{billMonth}</if>
         <if test="year != null">AND LEFT(cb.bill_month, 4) = #{year}</if>
         <if test="status != null">AND cb.status = #{status}</if>
+        <if test="feePaid != null">AND cb.fee_paid = #{feePaid}</if>
     </select>
 
     <select id="selectUpcomingBills" resultType="java.util.Map">

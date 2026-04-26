@@ -89,9 +89,7 @@
       @update:page-size="val => query.pageSize = val"
       @current-change="handleCurrentChange"
       @size-change="handleSizeChange"
-      @selection-change="onSelectionChange"
     >
-      <el-table-column type="selection" width="50" />
       <el-table-column prop="ownerName" label="持卡人" width="100" />
       <el-table-column prop="bankName" label="银行" width="100">
         <template #default="{ row }">
@@ -155,17 +153,16 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'Reminders' })
-import { ref, reactive, watch, onMounted, computed } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { Bell, Warning, Clock, CreditCard, ArrowDown } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import SearchBar from '@/components/SearchBar/index.vue'
 import PageTable from '@/components/PageTable/index.vue'
 import StatusTag from '@/components/StatusTag/index.vue'
 import CardNumberDisplay from '@/components/CardNumberDisplay/index.vue'
 import {
   getReminderPageApi, markHandledApi, markIgnoredApi,
-  scanBillRemindersApi, scanCardRemindersApi,
-  batchMarkHandledApi, batchMarkIgnoredApi
+  scanBillRemindersApi, scanCardRemindersApi
 } from '@/api/reminder'
 import { usePageTable } from '@/composables/usePageTable'
 import {
@@ -175,7 +172,6 @@ import {
 
 const scanLoading = ref(false)
 const dateRange = ref<string[]>([])
-const selectedIds = ref<number[]>([])
 
 const {
   loading, list, total, query,
@@ -225,21 +221,9 @@ function onDateChange(val: string[] | null) {
   else { query.reminderDateStart = ''; query.reminderDateEnd = '' }
 }
 
-function onSelectionChange(selection: any[]) {
-  selectedIds.value = selection.map(item => item.id)
-}
-
 async function handleMark(id: number, type: 'handle' | 'ignore') {
   if (type === 'handle') { await markHandledApi(id) } else { await markIgnoredApi(id) }
   ElMessage.success('操作成功'); handleSearch(); loadStats()
-}
-
-async function handleBatchMark(type: 'handle' | 'ignore') {
-  if (selectedIds.value.length === 0) return
-  const action = type === 'handle' ? '标记为已处理' : '忽略'
-  await ElMessageBox.confirm(`确认将选中的 ${selectedIds.value.length} 条提醒${action}？`, '批量操作', { type: 'warning' })
-  if (type === 'handle') { await batchMarkHandledApi(selectedIds.value) } else { await batchMarkIgnoredApi(selectedIds.value) }
-  ElMessage.success('批量操作成功'); selectedIds.value = []; handleSearch(); loadStats()
 }
 
 async function handleScan(command: string) {

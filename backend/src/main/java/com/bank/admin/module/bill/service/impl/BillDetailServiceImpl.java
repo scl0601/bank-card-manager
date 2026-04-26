@@ -36,7 +36,7 @@ public class BillDetailServiceImpl
         extends ServiceImpl<BillDetailMapper, BillDetail>
         implements BillDetailService {
 
-    private static final String[] DETAIL_TYPE_DESC = {"刷出", "刷入"};
+    private static final String[] DETAIL_TYPE_DESC = {"支出", "收入"};
 
     private final CardBillMapper cardBillMapper;
     private final CardBillService cardBillService;
@@ -168,7 +168,7 @@ public class BillDetailServiceImpl
 
     private BigDecimal normalizeAmount(BigDecimal amount, Integer detailType) {
         BigDecimal normalized = amount == null ? BigDecimal.ZERO : amount.abs().setScale(2, RoundingMode.HALF_UP);
-        if (detailType != null && detailType == 2) {
+        if (detailType != null && detailType == 1) {
             return normalized;
         }
         return normalized.negate();
