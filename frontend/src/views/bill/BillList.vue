@@ -40,7 +40,7 @@
         <el-input
           v-model="query.cardName"
           class="app-search-item app-search-item-lg"
-          placeholder="请输入开户行名称或银行卡尾号查询"
+          placeholder="请输入名称或银行卡尾号查询"
           clearable
           maxlength="30"
         />
@@ -50,8 +50,8 @@
           type="monthrange"
           value-format="YYYY-MM"
           range-separator="至"
-          start-placeholder="请选择账单生成开始时间"
-          end-placeholder="请选择账单生成结束时间"
+          start-placeholder="请选择账单开始月份"
+          end-placeholder="请选择账单结束月份"
           :editable="false"
           clearable
         />
@@ -138,13 +138,12 @@
         <template #default="{ row }">
           <div class="expand-bill-content">
             <div class="detail-section" v-loading="detailLoadingMap[row.id] && detailLoadedMap[row.id]">
-              <div class="detail-header">
-                <div class="detail-header-main">
-                  <span class="detail-title">本月明细流水</span>
-                  <span class="detail-limit-tip">单侧最多展示 30 条</span>
-                  <el-button type="success" size="small" @click="openAddDetail(row)">+ 新增</el-button>
+                <div class="detail-header">
+                  <div class="detail-header-main">
+                    <span class="detail-title">本月明细流水</span>
+                    <el-button type="success" size="small" @click="openAddDetail(row)">+ 新增</el-button>
+                  </div>
                 </div>
-              </div>
 
               <BillDetailSkeleton v-if="detailLoadingMap[row.id] && !detailLoadedMap[row.id]" />
 
@@ -190,13 +189,14 @@
                             @change="(checked: any) => togglePaneSelectAll(row.id, 'income', DETAIL_TYPE_VALUE.INCOME, Boolean(checked))"
                           />
                         </div>
+                        <div class="detail-index-col">序号</div>
                         <div class="detail-date-col">日期</div>
                         <div class="detail-amount-col">金额</div>
                         <div class="detail-note-col">描述/备注</div>
                         <div class="detail-action-col">操作</div>
                       </div>
                       <div
-                        v-for="detail in detailTypeDisplayList(row.id, DETAIL_TYPE_VALUE.INCOME)"
+                        v-for="(detail, index) in detailTypeDisplayList(row.id, DETAIL_TYPE_VALUE.INCOME)"
                         :key="detail.id"
                         class="detail-lite-row"
                       >
@@ -206,6 +206,7 @@
                             @change="(checked: any) => toggleDetailChecked(row.id, 'income', detail, Boolean(checked))"
                           />
                         </div>
+                        <div class="detail-index-col">{{ index + 1 }}</div>
                         <div class="detail-date-col">{{ detail.detailDate }}</div>
                         <div class="detail-amount-col">
                           <span :class="detail.detailType === DETAIL_TYPE_VALUE.INCOME ? 'amt-pos' : 'amt-neg'" class="font-mono">
@@ -252,13 +253,14 @@
                             @change="(checked: any) => togglePaneSelectAll(row.id, 'expense', DETAIL_TYPE_VALUE.EXPENSE, Boolean(checked))"
                           />
                         </div>
+                        <div class="detail-index-col">序号</div>
                         <div class="detail-date-col">日期</div>
                         <div class="detail-amount-col">金额</div>
                         <div class="detail-note-col">描述/备注</div>
                         <div class="detail-action-col">操作</div>
                       </div>
                       <div
-                        v-for="detail in detailTypeDisplayList(row.id, DETAIL_TYPE_VALUE.EXPENSE)"
+                        v-for="(detail, index) in detailTypeDisplayList(row.id, DETAIL_TYPE_VALUE.EXPENSE)"
                         :key="detail.id"
                         class="detail-lite-row"
                       >
@@ -268,6 +270,7 @@
                             @change="(checked: any) => toggleDetailChecked(row.id, 'expense', detail, Boolean(checked))"
                           />
                         </div>
+                        <div class="detail-index-col">{{ index + 1 }}</div>
                         <div class="detail-date-col">{{ detail.detailDate }}</div>
                         <div class="detail-amount-col">
                           <span :class="detail.detailType === DETAIL_TYPE_VALUE.INCOME ? 'amt-pos' : 'amt-neg'" class="font-mono">
@@ -662,8 +665,6 @@ interface BillDetailRow {
 interface BillDetailBucket {
   incomeRows: BillDetailRow[]
   expenseRows: BillDetailRow[]
-  incomeDisplayRows: BillDetailRow[]
-  expenseDisplayRows: BillDetailRow[]
 }
 
 const route = useRoute()
@@ -673,7 +674,6 @@ const currentYear = now.getFullYear()
 const currentMonthNumber = now.getMonth() + 1
 const currentMonth = `${currentYear}-${String(currentMonthNumber).padStart(2, '0')}`
 const ANNUAL_PAGE_SIZE = 100
-const DETAIL_DISPLAY_LIMIT = 30
 const DETAIL_PREFETCH_DELAY = 80
 const DETAIL_PREFETCH_CONCURRENCY = 2
 const DETAIL_PREFETCH_ANNUAL_LIMIT = 20
@@ -703,6 +703,7 @@ const {
   list,
   total,
   query,
+  loadData,
   handleSearch,
   resetQuery,
   handleCurrentChange,
@@ -849,6 +850,11 @@ function formatBillRangeLabel(startBillMonth?: string | null, endBillMonth?: str
   const start = String(startBillMonth || '').trim()
   const end = String(endBillMonth || '').trim()
   if (!start && !end) return ''
+  if (isWholeYearRange(start, end)) {
+    const startYear = start.slice(0, 4)
+    const endYear = end.slice(0, 4)
+    return startYear === endYear ? `${startYear}年` : `${startYear}年 至 ${endYear}年`
+  }
   if (start && end) {
     return start === end ? start : `${start} 至 ${end}`
   }
@@ -1042,17 +1048,16 @@ const savingId = ref<number | null>(null)
 
 function ensureEditForm(row: BillRow) {
   if (!editFormMap.value[row.id]) {
-    const form: EditFormItem = {
+    editFormMap.value[row.id] = {
       id: row.id,
       billAmount: toNumber(row.billAmount),
       billDay: row.billDay ?? null,
       posCostAmount: toNumber(row.posCostAmount),
       repayDay: parseRepayDay(row.repayDate),
-      feePaid: !!row.feePaid,
+      feePaid: row.feePaid ?? false,
       feeAmount: '0.00',
       netProfit: '0.00'
     }
-    editFormMap.value[row.id] = form
     syncInlineAmounts(row.id)
   }
   return editFormMap.value[row.id]
@@ -1080,9 +1085,7 @@ let detailPrefetchTimer = 0
 let detailPrefetchToken = 0
 const emptyDetailBucket: BillDetailBucket = {
   incomeRows: [],
-  expenseRows: [],
-  incomeDisplayRows: [],
-  expenseDisplayRows: []
+  expenseRows: []
 }
 
 function scheduleBillTableLayout() {
@@ -1131,9 +1134,7 @@ function buildDetailBucket(details: BillDetailRow[]): BillDetailBucket {
 
   return {
     incomeRows,
-    expenseRows,
-    incomeDisplayRows: incomeRows.slice(0, DETAIL_DISPLAY_LIMIT),
-    expenseDisplayRows: expenseRows.slice(0, DETAIL_DISPLAY_LIMIT)
+    expenseRows
   }
 }
 
@@ -1237,7 +1238,7 @@ function detailTypeRows(billId: number, detailType: number) {
 
 function detailTypeDisplayList(billId: number, detailType: number) {
   const bucket = detailBucketMap.value[billId] || emptyDetailBucket
-  return Number(detailType) === Number(DETAIL_TYPE_VALUE.INCOME) ? bucket.incomeDisplayRows : bucket.expenseDisplayRows
+  return Number(detailType) === Number(DETAIL_TYPE_VALUE.INCOME) ? bucket.incomeRows : bucket.expenseRows
 }
 
 function detailTypeTotalCount(billId: number, detailType: number) {
@@ -1359,8 +1360,8 @@ async function handleSaveDetail() {
     detailDialogVisible.value = false
     if (currentBillRow.value) {
       await loadDetails(currentBillRow.value.id, { force: true })
-      handleSearch()
     }
+    await refreshBillDataAfterDetailChange()
   } catch (error) {
     handleError(error, '保存明细')
   } finally {
@@ -1375,7 +1376,7 @@ async function handleDeleteDetail(id: number) {
     if (currentBillRow.value) {
       await loadDetails(currentBillRow.value.id, { force: true })
     }
-    handleSearch()
+    await refreshBillDataAfterDetailChange()
   } catch (error) {
     handleError(error, '删除明细')
   }
@@ -1395,7 +1396,7 @@ async function handleBatchDelete(billId: number) {
     selectedIncomeDetailsMap.value[billId] = []
     selectedExpenseDetailsMap.value[billId] = []
     await loadDetails(billId, { force: true })
-    handleSearch()
+    await refreshBillDataAfterDetailChange()
   } catch (error: any) {
     if (error !== 'cancel') {
       handleError(error, '批量删除明细')
@@ -1414,9 +1415,16 @@ async function handleBatchUpdateType(billId: number, detailType: number) {
     selectedIncomeDetailsMap.value[billId] = []
     selectedExpenseDetailsMap.value[billId] = []
     await loadDetails(billId, { force: true })
-    handleSearch()
+    await refreshBillDataAfterDetailChange()
   } catch (error) {
     handleError(error, '批量修改收支状态')
+  }
+}
+
+async function refreshBillDataAfterDetailChange() {
+  await loadData()
+  if (currentExpandedRow.value?.id) {
+    currentExpandedRow.value = sortedList.value.find(item => Number(item.id) === Number(currentExpandedRow.value?.id)) || currentExpandedRow.value
   }
 }
 
@@ -1459,7 +1467,7 @@ async function handleInlineSave(row: BillRow) {
       actualPayAmount: toNumber(rowData.actualPayAmount),
       actualPayDate: rowData.actualPayDate,
       feeRate: row.feeRate,
-      feePaid: !!form.feePaid,
+      feePaid: form.feePaid,
       posCostAmount: toNumber(form.posCostAmount),
       status: row.status,
       remark: row.remark || ''
@@ -1712,8 +1720,7 @@ watch(
 }
 
 .header-copy,
-.header-stat-body,
-.owner-info {
+.header-stat-body {
   min-width: 0;
 }
 
@@ -1798,88 +1805,17 @@ watch(
   gap: 5px;
 }
 
-.action-btn,
-.header-actions :deep(.el-button),
-.filter-main :deep(.el-button) {
+.action-btn {
   height: 26px;
   padding: 0 9px;
   border-radius: 8px;
 }
 
-.filter-panel {
-  display: none !important;
-}
-
-.filter-main {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-  flex-wrap: wrap;
-}
-
-.filter-title {
-  padding: 0 2px;
-  font-size: var(--bill-small-font-size);
-  font-weight: 700;
-  color: #526074;
-  white-space: nowrap;
-}
-
-.filter-item {
-  width: 92px;
-}
-
-.filter-owner {
-  width: 112px;
-}
-
-.filter-card {
-  width: 120px;
-}
-
-.filter-month {
-  width: 102px;
-}
-
-.filter-fee-paid {
-  width: 108px;
-}
-
-.filter-main :deep(.el-input__wrapper),
-.filter-main :deep(.el-select__wrapper),
-.filter-main :deep(.el-date-editor.el-input__wrapper),
-.filter-main :deep(.el-date-editor .el-input__wrapper) {
-  min-height: 26px;
-}
-
-.filter-main :deep(.el-input__inner),
-.filter-main :deep(.el-select__selected-item),
-.filter-main :deep(.el-range-input),
-.filter-main :deep(.el-input-number__input) {
-  font-size: var(--bill-small-font-size);
-}
-
-.filter-extra {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  min-width: 0;
-}
-
-.toolbar-hint,
-.toolbar-tip {
-  font-size: var(--bill-small-font-size);
-  color: #7c8799;
-}
-
-.toolbar-tip {
-  max-width: 360px;
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
-  word-break: break-word;
+/*noinspection CssUnusedSymbol*/
+.header-actions :deep(.el-button) {
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 8px;
 }
 
 .workspace-grid {
@@ -2016,6 +1952,7 @@ watch(
   overflow: hidden;
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-table),
 .bill-page-table :deep(.el-table__inner-wrapper),
 .detail-section :deep(.el-table),
@@ -2024,11 +1961,13 @@ watch(
   font-size: var(--bill-font-size);
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-table__inner-wrapper::before),
 .detail-section :deep(.el-table__inner-wrapper::before) {
   display: none;
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-table__header),
 .bill-page-table :deep(.el-table__body),
 .detail-section :deep(.el-table__header),
@@ -2037,6 +1976,7 @@ watch(
   table-layout: fixed;
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-table .cell),
 .detail-section :deep(.el-table .cell) {
   padding: 1px 3px;
@@ -2048,6 +1988,7 @@ watch(
   font-size: var(--bill-font-size);
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-table th.el-table__cell) {
   height: auto;
   padding: 5px 2px;
@@ -2058,6 +1999,7 @@ watch(
   vertical-align: middle;
 }
 
+/*noinspection CssUnusedSymbol*/
 .detail-section :deep(.el-table th.el-table__cell) {
   height: auto;
   padding: 5px 2px;
@@ -2068,12 +2010,14 @@ watch(
   vertical-align: top;
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-table td.el-table__cell) {
   height: auto;
   padding: 4px 2px;
   vertical-align: middle;
 }
 
+/*noinspection CssUnusedSymbol*/
 .detail-section :deep(.el-table td.el-table__cell) {
   height: auto;
   padding: 3px 2px;
@@ -2087,11 +2031,6 @@ watch(
   width: 100%;
   min-width: 0;
   line-height: 1.2;
-}
-
-.table-stack-right {
-  align-items: flex-end;
-  text-align: right;
 }
 
 .table-stack-center {
@@ -2109,59 +2048,71 @@ watch(
   line-height: 1.15;
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-table__body tr:not(.el-table__expanded-row) > td.el-table__cell) {
   height: auto;
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-table__body tr.current-month-row > td.el-table__cell) {
   background: #fff7e6 !important;
   box-shadow: inset 0 1px 0 #ffd591, inset 0 -1px 0 #ffd591;
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-table__body tr.current-month-row > td.el-table__cell:first-child) {
   box-shadow: inset 3px 0 0 #fa8c16, inset 0 1px 0 #ffd591, inset 0 -1px 0 #ffd591;
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-table__body tr.current-month-row:hover > td.el-table__cell) {
   background: #fff1cc !important;
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-table__header-wrapper),
 .detail-section :deep(.el-table__header-wrapper) {
   overflow: hidden !important;
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-table__body-wrapper),
 .bill-page-table :deep(.el-scrollbar__wrap) {
   overflow-x: hidden !important;
   overflow-y: auto !important;
 }
 
+/*noinspection CssUnusedSymbol*/
 .detail-section :deep(.el-table__body-wrapper),
 .detail-section :deep(.el-scrollbar__wrap) {
   overflow: hidden !important;
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-scrollbar__bar),
 .detail-section :deep(.el-scrollbar__bar) {
   display: none !important;
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-table__expanded-cell) {
   height: auto !important;
   padding: 8px !important;
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-table__expanded-cell .cell) {
   padding: 0 !important;
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.pagination-wrapper) {
   margin-top: 4px;
   display: flex;
   justify-content: flex-end;
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-pagination) {
   --el-pagination-button-height: 22px;
   --el-pagination-button-width: 22px;
@@ -2170,6 +2121,7 @@ watch(
   transform-origin: right center;
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-pagination .btn-prev),
 .bill-page-table :deep(.el-pagination .btn-next),
 .bill-page-table :deep(.el-pagination .el-pager li) {
@@ -2177,11 +2129,13 @@ watch(
   height: 22px;
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-table__header colgroup col:nth-child(2)),
 .bill-page-table :deep(.el-table__body colgroup col:nth-child(2)) {
   width: 104px !important;
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-table__header colgroup col:nth-child(11)),
 .bill-page-table :deep(.el-table__body colgroup col:nth-child(11)) {
   width: 64px !important;
@@ -2212,13 +2166,7 @@ watch(
   flex-shrink: 0;
 }
 
-.owner-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.owner-info :deep(.el-tag),
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-tag),
 .detail-section :deep(.el-tag) {
   width: fit-content;
@@ -2232,12 +2180,6 @@ watch(
 .bank-cell,
 .table-stack,
 .table-stack-line,
-.date-cell,
-.fee-cell,
-.profit-cell,
-.status-cell,
-.period-text,
-.repay-date,
 .amount-value,
 .fee-rate-badge,
 .no-data {
@@ -2287,27 +2229,6 @@ watch(
   word-break: break-word;
 }
 
-.date-cell,
-.fee-cell,
-.profit-cell,
-.status-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  line-height: 1.15;
-}
-
-.date-cell,
-.status-cell {
-  align-items: center;
-}
-
-.fee-cell,
-.profit-cell {
-  align-items: flex-end;
-}
-
 .card-no-badge {
   display: inline-flex;
   align-items: center;
@@ -2318,7 +2239,7 @@ watch(
   font-weight: 700;
   font-size: var(--bill-small-font-size);
   color: #1f2a37;
-  font-family: var(--font-mono);
+  font-family: var(--font-mono), monospace;
   background: linear-gradient(135deg, #e6f7ff 0%, #f0f9ff 100%);
   border-radius: 999px;
   border: 1px solid #bae0ff;
@@ -2336,7 +2257,7 @@ watch(
 }
 
 .amount-value {
-  font-family: var(--font-mono);
+  font-family: var(--font-mono), monospace;
   letter-spacing: 0.01em;
 }
 
@@ -2350,7 +2271,7 @@ watch(
   background: linear-gradient(135deg, #fff7e6 0%, #fffbf0 100%);
   border-radius: 999px;
   border: 1px solid #ffe7ba;
-  font-family: var(--font-mono);
+  font-family: var(--font-mono), monospace;
 }
 
 .no-data {
@@ -2375,10 +2296,12 @@ watch(
   display: none !important;
 }
 
+/*noinspection CssUnusedSymbol*/
 .detail-toggle-btn :deep(.el-icon) {
   transition: transform 0.18s ease;
 }
 
+/*noinspection CssUnusedSymbol*/
 .detail-toggle-btn.expanded :deep(.el-icon) {
   transform: rotate(90deg);
 }
@@ -2412,11 +2335,7 @@ watch(
   flex-wrap: wrap;
 }
 
-.detail-limit-tip {
-  font-size: var(--bill-small-font-size);
-  color: #98a2b3;
-}
-
+/*noinspection CssUnusedSymbol*/
 .detail-header :deep(.el-button) {
   flex-shrink: 0;
   height: 24px;
@@ -2433,7 +2352,7 @@ watch(
 }
 
 .detail-split-grid {
-  --detail-grid-columns: 34px 92px 110px minmax(0, 1fr) 74px;
+  --detail-grid-columns: 34px 46px 92px 110px minmax(0, 1fr) 74px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
@@ -2477,6 +2396,13 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.detail-index-col {
+  color: #526074;
+  text-align: center;
+  white-space: nowrap;
+  font-family: var(--font-mono), monospace;
 }
 
 .detail-date-col {
@@ -2550,7 +2476,7 @@ watch(
 }
 
 .detail-pane-total-value {
-  font-family: var(--font-mono);
+  font-family: var(--font-mono), monospace;
   font-size: var(--bill-font-size);
   font-weight: 700;
   line-height: 1.2;
@@ -2580,6 +2506,7 @@ watch(
   word-break: break-word;
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.expand-toggle-col) {
   width: 1px !important;
   min-width: 1px !important;
@@ -2587,6 +2514,7 @@ watch(
   border-right: none !important;
 }
 
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.expand-toggle-col .cell) {
   display: none !important;
   padding: 0 !important;
@@ -2627,6 +2555,7 @@ watch(
   gap: 5px;
 }
 
+/*noinspection CssUnusedSymbol*/
 .action-stack :deep(.el-button) {
   width: 100%;
   height: 28px;
@@ -2682,7 +2611,6 @@ watch(
 
 @media (max-width: 1320px) {
   .header-subtitle,
-  .toolbar-tip,
   .panel-desc,
   .inline-summary {
     display: none;

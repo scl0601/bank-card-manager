@@ -39,7 +39,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * 账单 ServiceImpl（含自动生成年账单、账单日/还款日联动、收益计算）
@@ -65,14 +67,8 @@ public class CardBillServiceImpl
         List<Long> cardIds = parseCardIds(query.getCardIds());
         Page<CardBillVO> result = (Page<CardBillVO>) baseMapper.selectPageWithInfo(
                 page,
-                query.getCardId(),
+                query,
                 cardIds,
-                query.getOwnerId(),
-                query.getCardName(),
-                query.getBillMonth(),
-                query.getYear(),
-                query.getStatus(),
-                query.getFeePaid(),
                 currentMonth);
         result.getRecords().forEach(this::fillStatusDesc);
         return PageResult.of(result);
@@ -80,22 +76,20 @@ public class CardBillServiceImpl
 
     @Override
     public CardBillOverviewVO overview(CardBillQueryDTO query) {
+        String currentMonth = YearMonth.now().format(MONTH_FMT);
         List<Long> cardIds = parseCardIds(query.getCardIds());
         CardBillOverviewVO overview = baseMapper.selectOverview(
-                query.getCardId(),
+                query,
                 cardIds,
-                query.getOwnerId(),
-                query.getCardName(),
-                query.getBillMonth(),
-                query.getYear(),
-                query.getStatus(),
-                query.getFeePaid());
+                currentMonth);
         if (overview == null) {
             overview = new CardBillOverviewVO();
         }
         Integer targetYear = query.getYear();
         if (targetYear == null && query.getBillMonth() != null && query.getBillMonth().length() >= 4) {
             targetYear = Integer.parseInt(query.getBillMonth().substring(0, 4));
+        } else if (targetYear == null && query.getStartBillMonth() != null && query.getStartBillMonth().length() >= 4) {
+            targetYear = Integer.parseInt(query.getStartBillMonth().substring(0, 4));
         }
         overview.setYear(targetYear);
         overview.setBillCount(defaultLong(overview.getBillCount()));
@@ -114,7 +108,7 @@ public class CardBillServiceImpl
         if (!StringUtils.hasText(rawCardIds)) {
             return List.of();
         }
-        return List.of(rawCardIds.split(",")).stream()
+        return Stream.of(rawCardIds.split(","))
                 .map(String::trim)
                 .filter(StringUtils::hasText)
                 .map(value -> {
@@ -432,10 +426,10 @@ public class CardBillServiceImpl
             toUpdate.add(bill);
         }
         if (!toInsert.isEmpty()) {
-            saveBatch(toInsert);
+            super.saveBatch(toInsert);
         }
         if (!toUpdate.isEmpty()) {
-            updateBatchById(toUpdate);
+            super.updateBatchById(toUpdate);
         }
     }
 
@@ -539,7 +533,7 @@ public class CardBillServiceImpl
         );
         return details.stream()
             .map(BillDetail::getAmount)
-            .filter(amount -> amount != null)
+            .filter(Objects::nonNull)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
@@ -559,13 +553,6 @@ public class CardBillServiceImpl
             return 3; // 逾期
         }
         return 0; // 待还款
-    }
-
-    private BigDecimal extractBillAmountContribution(BillDetail detail) {
-        if (detail.getDetailType() == null || detail.getDetailType() == 2) {
-            return BigDecimal.ZERO;
-        }
-        return defaultZero(detail.getAmount()).abs();
     }
 
     private void fillStatusDesc(CardBillVO vo) {

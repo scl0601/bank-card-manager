@@ -34,7 +34,6 @@ import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -166,8 +165,6 @@ public class BankCardServiceImpl
                         .orderByAsc(CardUser::getSortOrder)
                         .orderByAsc(CardUser::getName));
 
-        Map<Long, CardUser> allUserMap = allUsers.stream()
-                .collect(Collectors.toMap(CardUser::getId, user -> user, (left, right) -> left, LinkedHashMap::new));
         List<CardUser> topUsers = allUsers.stream()
                 .filter(user -> user.getParentId() == null)
                 .toList();
@@ -296,6 +293,9 @@ public class BankCardServiceImpl
         if (!isCardActive(current)) {
             reminderTaskService.removeTasksByCardId(current.getId());
         }
+        if (hasOwnerInfoChanged(original, current)) {
+            syncBillOwnerInfoForCurrentYear(current.getId(), current.getUserId());
+        }
         if (shouldGenerateBills(current)) {
             cardBillService.syncScheduleFromMonth(
                     current.getId(),
@@ -340,6 +340,41 @@ public class BankCardServiceImpl
         }
         CardUser parent = cardUserMapper.selectById(user.getParentId());
         return parent == null ? defaultZero(user.getFeeRate()) : defaultZero(parent.getFeeRate());
+    }
+
+    private boolean hasOwnerInfoChanged(BankCard original, BankCard current) {
+        return !Objects.equals(original.getUserId(), current.getUserId())
+                || !Objects.equals(original.getOwnerName(), current.getOwnerName())
+                || !Objects.equals(original.getOwnerRelation(), current.getOwnerRelation());
+    }
+
+    private void syncBillOwnerInfoForCurrentYear(Long cardId, Long ownerId) {
+        String startMonth = YearMonth.now().withMonth(1).format(MONTH_FMT);
+        String endMonth = YearMonth.now().withMonth(12).format(MONTH_FMT);
+        Long supplierId = resolveTopUserId(ownerId);
+        List<CardBill> bills = cardBillMapper.selectList(new LambdaQueryWrapper<CardBill>()
+                .eq(CardBill::getCardId, cardId)
+                .ge(CardBill::getBillMonth, startMonth)
+                .le(CardBill::getBillMonth, endMonth));
+        if (bills.isEmpty()) {
+            return;
+        }
+        for (CardBill bill : bills) {
+            bill.setOwnerId(ownerId);
+            bill.setSupplierId(supplierId);
+            cardBillMapper.updateById(bill);
+        }
+    }
+
+    private Long resolveTopUserId(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        CardUser user = cardUserMapper.selectById(userId);
+        if (user == null) {
+            return userId;
+        }
+        return user.getParentId() == null ? user.getId() : user.getParentId();
     }
 
     private List<CardBill> listBillsByCardId(Long cardId) {

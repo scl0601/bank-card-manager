@@ -45,10 +45,6 @@
           <el-option label="正常" :value="0" />
           <el-option label="停用" :value="1" />
         </el-select>
-        <el-select v-model="query.type" class="app-search-item app-search-item-sm" placeholder="请选择账户类型" clearable>
-          <el-option label="主账户" value="main" />
-          <el-option label="子用户" value="child" />
-        </el-select>
         <el-select v-model="query.hasCard" class="app-search-item app-search-item-sm" placeholder="请选择绑卡情况" clearable>
           <el-option label="已绑卡" :value="1" />
           <el-option label="未绑卡" :value="0" />
@@ -565,7 +561,7 @@ const query = reactive({
   phone: '',
   status: undefined as number | undefined,
   type: '' as '' | 'main' | 'child',
-  hasCard: '' as '' | 0 | 1,
+  hasCard: undefined as 0 | 1 | undefined,
   pageNum: 1,
   pageSize: DEFAULT_PAGE_SIZE
 })
@@ -760,7 +756,7 @@ function matchesCurrentFilters(user: UserData) {
   if (query.status !== undefined && user.status !== query.status) return false
   if (query.type === 'main' && !!user.parentId) return false
   if (query.type === 'child' && !user.parentId) return false
-  if (query.hasCard !== '') {
+  if (query.hasCard !== undefined) {
     const hasCard = (user.cardCount || 0) > 0 ? 1 : 0
     if (hasCard !== query.hasCard) return false
   }
@@ -795,7 +791,10 @@ function applyFilter() {
   treeData.value = filtered.slice(start, start + query.pageSize)
   expandedRowIds.value = expandAll.value
     ? collectExpandableIds(treeData.value)
-    : collectNameMatchExpandIds(treeData.value, query.name)
+    : Array.from(new Set([
+        ...collectContextExpandIds(treeData.value),
+        ...collectNameMatchExpandIds(treeData.value, query.name)
+      ]))
 
   nextTick(() => {
     if (treeData.value.length) {
@@ -855,6 +854,13 @@ function collectNameMatchExpandIds(list: UserData[], keyword: string) {
   return Array.from(matchedParentIds)
 }
 
+function collectContextExpandIds(list: UserData[]) {
+  if (activeCategory.value !== 'child' && query.type !== 'child') {
+    return []
+  }
+  return collectExpandableIds(list)
+}
+
 function resetQuery() {
   triggerFilterSearch.cancel()
   syncingFilterQuery = true
@@ -862,7 +868,7 @@ function resetQuery() {
   query.phone = ''
   query.status = undefined
   query.type = ''
-  query.hasCard = ''
+  query.hasCard = undefined
   query.pageNum = 1
   query.pageSize = DEFAULT_PAGE_SIZE
   activeCategory.value = 'all'
@@ -1266,6 +1272,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   font-size: 12px;
 }
 
+/*noinspection CssUnusedSymbol*/
 .user-search-panel :deep(.el-input__wrapper),
 .user-search-panel :deep(.el-select__wrapper),
 .user-search-panel :deep(.el-date-editor.el-input__wrapper),
@@ -1274,6 +1281,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   border-radius: 8px;
 }
 
+/*noinspection CssUnusedSymbol*/
 .user-search-panel :deep(.el-input__inner),
 .user-search-panel :deep(.el-select__selected-item),
 .user-search-panel :deep(.el-range-input),
@@ -1282,64 +1290,10 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   font-size: 12px;
 }
 
-.header-search {
-  display: none !important;
-  width: 116px;
-}
-
 .action-btn {
   height: 24px;
   padding: 0 7px;
   border-radius: 7px;
-}
-
-.filter-panel {
-  display: none !important;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-  padding: 3px 6px;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid #dbe2ea;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
-  flex-shrink: 0;
-}
-
-.filter-left {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-
-.filter-title {
-  padding: 0 1px;
-  font-size: 10px;
-  font-weight: 700;
-  color: #526074;
-  white-space: nowrap;
-}
-
-.filter-item {
-  width: 82px;
-}
-
-.filter-phone {
-  width: 104px;
-}
-
-.filter-right {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex-shrink: 0;
-}
-
-.toolbar-hint {
-  font-size: 10px;
-  color: #7c8799;
 }
 
 .workspace-grid {
@@ -1502,12 +1456,14 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   flex-shrink: 0;
 }
 
+/*noinspection CssUnusedSymbol*/
 .user-pagination :deep(.el-pagination) {
   --el-pagination-button-height: 20px;
   --el-pagination-button-width: 20px;
   font-size: 10px;
 }
 
+/*noinspection CssUnusedSymbol*/
 :deep(.el-table) {
   height: 100% !important;
   --el-table-border-color: #e5eaf1;
@@ -1515,6 +1471,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   overflow: hidden !important;
 }
 
+/*noinspection CssUnusedSymbol*/
 :deep(.el-table__inner-wrapper),
 :deep(.el-table__header-wrapper),
 :deep(.el-table__body-wrapper),
@@ -1524,12 +1481,14 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   overflow: hidden !important;
 }
 
+/*noinspection CssUnusedSymbol*/
 :deep(.el-table__body),
 :deep(.el-table__header) {
   width: 100% !important;
   table-layout: fixed !important;
 }
 
+/*noinspection CssUnusedSymbol*/
 :deep(.el-table .cell) {
   display: flex;
   align-items: center;
@@ -1545,47 +1504,57 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   text-overflow: clip;
 }
 
+/*noinspection CssUnusedSymbol*/
 :deep(.el-table .el-icon) {
   width: max(6px, min(12px, var(--user-font-size))) !important;
   height: max(6px, min(12px, var(--user-font-size))) !important;
   font-size: max(6px, min(12px, var(--user-font-size))) !important;
 }
 
+/*noinspection CssUnusedSymbol*/
 :deep(.el-table .el-button) {
   min-height: 0;
   line-height: 1;
 }
 
+/*noinspection CssUnusedSymbol*/
 :deep(.el-table .el-button > span) {
   gap: 0;
 }
 
+/*noinspection CssUnusedSymbol*/
 :deep(.el-table th.el-table__cell) {
   height: var(--user-header-height) !important;
   font-size: max(8px, calc(var(--user-font-size) + 1px));
 }
 
+/*noinspection CssUnusedSymbol*/
 :deep(.el-table td.el-table__cell) {
   height: var(--user-row-height) !important;
   padding: 0 !important;
 }
 
+/*noinspection CssUnusedSymbol*/
 :deep(.el-table__row) {
   height: var(--user-row-height) !important;
 }
 
+/*noinspection CssUnusedSymbol*/
 :deep(.el-table__cell .el-table__expand-icon) {
   margin-right: 1px;
 }
 
+/*noinspection CssUnusedSymbol*/
 :deep(.el-table__indent) {
   padding-left: 6px !important;
 }
 
+/*noinspection CssUnusedSymbol*/
 :deep(.el-scrollbar__bar) {
   display: none !important;
 }
 
+/*noinspection CssUnusedSymbol*/
 :deep(.row-disabled) {
   opacity: 0.62;
   background: #fafbfc;
@@ -1628,6 +1597,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   overflow: visible;
 }
 
+/*noinspection CssUnusedSymbol*/
 .name-row :deep(.el-tag) {
   height: max(7px, calc(var(--user-row-height) - 8px));
   padding: 0 3px;
@@ -1679,12 +1649,14 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   width: 42px;
 }
 
+/*noinspection CssUnusedSymbol*/
 .fee-input :deep(.el-input__wrapper) {
   min-height: 0;
   height: max(8px, calc(var(--user-row-height) - 8px));
   padding: 0 2px;
 }
 
+/*noinspection CssUnusedSymbol*/
 .fee-input :deep(.el-input__inner) {
   height: 100%;
   font-size: var(--user-font-size);
@@ -1738,6 +1710,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   min-width: 0;
 }
 
+/*noinspection CssUnusedSymbol*/
 .count-badge :deep(.el-badge__content) {
   font-weight: 700;
   min-width: 14px;
@@ -1747,6 +1720,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   line-height: 14px;
 }
 
+/*noinspection CssUnusedSymbol*/
 .status-cell :deep(.el-tag) {
   display: inline-flex;
   align-items: center;
@@ -1817,6 +1791,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   gap: 3px;
 }
 
+/*noinspection CssUnusedSymbol*/
 .action-stack :deep(.el-button) {
   width: 100%;
   height: 23px;
@@ -1900,15 +1875,10 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   .workspace-grid {
     grid-template-columns: 96px minmax(0, 1fr) 104px;
   }
-
-  .header-search {
-    width: 104px;
-  }
 }
 
 @media (max-width: 1320px) {
-  .inline-summary,
-  .toolbar-hint {
+  .inline-summary {
     display: none;
   }
 

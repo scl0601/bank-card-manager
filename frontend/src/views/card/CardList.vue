@@ -83,7 +83,7 @@
         <el-input
           v-model="query.cardNoLast4"
           class="app-search-item app-search-item-md"
-          placeholder="请输入银行卡完整卡号或关键词查询"
+          placeholder="请输入卡号"
           clearable
           maxlength="19"
         />
@@ -215,10 +215,14 @@
 
                 <div class="user-list">
                   <template v-for="(u, idx) in pagedUsersFilled" :key="u?.userId ?? `u-ph-${idx}`">
-                    <button
+                    <div
                       v-if="u"
                       :class="['list-item', 'user-item', { active: u.userId === activeUserId }]"
+                      role="button"
+                      tabindex="0"
                       @click="setActiveUser(u.userId)"
+                      @keydown.enter.prevent="setActiveUser(u.userId)"
+                      @keydown.space.prevent="setActiveUser(u.userId)"
                     >
                       <div class="li-left">
                         <div class="li-avatar" :class="{ ghost: u.userId === 0 }">
@@ -233,7 +237,7 @@
                         <span class="pill">{{ Number(u.cardCount || 0) }}张</span>
                         <span class="pill pill-fee">{{ formatRate(u.feeRate) }}%</span>
                       </div>
-                    </button>
+                    </div>
 
                     <div v-else class="list-item placeholder" aria-hidden="true"></div>
                   </template>
@@ -287,11 +291,15 @@
                 <div class="child-list" v-loading="userTreeVisibleLoading">
                   <template v-if="activeUserId && activeUserId > 0">
                     <template v-for="(cu, idx) in pagedChildUsersFilled" :key="cu?.id ?? `c-ph-${idx}`">
-                      <button
+                      <div
                         v-if="cu"
                         :class="['list-item', 'child-item', { active: Number(cu.id) === Number(activeOwnerId), disabled: Number(cu.status) !== 0 }]"
-                        :disabled="Number(cu.status) !== 0"
+                        role="button"
+                        :tabindex="Number(cu.status) === 0 ? 0 : -1"
+                        :aria-disabled="Number(cu.status) !== 0"
                         @click="setActiveChildUser(cu)"
+                        @keydown.enter.prevent="setActiveChildUser(cu)"
+                        @keydown.space.prevent="setActiveChildUser(cu)"
                       >
                         <div class="li-left">
                           <div class="li-avatar sm" :class="{ ghost: Number(cu.status) !== 0 }">
@@ -306,7 +314,7 @@
                           <span class="pill">{{ childCardCount(cu.id) }}张</span>
                           <span class="pill pill-fee">{{ formatRate(childFeeRate(cu)) }}%</span>
                         </div>
-                      </button>
+                      </div>
 
                       <div v-else class="list-item child-item placeholder" aria-hidden="true"></div>
                     </template>
@@ -373,12 +381,16 @@
             </div>
 
             <div class="card-list">
-              <template v-if="pagedCards.length">
-                <button
-                  v-for="c in pagedCards"
-                  :key="c.id"
+              <template v-if="pagedCardsFilled.length">
+                <template v-for="(c, idx) in pagedCardsFilled" :key="c?.id ?? `card-ph-${idx}`">
+                <div
+                  v-if="c"
                   :class="['list-item', 'card-item', { active: c.id === activeCardId }]"
+                  role="button"
+                  tabindex="0"
                   @click="setActiveCard(c.id)"
+                  @keydown.enter.prevent="setActiveCard(c.id)"
+                  @keydown.space.prevent="setActiveCard(c.id)"
                 >
                   <div class="li-left">
                     <div class="li-icon" :class="{ credit: c.cardType === CARD_TYPE_VALUE.CREDIT }">
@@ -444,7 +456,9 @@
                       </button>
                     </div>
                   </div>
-                </button>
+                </div>
+                <div v-else class="list-item card-item placeholder" aria-hidden="true"></div>
+                </template>
               </template>
 
               <div v-else class="empty-hint">
@@ -531,13 +545,13 @@
                     </div>
                   </template>
                   <div v-else-if="recentBillsReady" class="empty-hint">
-                    <div v-if="!scopedCardIds.length">当前银行卡格子暂无数据</div>
+                    <div v-if="!scopedCardIds.length">当前持卡人暂无银行卡数据</div>
                     <div v-else>暂无账单记录</div>
                   </div>
                 </div>
               </div>
 
-              <div class="bill-profit-block" v-loading="profitVisibleLoading">
+              <div class="bill-profit-block profit-summary-block" v-loading="profitVisibleLoading">
                 <div class="block-head">
                   <span>收益统计</span>
                   <strong>{{ profitScopeLabel }}</strong>
@@ -564,9 +578,13 @@
                     <span class="pm-label">代还金额</span>
                     <span class="pm-value font-mono">¥{{ formatMoneySafe(profitOverview.totalBillAmount) }}</span>
                   </div>
+                  <div class="profit-metric">
+                    <span class="pm-label">本月手续费状态</span>
+                    <span class="pm-value" :class="currentMonthFeeStatusClass">{{ currentMonthFeeStatusText }}</span>
+                  </div>
                 </div>
 
-                <div class="panel-hint">统计范围：银行卡管理格子内 {{ scopedCardIds.length }} 张卡</div>
+                <div class="panel-hint">统计范围：当前持卡人名下 {{ scopedCardIds.length }} 张卡</div>
               </div>
             </div>
           </div>
@@ -591,7 +609,7 @@
             <el-option v-for="u in userOptions" :key="u.id" :label="u.displayName" :value="u.id">
               <div class="user-opt">
                 <span>{{ u.displayName }}</span>
-                <el-tag v-if="!u.parentId" size="small" type="" effect="light" round style="margin-left:6px">主账户</el-tag>
+                <el-tag v-if="!u.parentId" size="small" effect="light" round style="margin-left:6px">主账户</el-tag>
                 <el-tag v-else size="small" type="info" effect="plain" round style="margin-left:6px">子用户</el-tag>
               </div>
             </el-option>
@@ -707,6 +725,7 @@ interface BillRow {
   repayDate: string | null
   billAmount: number | null
   feeAmount?: number | null
+  feePaid?: boolean | null
   posCostAmount?: number | null
   netProfit?: number | null
   status: number
@@ -728,6 +747,9 @@ interface ProfitOverview {
   totalFeeAmount: number
   totalPosCostAmount: number
   totalNetProfit: number
+  currentMonthFeePaidCount: number
+  currentMonthFeeUnpaidCount: number
+  currentMonthFeeUnknownCount: number
 }
 
 interface UserTreeNode {
@@ -854,20 +876,18 @@ const filteredGroupList = computed(() => {
     const name = String(u?.userName || '').toLowerCase()
     const phone = String(u?.phone || '')
     const phoneDigits = phone.replace(/\D/g, '')
-    if (name.includes(k)) return true
-    if (phone.toLowerCase().includes(k)) return true
-    if (digits && phoneDigits.includes(digits)) return true
-    return false
+    return name.includes(k)
+      || phone.toLowerCase().includes(k)
+      || Boolean(digits && phoneDigits.includes(digits))
   }
 
   function isMatchChildNamePhone(c: any) {
     const name = String(c?.name || '').toLowerCase()
     const phone = String(c?.phone || '')
     const phoneDigits = phone.replace(/\D/g, '')
-    if (name.includes(k)) return true
-    if (phone.toLowerCase().includes(k)) return true
-    if (digits && phoneDigits.includes(digits)) return true
-    return false
+    return name.includes(k)
+      || phone.toLowerCase().includes(k)
+      || Boolean(digits && phoneDigits.includes(digits))
   }
 
   const matchedMainIds = new Set<number>()
@@ -980,10 +1000,9 @@ const activeChildUsers = computed<UserTreeNode[]>(() => {
     const name = String(cu?.name || '').toLowerCase()
     const phone = String(cu?.phone || '')
     const phoneDigits = phone.replace(/\D/g, '')
-    if (name.includes(k)) return true
-    if (phone.toLowerCase().includes(k)) return true
-    if (digits && phoneDigits.includes(digits)) return true
-    return false
+    return name.includes(k)
+      || phone.toLowerCase().includes(k)
+      || Boolean(digits && phoneDigits.includes(digits))
   })
 })
 
@@ -1055,7 +1074,7 @@ const canOpenUserBills = computed(() => !!billScopeOwnerId.value)
 
 // 主用户区域：3条/页更稳，且与子用户对称
 const USER_PAGE_SIZE = 3
-const CARD_PAGE_SIZE = 4
+const CARD_PAGE_SIZE = 3
 
 const userPageCount = computed(() => {
   const total = filteredGroupList.value.length
@@ -1084,6 +1103,13 @@ const pagedCards = computed(() => {
   const list = activeCards.value || []
   const start = cardPageIndex.value * CARD_PAGE_SIZE
   return list.slice(start, start + CARD_PAGE_SIZE)
+})
+
+const pagedCardsFilled = computed<(any | null)[]>(() => {
+  if (!activeCards.value.length) return []
+  const list = [...pagedCards.value] as (any | null)[]
+  while (list.length < CARD_PAGE_SIZE) list.push(null)
+  return list
 })
 
 function prevUserPage() {
@@ -1271,7 +1297,7 @@ const billOverviewVisibleLoading = computed(() => billOverviewLoading.value && !
 const recentBillsVisibleLoading = computed(() => recentBillsLoading.value && !recentBillsReady.value)
 
 const scopedCardIds = computed(() => {
-  return pagedCards.value
+  return activeCards.value
     .map((card: any) => Number(card?.id || 0))
     .filter(id => Number.isFinite(id) && id > 0)
 })
@@ -1286,7 +1312,7 @@ const billFilterLabel = computed(() => {
 
 const scopedCardLabel = computed(() => {
   const count = scopedCardIds.value.length
-  return count ? `当前格子 ${count} 张卡` : '当前格子暂无卡片'
+  return count ? `当前名下 ${count} 张卡` : '当前名下暂无卡片'
 })
 
 const canOpenScopedBills = computed(() => scopedCardIds.value.length > 0)
@@ -1427,7 +1453,10 @@ const profitOverview = ref<ProfitOverview>({
   totalBillAmount: 0,
   totalFeeAmount: 0,
   totalPosCostAmount: 0,
-  totalNetProfit: 0
+  totalNetProfit: 0,
+  currentMonthFeePaidCount: 0,
+  currentMonthFeeUnpaidCount: 0,
+  currentMonthFeeUnknownCount: 0
 })
 const profitVisibleLoading = computed(() => profitLoading.value && !profitReady.value)
 
@@ -1444,15 +1473,26 @@ function emptyProfitOverview(): ProfitOverview {
     totalBillAmount: 0,
     totalFeeAmount: 0,
     totalPosCostAmount: 0,
-    totalNetProfit: 0
+    totalNetProfit: 0,
+    currentMonthFeePaidCount: 0,
+    currentMonthFeeUnpaidCount: 0,
+    currentMonthFeeUnknownCount: 0
   }
 }
 
 function buildProfitOverviewFromRows(list: BillRow[]): ProfitOverview {
   const ownerIds = new Set<number>()
+  let currentMonthFeePaidCount = 0
+  let currentMonthFeeUnpaidCount = 0
+  let currentMonthFeeUnknownCount = 0
   for (const row of list) {
     const ownerId = Number(row?.ownerId || 0)
     if (ownerId > 0) ownerIds.add(ownerId)
+    if (row?.billMonth === currentBillMonth) {
+      if (row.feePaid === true) currentMonthFeePaidCount += 1
+      else if (row.feePaid === false) currentMonthFeeUnpaidCount += 1
+      else currentMonthFeeUnknownCount += 1
+    }
   }
   return list.reduce((acc, item) => {
     acc.totalBillAmount += Number(item?.billAmount ?? 0)
@@ -1463,9 +1503,34 @@ function buildProfitOverviewFromRows(list: BillRow[]): ProfitOverview {
   }, {
     ...emptyProfitOverview(),
     userCount: ownerIds.size,
-    cardCount: scopedCardIds.value.length
+    cardCount: scopedCardIds.value.length,
+    currentMonthFeePaidCount,
+    currentMonthFeeUnpaidCount,
+    currentMonthFeeUnknownCount
   })
 }
+
+const currentMonthFeeStatusText = computed(() => {
+  const paid = profitOverview.value.currentMonthFeePaidCount || 0
+  const unpaid = profitOverview.value.currentMonthFeeUnpaidCount || 0
+  const unknown = profitOverview.value.currentMonthFeeUnknownCount || 0
+  const total = paid + unpaid + unknown
+  if (!total) return `${currentMonth}月暂无账单`
+  if (!unpaid && !unknown) return `${currentMonth}月已全部支付`
+  if (!paid && !unknown) return `${currentMonth}月待支付 ${unpaid}/${total}`
+  return `${currentMonth}月已付 ${paid}/${total}`
+})
+
+const currentMonthFeeStatusClass = computed(() => {
+  const paid = profitOverview.value.currentMonthFeePaidCount || 0
+  const unpaid = profitOverview.value.currentMonthFeeUnpaidCount || 0
+  const unknown = profitOverview.value.currentMonthFeeUnknownCount || 0
+  const total = paid + unpaid + unknown
+  if (!total) return ''
+  if (!unpaid && !unknown) return 'pos'
+  if (!paid && !unknown) return 'neg'
+  return 'warn'
+})
 
 function goProfits() {
   if (!scopedCardIds.value.length) return
@@ -2167,7 +2232,11 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   font-size: 11.5px;
   color: $faint;
   padding-left: 2px;
-  align-self: flex-end;
+  align-self: stretch;
+  line-height: 1.45;
+  white-space: normal;
+  word-break: break-word;
+  flex-shrink: 0;
 }
 
 .mini-stats {
@@ -2297,6 +2366,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   gap: 8px;
   min-height: 0;
   min-width: 0;
+  overflow: hidden;
 }
 
 .list-item {
@@ -2338,12 +2408,15 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 }
 
 /* 主用户行用 button，强制 reset 以消除默认样式导致的像素偏差 */
-button.list-item {
-  appearance: none;
-  -webkit-appearance: none;
+.list-item[role='button'] {
   text-align: left;
   width: 100%;
-  border: 1px solid rgba(219,226,234,.85);
+  user-select: none;
+}
+
+.list-item[role='button']:focus-visible {
+  outline: 2px solid rgba($primary, .32);
+  outline-offset: 2px;
 }
 
 .panel.is-users .list-item,
@@ -2548,7 +2621,9 @@ button.list-item {
   display: flex;
   flex-direction: column;
   gap: 7px;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
 }
 
 .bill-profit-grid {
@@ -2567,6 +2642,12 @@ button.list-item {
   min-height: 0;
   min-width: 0;
   overflow: hidden;
+}
+
+.profit-summary-block {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
 }
 
 .block-head {
@@ -2663,10 +2744,11 @@ button.list-item {
 .pm-label { font-size: 11.5px; color: $sub; font-weight: 800; }
 .pm-value { font-size: 13px; font-weight: 900; color: $ink; }
 .pm-value.pos { color: $success; }
+.pm-value.warn { color: $warning; }
 .pm-value.neg { color: $danger; }
 
 .font-mono {
-  font-family: var(--font-mono);
+  font-family: var(--font-mono), monospace;
   font-variant-numeric: tabular-nums;
 }
 
