@@ -808,7 +808,7 @@ const activeOwnerId = ref<number | null>(null)
 const hasActivatedOnce = ref(false)
 const groupsFetchedAt = ref(0)
 const userTreeFetchedAt = ref(0)
-const VIEW_CACHE_TTL = 30 * 1000
+const VIEW_CACHE_TTL = 5 * 1000
 
 let groupsLoadingPromise: Promise<void> | null = null
 let groupsLoadingKey = ''
@@ -1240,34 +1240,25 @@ function syncActiveSelection() {
 
 async function fetchGroups(options: { silent?: boolean } = {}) {
   const params = { ...query }
-  const requestKey = JSON.stringify(params)
-  if (groupsLoadingPromise && groupsLoadingKey === requestKey) {
-    return groupsLoadingPromise
-  }
-
   const requestSeq = ++groupsRequestSeq
   const showLoading = !options.silent && !groupsReady.value
-  groupsLoadingKey = requestKey
+  groupsLoadingKey = JSON.stringify(params)
   if (showLoading) loadingGroups.value = true
 
-  groupsLoadingPromise = (async () => {
-    try {
-      const res: any = await getCardsGroupedByUserApi(params)
-      if (requestSeq !== groupsRequestSeq) return
-      groupList.value = res.data || []
-      groupsReady.value = true
-      groupsFetchedAt.value = Date.now()
-      syncActiveSelection()
-    } finally {
-      if (requestSeq === groupsRequestSeq) {
-        loadingGroups.value = false
-        groupsLoadingPromise = null
-        groupsLoadingKey = ''
-      }
+  try {
+    const res: any = await getCardsGroupedByUserApi(params)
+    if (requestSeq !== groupsRequestSeq) return
+    groupList.value = res.data || []
+    groupsReady.value = true
+    groupsFetchedAt.value = Date.now()
+    syncActiveSelection()
+  } finally {
+    if (requestSeq === groupsRequestSeq) {
+      loadingGroups.value = false
+      groupsLoadingPromise = null
+      groupsLoadingKey = ''
     }
-  })()
-
-  return groupsLoadingPromise
+  }
 }
 
 function refreshAll() {
@@ -1701,13 +1692,12 @@ async function confirmDeleteCard(card: any) {
 }
 
 async function syncUserOptions() {
-  if (!userTreeList.value.length) {
-    try {
-      const res: any = await getUserTreeApi()
-      userTreeList.value = res.data || []
-    } catch {
-      userTreeList.value = []
-    }
+  // 每次打开弹窗都强制重新拉取，防止删除用户后下拉显示旧数据
+  try {
+    const res: any = await getUserTreeApi()
+    userTreeList.value = res.data || []
+  } catch {
+    userTreeList.value = []
   }
 
   const flatUsers: any[] = []
@@ -1828,12 +1818,9 @@ onActivated(() => {
     hasActivatedOnce.value = true
     return
   }
-  if (!groupsReady.value || Date.now() - groupsFetchedAt.value > VIEW_CACHE_TTL) {
-    fetchGroups({ silent: true })
-  }
-  if (!userTreeLoaded.value || Date.now() - userTreeFetchedAt.value > VIEW_CACHE_TTL) {
-    ensureUserTree(false, true)
-  }
+  // 从其他页面（如持卡人管理）返回时始终刷新，确保数据最新
+  fetchGroups({ silent: true })
+  ensureUserTree(false, true)
 })
 </script>
 
@@ -2111,8 +2098,8 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   }
 
   .list-item {
-    padding: 9px 9px;
-    min-height: 58px;
+    padding: 8px 9px;
+    min-height: 54px;
     height: 100%;
   }
 
@@ -2124,7 +2111,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   border-style: dashed;
   border-color: rgba(219,226,234,.7);
   box-shadow: none;
-  min-height: 58px;
+  min-height: 54px;
   height: 100%;
   &:hover {
     transform: none;
@@ -2311,18 +2298,19 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 .user-col,
 .child-col {
   --user-head-h: 26px;
-  --user-row-h: minmax(58px, 1fr);
+  --user-row-h: minmax(0, 1fr);
 }
 
 .user-list,
 .child-list {
-  height: calc(100% - var(--user-head-h));
+  flex: 1;
   display: grid;
   grid-template-rows: repeat(3, var(--user-row-h));
   gap: 8px;
   align-content: stretch;
   align-items: stretch;
   min-height: 0;
+  overflow: hidden;
 }
 
 .user-list .empty-hint,
@@ -2379,7 +2367,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  min-height: 58px;
+  min-height: 54px;
   cursor: pointer;
   transition: all .16s;
   min-width: 0;
@@ -2422,7 +2410,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 .panel.is-users .list-item,
 .panel.is-users .list-item.placeholder {
   height: 100%;
-  min-height: 58px;
+  min-height: 54px;
 }
 
 .li-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -2442,8 +2430,8 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 }
 
 .li-avatar {
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   border-radius: 12px;
   display: flex;
   align-items: center;

@@ -33,7 +33,7 @@
 
 | 服务 | 访问地址 | 状态 |
 |------|----------|------|
-| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604270713](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604270713) | ✅ 已上线 |
+| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604272109](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604272109) | ✅ 已上线 |
 | **后端 API** | `https://bank-admin-backend-239413-10-1411764939.sh.run.tcloudbase.com` | ✅ 运行中 |
 
 ---
@@ -144,11 +144,11 @@ npm run dev
 ## 更新日志
 
 ### 2026-04-27
-- 将当前最新前后端代码重新部署到 CloudBase
-- 后端云托管服务 `bank-admin-backend` 已成功运行在版本 `bank-admin-backend-018`，当前流量占比 `100%`
-- 前端重新执行生产构建并上传最新 `dist` 到静态网站托管
-- 更新 README 中的前端缓存刷新访问参数为 `?v=202604270713`
-- 后端 API 线上域名保持不变，可继续通过现有地址访问
+- 部署最新代码到 CloudBase
+- 修复线上 bank_card 表多余字段（card_no, owner_id, used_amount）导致 INSERT 失败的问题
+- 修复前端页面缓存导致新增用户/银行卡后数据不刷新的问题
+- 前端重新构建并上传到静态托管，访问地址更新
+- 后端云托管服务 `bank-admin-backend` 已重新触发容器部署
 
 ### 2026-04-17
 - 再次将当前最新前后端代码重新部署到 CloudBase

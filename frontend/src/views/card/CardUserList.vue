@@ -1068,9 +1068,8 @@ async function handleDeleteUser(id: number) {
 }
 
 onMounted(() => {
-  if (!lastFetchedAt.value || Date.now() - lastFetchedAt.value > VIEW_CACHE_TTL) {
-    fetchData({ silent: true })
-  }
+  // 始终拉取最新数据，sessionStorage 缓存仅用于渲染初始占位，不阻止请求
+  fetchData({ silent: true })
   nextTick(initTableResize)
   window.addEventListener('resize', updateTableLayout)
 })
@@ -1080,9 +1079,8 @@ onActivated(() => {
     nextTick(updateTableLayout)
     return
   }
-  if (!lastFetchedAt.value || Date.now() - lastFetchedAt.value > VIEW_CACHE_TTL) {
-    fetchData({ silent: true })
-  }
+  // 切换回此页面时始终刷新数据
+  fetchData({ silent: true })
   nextTick(updateTableLayout)
 })
 onBeforeUnmount(() => {

@@ -24,6 +24,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +44,7 @@ import java.util.stream.Collectors;
 /**
  * 银行卡 ServiceImpl（基于 card_user 两级用户模型）
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class BankCardServiceImpl
@@ -251,6 +253,7 @@ public class BankCardServiceImpl
     private CardUser requireUser(Long userId) {
         CardUser user = cardUserMapper.selectById(userId);
         if (user == null) {
+            log.warn("[新增/编辑银行卡] 用户不存在, 传入 userId={}", userId);
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "用户不存在");
         }
         return user;
