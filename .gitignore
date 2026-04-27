@@ -38,6 +38,7 @@ build*.log
 *.swp
 *.swo
 *~
+.tools/
 
 # === Database Backups ===
 backup_*.sql

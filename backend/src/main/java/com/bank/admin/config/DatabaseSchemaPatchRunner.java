@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -170,12 +171,16 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
     }
 
     private boolean isLegacyFeeRateSchema(String tableName) {
-        Integer numericScale = jdbcTemplate.queryForObject(
-                "SELECT NUMERIC_SCALE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = 'fee_rate'",
-                Integer.class,
-                tableName
-        );
-        return numericScale != null && numericScale > 2;
+        try {
+            Integer numericScale = jdbcTemplate.queryForObject(
+                    "SELECT NUMERIC_SCALE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = 'fee_rate'",
+                    Integer.class,
+                    tableName
+            );
+            return numericScale != null && numericScale > 2;
+        } catch (EmptyResultDataAccessException ex) {
+            return false;
+        }
     }
 
     private boolean hasLegacyLikeFeeRateData(String tableName) {

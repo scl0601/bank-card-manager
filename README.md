@@ -33,9 +33,7 @@
 
 | 服务 | 访问地址 | 状态 |
 |------|----------|------|
-| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604171535) | ✅ 已上线 |
-
-
+| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604270713](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604270713) | ✅ 已上线 |
 | **后端 API** | `https://bank-admin-backend-239413-10-1411764939.sh.run.tcloudbase.com` | ✅ 运行中 |
 
 ---
@@ -49,13 +47,14 @@
 
 ### 云托管服务配置
 - **服务名称**: bank-admin-backend
+- **当前线上版本**: bank-admin-backend-018
 - **服务类型**: 容器型 (Container)
 - **CPU**: 1 核
 - **内存**: 2 GB
 - **最小实例数**: 1
 - **最大实例数**: 2
 - **端口**: 7878
-- **访问类型**: 公网访问 (PUBLIC)
+- **访问类型**: OA / PUBLIC / MINIAPP
 
 ### 静态托管配置
 - **域名**: dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com
@@ -85,10 +84,6 @@ npm install
 npm run dev
 ```
 前端运行在: http://localhost:5173
-
-### 默认账号
-- 用户名: admin
-- 密码: admin123
 
 ---
 
@@ -147,6 +142,13 @@ npm run dev
 ---
 
 ## 更新日志
+
+### 2026-04-27
+- 将当前最新前后端代码重新部署到 CloudBase
+- 后端云托管服务 `bank-admin-backend` 已成功运行在版本 `bank-admin-backend-018`，当前流量占比 `100%`
+- 前端重新执行生产构建并上传最新 `dist` 到静态网站托管
+- 更新 README 中的前端缓存刷新访问参数为 `?v=202604270713`
+- 后端 API 线上域名保持不变，可继续通过现有地址访问
 
 ### 2026-04-17
 - 再次将当前最新前后端代码重新部署到 CloudBase
