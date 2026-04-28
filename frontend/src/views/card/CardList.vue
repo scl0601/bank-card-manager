@@ -1061,7 +1061,11 @@ function cardHolderTooltip(card: any) {
 }
 
 const canAddCardForUser = computed(() => {
-  return !!activeUser.value && Number(activeUser.value.userId) > 0
+  if (activeOwnerId.value) {
+    const activeChild = activeChildUsers.value.find((item: any) => Number(item.id) === Number(activeOwnerId.value))
+    return !!activeChild && Number(activeChild.status) === 0
+  }
+  return !!activeUser.value && Number(activeUser.value.userId) > 0 && Number(activeUser.value.status) === 0
 })
 
 const billScopeOwnerId = computed(() => {
@@ -1585,6 +1589,48 @@ const computedRules = computed(() => ({
   cardType: [{ required: true, message: '请选择卡片类型', trigger: 'change' }]
 }))
 
+function flattenUserTree(list: any[], parentName = '') {
+  const flatUsers: any[] = []
+  const walk = (nodes: any[], currentParentName = '') => {
+    for (const u of nodes || []) {
+      const isChild = !!u.parentId
+      const resolvedParentName = u.parentName || currentParentName
+      const displayName = isChild && resolvedParentName
+        ? `${u.name}（${resolvedParentName}的子用户）`
+        : u.name
+      flatUsers.push({
+        id: u.id,
+        name: u.name,
+        displayName,
+        parentId: u.parentId,
+        parentName: resolvedParentName,
+        status: Number(u.status ?? 0),
+        effectiveFeeRate: u.effectiveFeeRate ?? u.feeRate ?? 0
+      })
+      if (u.children?.length) walk(u.children, u.name)
+    }
+  }
+  walk(list, parentName)
+  return flatUsers
+}
+
+function findUserById(userId: number | null | undefined) {
+  const normalizedUserId = Number(userId || 0)
+  if (!normalizedUserId) return null
+  return flattenUserTree(userTreeList.value).find((user: any) => Number(user.id) === normalizedUserId) || null
+}
+
+function isUserDisabled(userId: number | null | undefined) {
+  const user = findUserById(userId)
+  return !!user && Number(user.status) !== 0
+}
+
+function notifyUserDisabled(userId: number | null | undefined) {
+  const user = findUserById(userId)
+  const userName = user?.name || '该用户'
+  ElMessage.warning(`${userName}已停用，不能新增银行卡`)
+}
+
 async function openAddCard() {
   isEdit.value = false
   Object.assign(formData, defaultForm)
@@ -1594,6 +1640,10 @@ async function openAddCard() {
     formData.userId = activeUser.value.userId
   }
   await syncUserOptions()
+  if (isUserDisabled(formData.userId)) {
+    notifyUserDisabled(formData.userId)
+    formData.userId = null
+  }
   dialogVisible.value = true
 }
 
@@ -1602,6 +1652,10 @@ async function openAddCardWithActiveUser() {
   isEdit.value = false
   Object.assign(formData, defaultForm, { userId: activeOwnerId.value || activeUser.value?.userId })
   await syncUserOptions()
+  if (isUserDisabled(formData.userId)) {
+    notifyUserDisabled(formData.userId)
+    formData.userId = null
+  }
   dialogVisible.value = true
 }
 
@@ -1655,6 +1709,11 @@ async function handleSubmit() {
     if (data[key] === '') data[key] = null
   })
 
+  if (isUserDisabled(data.userId)) {
+    notifyUserDisabled(data.userId)
+    return
+  }
+
   submitting.value = true
   try {
     if (isEdit.value) {
@@ -1699,27 +1758,7 @@ async function syncUserOptions() {
   } catch {
     userTreeList.value = []
   }
-
-  const flatUsers: any[] = []
-  function flatten(list: any[], parentName = '') {
-    for (const u of list) {
-      const isChild = !!u.parentId
-      const displayName = isChild && (u.parentName || parentName)
-        ? `${u.name}（${u.parentName || parentName}的子用户）`
-        : u.name
-      flatUsers.push({
-        id: u.id,
-        name: u.name,
-        displayName,
-        parentId: u.parentId,
-        parentName: u.parentName || parentName,
-        status: u.status,
-        effectiveFeeRate: u.effectiveFeeRate ?? u.feeRate ?? 0
-      })
-      if (u.children) flatten(u.children, u.name)
-    }
-  }
-  flatten(userTreeList.value)
+  const flatUsers = flattenUserTree(userTreeList.value)
 
   const currentUserId = Number(formData.userId || 0)
   userOptions.value = flatUsers.filter((user: any) => user.status === 0 || user.id === currentUserId)

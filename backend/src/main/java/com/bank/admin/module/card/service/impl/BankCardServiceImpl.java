@@ -256,6 +256,10 @@ public class BankCardServiceImpl
             log.warn("[新增/编辑银行卡] 用户不存在, 传入 userId={}", userId);
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "用户不存在");
         }
+        if (user.getStatus() != null && user.getStatus() == 1) {
+            log.warn("[新增/编辑银行卡] 用户已停用, 传入 userId={}", userId);
+            throw new BusinessException(ResultCode.OPERATION_FAILED, "该用户已停用，无法新增或编辑关联银行卡");
+        }
         return user;
     }
 
