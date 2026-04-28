@@ -32,9 +32,6 @@ public class CardBillVO {
     @Schema(description = "持卡人姓名")
     private String ownerName;
 
-    @Schema(description = "卡片归属人关系")
-    private String ownerRelation;
-
     @Schema(description = "账单月份")
     private String billMonth;
 
@@ -83,7 +80,7 @@ public class CardBillVO {
     @Schema(description = "本期净利润")
     private BigDecimal netProfit;
 
-    @Schema(description = "还款方式：cloudpay云闪付 / invoice开票")
+    @Schema(description = "APP：cloudpay云闪付 wechat微信 alipay支付宝 other其他")
     private String repayMethod;
 
     @Schema(description = "创建时间")

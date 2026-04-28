@@ -120,11 +120,6 @@
           <el-table :data="cardPage.records" border stripe height="100%" table-layout="fixed">
             <el-table-column prop="userName" label="用户" min-width="100" />
             <el-table-column prop="ownerName" label="持卡人" min-width="96" />
-            <el-table-column label="关系" width="78" align="center">
-              <template #default="{ row }">
-                <el-tag size="small" effect="plain">{{ row.ownerRelation || '本人' }}</el-tag>
-              </template>
-            </el-table-column>
             <el-table-column label="银行卡" min-width="136">
               <template #default="{ row }">{{ row.bankName }} *{{ row.cardNoLast4 }}</template>
             </el-table-column>
@@ -268,7 +263,6 @@ interface CardProfitRow {
   cardId: number
   userName: string
   ownerName: string
-  ownerRelation: string
   bankName: string
   cardNoLast4: string
   billCount: number

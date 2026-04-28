@@ -25,23 +25,14 @@ public class BankCard extends BaseEntity {
     /** 卡号后四位（明文） */
     private String cardNoLast4;
 
-    /** 卡片归属人关系：本人/配偶/子女等 */
-    private String ownerRelation;
-
-    /** 卡片归属人姓名（可选） */
-    private String ownerName;
-
     /** 卡片类型：1借记卡 2信用卡 */
     private Integer cardType;
 
-    /** 信用额度（信用卡用） */
+    /** 信用额度 */
     private BigDecimal creditLimit;
 
-    /** 当前余额（借记卡用） */
+    /** 当前余额（流水模块维护） */
     private BigDecimal balance;
-
-    /** 总额度（借记卡用） */
-    private BigDecimal totalLimit;
 
     /** 账单日（每月几号，信用卡用） */
     private Integer billDay;
@@ -57,14 +48,14 @@ public class BankCard extends BaseEntity {
      */
     private Integer status;
 
-    /** 备注 */
-    private String remark;
-
-    /** 还款方式：cloudpay云闪付 invoice开票 */
+    /** APP：cloudpay云闪付 wechat微信 alipay支付宝 other其他 */
     private String repayMethod;
 
-    /** 是否核实（云闪付时有效） */
+    /** 是否已核实 */
     private Boolean verified;
+
+    /** 备注 */
+    private String remark;
 
     // ========== 非数据库字段（VO展示用） ==========
     @TableField(exist = false)

@@ -52,6 +52,8 @@ public class BankCardServiceImpl
         implements BankCardService {
 
     private static final DateTimeFormatter MONTH_FMT = DateTimeFormatter.ofPattern("yyyy-MM");
+    private static final String DEFAULT_APP = "cloudpay";
+    private static final Set<String> APP_VALUES = Set.of(DEFAULT_APP, "wechat", "alipay", "other");
 
     private final CardUserMapper cardUserMapper;
     private final CardBillService cardBillService;
@@ -267,40 +269,22 @@ public class BankCardServiceImpl
         entity.setUserId(dto.getUserId());
         entity.setBankName(dto.getBankName());
         entity.setCardNoLast4(dto.getCardNoLast4());
-        entity.setOwnerRelation(StringUtils.hasText(dto.getOwnerRelation()) ? dto.getOwnerRelation().trim() : "本人");
-        entity.setOwnerName(StringUtils.hasText(dto.getOwnerName()) ? dto.getOwnerName().trim() : null);
         entity.setCardType(dto.getCardType());
-        entity.setExpireDate(dto.getExpireDate());
-        entity.setStatus(dto.getStatus() == null ? 0 : dto.getStatus());
-        entity.setRemark(dto.getRemark());
-        entity.setRepayMethod(dto.getRepayMethod());
         entity.setCreditLimit(parseDecimal(dto.getCreditLimit()));
-        entity.setBalance(parseDecimal(dto.getBalance()));
-        entity.setTotalLimit(parseDecimal(dto.getTotalLimit()));
         entity.setBillDay(dto.getBillDay());
         entity.setRepayDay(dto.getRepayDay());
-
-        if (isCreditCard(entity)) {
-            entity.setBalance(null);
-            entity.setTotalLimit(null);
-        } else {
-            entity.setCreditLimit(null);
-            entity.setBillDay(null);
-            entity.setRepayDay(null);
-        }
-
-        if ("cloudpay".equals(dto.getRepayMethod())) {
-            entity.setVerified(dto.getVerified() != null ? dto.getVerified() : Boolean.FALSE);
-        } else {
-            entity.setVerified(null);
-        }
+        entity.setExpireDate(dto.getExpireDate());
+        entity.setStatus(dto.getStatus() == null ? 0 : dto.getStatus());
+        entity.setRepayMethod(normalizeApp(dto.getRepayMethod()));
+        entity.setVerified(dto.getVerified() != null ? dto.getVerified() : Boolean.FALSE);
+        entity.setRemark(dto.getRemark());
     }
 
     private void handleCardLifecycleAfterUpdate(BankCard original, BankCard current, CardUser user) {
         if (!isCardActive(current)) {
             reminderTaskService.removeTasksByCardId(current.getId());
         }
-        if (hasOwnerInfoChanged(original, current)) {
+        if (hasUserChanged(original, current)) {
             syncBillOwnerInfoForCurrentYear(current.getId(), current.getUserId());
         }
         if (shouldGenerateBills(current)) {
@@ -349,10 +333,8 @@ public class BankCardServiceImpl
         return parent == null ? defaultZero(user.getFeeRate()) : defaultZero(parent.getFeeRate());
     }
 
-    private boolean hasOwnerInfoChanged(BankCard original, BankCard current) {
-        return !Objects.equals(original.getUserId(), current.getUserId())
-                || !Objects.equals(original.getOwnerName(), current.getOwnerName())
-                || !Objects.equals(original.getOwnerRelation(), current.getOwnerRelation());
+    private boolean hasUserChanged(BankCard original, BankCard current) {
+        return !Objects.equals(original.getUserId(), current.getUserId());
     }
 
     private void syncBillOwnerInfoForCurrentYear(Long cardId, Long ownerId) {
@@ -464,11 +446,6 @@ public class BankCardServiceImpl
             case 2 -> "注销";
             default -> "正常";
         });
-        if (card.getCreditLimit() != null) {
-            vo.setAvailableAmount(card.getCreditLimit());
-        } else if (card.getBalance() != null) {
-            vo.setAvailableAmount(card.getBalance());
-        }
         if (card.getUserId() != null && card.getUserId() > 0) {
             CardUser user = userMap != null ? userMap.get(card.getUserId()) : cardUserMapper.selectById(card.getUserId());
             if (user != null) {
@@ -477,6 +454,20 @@ public class BankCardServiceImpl
             }
         }
         return vo;
+    }
+
+    private String normalizeApp(String value) {
+        if (!StringUtils.hasText(value)) {
+            return DEFAULT_APP;
+        }
+        String app = value.trim();
+        if ("invoice".equals(app)) {
+            return "other";
+        }
+        if (!APP_VALUES.contains(app)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "APP只能选择云闪付、微信、支付宝或其他");
+        }
+        return app;
     }
 
     private BigDecimal parseDecimal(String value) {

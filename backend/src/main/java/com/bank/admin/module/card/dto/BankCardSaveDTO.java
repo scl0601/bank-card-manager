@@ -27,24 +27,12 @@ public class BankCardSaveDTO {
     @NotBlank(message = "卡号后四位不能为空")
     private String cardNoLast4;
 
-    @Schema(description = "卡片归属人关系：本人/配偶/子女等")
-    private String ownerRelation;
-
-    @Schema(description = "卡片归属人姓名（可选）")
-    private String ownerName;
-
     @Schema(description = "卡片类型：1借记卡 2信用卡", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "卡片类型不能为空")
     private Integer cardType;
 
     @Schema(description = "信用额度")
     private String creditLimit;
-
-    @Schema(description = "当前余额")
-    private String balance;
-
-    @Schema(description = "总额度（借记卡用）")
-    private String totalLimit;
 
     @Schema(description = "账单日（每月几号）")
     private Integer billDay;
@@ -58,12 +46,12 @@ public class BankCardSaveDTO {
     @Schema(description = "状态：0正常 1冻结 2注销")
     private Integer status;
 
-    @Schema(description = "备注")
-    private String remark;
-
-    @Schema(description = "还款方式：cloudpay云闪付 invoice开票")
+    @Schema(description = "APP：cloudpay云闪付 wechat微信 alipay支付宝 other其他")
     private String repayMethod;
 
-    @Schema(description = "是否核实（云闪付时有效）")
+    @Schema(description = "是否已核实")
     private Boolean verified;
+
+    @Schema(description = "备注")
+    private String remark;
 }

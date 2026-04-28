@@ -31,7 +31,9 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         ensurePatchHistoryTable();
         ensureCardUserModelCompatibility();
+        ensureBankCardUserIdColumn();
         ensureBankCardColumns();
+        alignBankCardAppFields();
         alignBankCardExpireDateColumn();
         ensureCardBillColumns();
         ensureCardTransactionColumns();
@@ -207,31 +209,57 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
     private void ensureBankCardColumns() {
         ensureColumnExists(
                 "bank_card",
-                "owner_relation",
-                "ALTER TABLE `bank_card` ADD COLUMN `owner_relation` VARCHAR(32) DEFAULT '本人' COMMENT '卡片归属人关系：本人/配偶/子女等' AFTER `card_no_last4`"
-        );
-        ensureColumnExists(
-                "bank_card",
-                "owner_name",
-                "ALTER TABLE `bank_card` ADD COLUMN `owner_name` VARCHAR(64) DEFAULT NULL COMMENT '卡片归属人姓名（可选）' AFTER `owner_relation`"
-        );
-        ensureColumnExists(
-                "bank_card",
-                "total_limit",
-                "ALTER TABLE `bank_card` ADD COLUMN `total_limit` DECIMAL(18,2) DEFAULT NULL COMMENT '总额度（借记卡用）' AFTER `balance`"
-        );
-        ensureColumnExists(
-                "bank_card",
                 "repay_method",
-                "ALTER TABLE `bank_card` ADD COLUMN `repay_method` VARCHAR(20) DEFAULT 'cloudpay' COMMENT '还款方式：cloudpay云闪付 invoice开票' AFTER `remark`"
+                "ALTER TABLE `bank_card` ADD COLUMN `repay_method` VARCHAR(20) DEFAULT 'cloudpay' COMMENT 'APP：cloudpay云闪付 wechat微信 alipay支付宝 other其他' AFTER `status`"
+        );
+        ensureColumnExists(
+                "bank_card",
+                "balance",
+                "ALTER TABLE `bank_card` ADD COLUMN `balance` DECIMAL(18,2) DEFAULT 0.00 COMMENT '当前余额（流水模块维护）' AFTER `credit_limit`"
         );
         ensureColumnExists(
                 "bank_card",
                 "verified",
-                "ALTER TABLE `bank_card` ADD COLUMN `verified` TINYINT(1) DEFAULT NULL COMMENT '是否核实（云闪付时有效）' AFTER `repay_method`"
+                "ALTER TABLE `bank_card` ADD COLUMN `verified` TINYINT(1) DEFAULT 0 COMMENT '是否已核实' AFTER `repay_method`"
         );
         // 修复旧版 owner_id（NOT NULL 无默认值）导致 INSERT 失败的问题
         fixBankCardOwnerIdDefault();
+    }
+
+    private void alignBankCardAppFields() {
+        if (!tableExists("bank_card")) {
+            return;
+        }
+        if (columnExists("bank_card", "total_limit") && columnExists("bank_card", "credit_limit")) {
+            jdbcTemplate.update("""
+                    UPDATE `bank_card`
+                    SET `credit_limit` = `total_limit`
+                    WHERE `credit_limit` IS NULL AND `total_limit` IS NOT NULL
+                    """);
+        }
+        if (columnExists("bank_card", "repay_method")) {
+            jdbcTemplate.update("UPDATE `bank_card` SET `repay_method` = 'other' WHERE `repay_method` = 'invoice'");
+            jdbcTemplate.update("UPDATE `bank_card` SET `repay_method` = 'cloudpay' WHERE `repay_method` IS NULL OR `repay_method` = ''");
+            jdbcTemplate.update("""
+                    UPDATE `bank_card`
+                    SET `repay_method` = 'other'
+                    WHERE `repay_method` NOT IN ('cloudpay', 'wechat', 'alipay', 'other')
+                    """);
+            jdbcTemplate.execute("ALTER TABLE `bank_card` MODIFY COLUMN `repay_method` VARCHAR(20) DEFAULT 'cloudpay' COMMENT 'APP：cloudpay云闪付 wechat微信 alipay支付宝 other其他' AFTER `status`");
+        }
+        if (columnExists("bank_card", "verified")) {
+            jdbcTemplate.update("UPDATE `bank_card` SET `verified` = 0 WHERE `verified` IS NULL");
+            jdbcTemplate.execute("ALTER TABLE `bank_card` MODIFY COLUMN `verified` TINYINT(1) DEFAULT 0 COMMENT '是否已核实' AFTER `repay_method`");
+        }
+        if (columnExists("bank_card", "remark")) {
+            jdbcTemplate.execute("ALTER TABLE `bank_card` MODIFY COLUMN `remark` VARCHAR(500) DEFAULT NULL AFTER `verified`");
+        }
+        dropColumnIfExists("bank_card", "owner_name");
+        dropColumnIfExists("bank_card", "owner_relation");
+        dropColumnIfExists("bank_card", "total_limit");
+        dropColumnIfExists("bank_card", "card_no");
+        dropColumnIfExists("bank_card", "used_amount");
+        dropColumnIfExists("bank_card", "owner_id");
     }
 
     private void fixBankCardOwnerIdDefault() {
@@ -493,5 +521,13 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
         }
         jdbcTemplate.execute(Objects.requireNonNull(ddlSql));
         log.info("已自动补齐数据库字段: {}.{}", tableName, columnName);
+    }
+
+    private void dropColumnIfExists(String tableName, String columnName) {
+        if (!columnExists(tableName, columnName)) {
+            return;
+        }
+        jdbcTemplate.execute("ALTER TABLE `" + tableName + "` DROP COLUMN `" + columnName + "`");
+        log.info("已删除废弃数据库字段: {}.{}", tableName, columnName);
     }
 }

@@ -7,12 +7,7 @@ USE bank_admin;
 ALTER TABLE `card_user`
   ADD COLUMN IF NOT EXISTS `fee_rate` DECIMAL(8,2) NOT NULL DEFAULT 0.00 COMMENT '费率%（如1表示1%）' AFTER `parent_id`;
 
--- 银行卡表补归属人信息字段
-ALTER TABLE `bank_card`
-  ADD COLUMN IF NOT EXISTS `owner_relation` VARCHAR(32) DEFAULT '本人' COMMENT '卡片归属人关系：本人/配偶/子女等' AFTER `card_no_last4`;
-
-ALTER TABLE `bank_card`
-  ADD COLUMN IF NOT EXISTS `owner_name` VARCHAR(64) DEFAULT NULL COMMENT '卡片归属人姓名（可选）' AFTER `owner_relation`;
+-- 银行卡归属信息已统一由 bank_card.user_id -> card_user 表维护，不再补 owner_relation/owner_name
 
 -- 新增代还月度账单条目表（若未执行 repay-tables.sql，可直接执行此段）
 CREATE TABLE IF NOT EXISTS `repay_month_bill` (

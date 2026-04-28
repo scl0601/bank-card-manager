@@ -471,55 +471,38 @@
         <el-form-item label="银行名称" prop="bankName">
           <el-input v-model="form.bankName" placeholder="如：招商银行" />
         </el-form-item>
-        <el-form-item label="归属关系">
-          <el-input v-model="form.ownerRelation" placeholder="如：本人 / 配偶 / 子女" maxlength="20" />
-        </el-form-item>
-        <el-form-item label="归属人姓名">
-          <el-input v-model="form.ownerName" placeholder="可选，如：张三" maxlength="20" />
-        </el-form-item>
         <el-form-item label="卡号后四位" prop="cardNoLast4">
           <el-input v-model="form.cardNoLast4" placeholder="请输入卡号后四位（4位数字）" maxlength="4" />
         </el-form-item>
         <el-form-item label="卡片类型" prop="cardType">
-          <el-radio-group :model-value="form.cardType" @change="onCardTypeChange">
+          <el-radio-group v-model="form.cardType">
             <el-radio v-for="item in CARD_TYPE_OPTIONS" :key="item.value" :value="item.value">{{ item.label }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        <template v-if="form.cardType === CARD_TYPE_VALUE.CREDIT">
-          <el-form-item label="信用额度">
-            <el-input v-model="form.creditLimit" placeholder="请输入信用额度" />
-          </el-form-item>
-          <el-form-item label="账单日">
-            <el-input-number v-model="form.billDay" :min="1" :max="31" controls-position="right" style="width: 100%" placeholder="请输入每月账单日" />
-          </el-form-item>
-          <el-form-item label="还款日">
-            <el-input-number v-model="form.repayDay" :min="1" :max="31" controls-position="right" style="width: 100%" placeholder="请输入每月还款日" />
-          </el-form-item>
-        </template>
-        <template v-else>
-          <el-form-item label="余额">
-            <el-input v-model="form.balance" placeholder="请输入余额" />
-          </el-form-item>
-          <el-form-item label="总额度">
-            <el-input v-model="form.totalLimit" placeholder="请输入这张卡的总额度" />
-          </el-form-item>
-        </template>
+        <el-form-item label="信用额度">
+          <el-input v-model="form.creditLimit" placeholder="请输入信用额度" />
+        </el-form-item>
+        <el-form-item label="账单日">
+          <el-input-number v-model="form.billDay" :min="1" :max="31" controls-position="right" style="width: 100%" placeholder="请输入每月账单日" />
+        </el-form-item>
+        <el-form-item label="还款日">
+          <el-input-number v-model="form.repayDay" :min="1" :max="31" controls-position="right" style="width: 100%" placeholder="请输入每月还款日" />
+        </el-form-item>
         <el-form-item label="有效期">
           <el-input v-model="form.expireDate" placeholder="月/年，如：06/28、06-28、06月28年" />
-        </el-form-item>
-        <el-form-item label="还款方式" prop="repayMethod">
-          <el-radio-group v-model="form.repayMethod">
-            <el-radio value="cloudpay">云闪付</el-radio>
-            <el-radio value="invoice">POS机</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item v-if="form.repayMethod === 'cloudpay'" label="是否核实">
-          <el-switch v-model="form.verified" active-text="已核实" inactive-text="未核实" />
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="form.status">
             <el-option v-for="item in CARD_STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
+        </el-form-item>
+        <el-form-item label="APP" prop="repayMethod">
+          <el-radio-group v-model="form.repayMethod">
+            <el-radio v-for="item in APP_OPTIONS" :key="item.value" :value="item.value">{{ item.label }}</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="是否已核实">
+          <el-switch v-model="form.verified" active-text="已核实" inactive-text="未核实" />
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="form.remark" type="textarea" rows="2" maxlength="500" show-word-limit placeholder="最多输入500字" />
@@ -551,7 +534,8 @@ import {
   CARD_TYPE_MAP,
   CARD_TYPE_OPTIONS,
   CARD_TYPE_VALUE,
-  CARD_STATUS_OPTIONS
+  CARD_STATUS_OPTIONS,
+  APP_OPTIONS
 } from '@/constants/dict'
 
 interface UserGroup {
@@ -705,10 +689,7 @@ function toAmount(value: any) {
 
 function cardQuotaValue(card: any) {
   if (!card) return 0
-  if (Number(card.cardType) === CARD_TYPE_VALUE.CREDIT) {
-    return toAmount(card.creditLimit ?? card.availableAmount)
-  }
-  return toAmount(card.totalLimit ?? card.balance ?? card.availableAmount)
+  return toAmount(card.creditLimit)
 }
 
 function sumCardQuota(cards: any[]) {
@@ -1034,12 +1015,8 @@ function formatCountLabel(count: any) {
 
 function cardUserLabel(card: any) {
   const userName = String(card?.userName || '').trim()
-  const ownerName = String(card?.ownerName || '').trim()
-  const relation = String(card?.ownerRelation || '').trim()
-  if (ownerName && userName && ownerName !== userName) return `${userName} / ${ownerName}`
-  if (ownerName) return ownerName
   if (userName) return userName
-  return relation || uiText.unfilled
+  return uiText.unfilled
 }
 
 function cardLast4Label(card: any) {
@@ -1439,12 +1416,8 @@ const defaultForm = {
   userId: null as any,
   bankName: '',
   cardNoLast4: '',
-  ownerRelation: '本人',
-  ownerName: '',
   cardType: Number(CARD_TYPE_VALUE.CREDIT),
   creditLimit: '',
-  balance: '',
-  totalLimit: '',
   billDay: '',
   repayDay: '',
   expireDate: '',
@@ -1469,7 +1442,8 @@ const computedRules = computed(() => ({
     { required: true, message: '请输入卡号后四位', trigger: 'blur' },
     { pattern: /^\d{4}$/, message: '必须为4位数字', trigger: 'blur' }
   ],
-  cardType: [{ required: true, message: '请选择卡片类型', trigger: 'change' }]
+  cardType: [{ required: true, message: '请选择卡片类型', trigger: 'change' }],
+  repayMethod: [{ required: true, message: '请选择APP', trigger: 'change' }]
 }))
 
 function flattenUserTree(list: any[], parentName = '') {
@@ -1542,7 +1516,11 @@ async function openAddCardWithActiveUser() {
 
 async function openEditCard(row: any) {
   isEdit.value = true
-  Object.assign(formData, row, { userId: Number(row?.userId || 0) || null })
+  Object.assign(formData, row, {
+    userId: Number(row?.userId || 0) || null,
+    repayMethod: row?.repayMethod === 'invoice' ? 'other' : (row?.repayMethod || 'cloudpay'),
+    verified: Boolean(row?.verified)
+  })
   await syncUserOptions()
   dialogVisible.value = true
 }
@@ -1550,43 +1528,15 @@ async function openEditCard(row: any) {
 function openBillYearView(card: any) {
   router.push({
     path: '/bills',
-    query: { cardId: String(card.id) }
+    query: { cardId: String(card.id), year: String(currentYear) }
   })
-}
-
-async function onCardTypeChange(newType: number) {
-  const oldType = formData.cardType
-  if (newType === oldType) return
-  if (!isEdit.value) {
-    formData.cardType = newType
-    clearCardTypeFields(newType)
-    return
-  }
-
-  const clearFields = oldType === CARD_TYPE_VALUE.CREDIT ? '信用额度、账单日、还款日' : '余额、总额度'
-  try {
-    await ElMessageBox.confirm(`切换卡片类型将清空${clearFields}，是否继续？`, '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    formData.cardType = newType
-    clearCardTypeFields(oldType)
-  } catch {
-    /* cancel */
-  }
-}
-
-function clearCardTypeFields(cardType: number) {
-  if (cardType === CARD_TYPE_VALUE.CREDIT) Object.assign(formData, { creditLimit: '', billDay: '', repayDay: '' })
-  else if (cardType === CARD_TYPE_VALUE.DEBIT) Object.assign(formData, { balance: '', totalLimit: '' })
 }
 
 async function handleSubmit() {
   const data: any = { ...formData }
   let createdCardId: number | undefined
 
-  ;['creditLimit', 'balance', 'totalLimit', 'billDay', 'repayDay'].forEach(key => {
+  ;['creditLimit', 'billDay', 'repayDay'].forEach(key => {
     if (data[key] === '') data[key] = null
   })
 

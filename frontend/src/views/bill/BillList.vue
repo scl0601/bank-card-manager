@@ -1,5 +1,5 @@
 <template>
-  <div class="bill-page">
+  <div class="bill-page" :class="{ 'single-card-annual-page': singleCardAnnualMode }">
     <div class="page-header">
       <div class="header-copy">
         <div class="header-title-row">
@@ -116,13 +116,15 @@
         <PageTable
           ref="billTableRef"
           class="bill-page-table"
+          :class="{ 'single-card-annual-table': singleCardAnnualMode }"
           :data="sortedList"
           :loading="loading"
           :total="total"
           :page-num="query.pageNum"
           :page-size="query.pageSize"
-          :page-sizes="[20, 50, ANNUAL_PAGE_SIZE]"
-          height="calc(100% - 40px)"
+          :page-sizes="[SINGLE_CARD_ANNUAL_PAGE_SIZE, 20, 50, ANNUAL_PAGE_SIZE]"
+          :height="billTableHeight"
+          :show-pagination="showBillPagination"
           pagination-layout="total, prev, pager, next"
           border
           row-key="id"
@@ -383,8 +385,9 @@
         <template #default="{ row }">
           <div class="table-stack table-stack-center">
             <span class="table-stack-line">
-              <el-tag v-if="row.repayMethod === 'cloudpay'" type="primary" size="small" effect="light">云闪付</el-tag>
-              <el-tag v-else-if="row.repayMethod === 'invoice'" type="warning" size="small" effect="light">POS机</el-tag>
+              <el-tag v-if="appLabel(row.repayMethod)" :type="appTagType(row.repayMethod)" size="small" effect="light">
+                {{ appLabel(row.repayMethod) }}
+              </el-tag>
               <span v-else class="no-data">-</span>
             </span>
             <span class="table-stack-line">
@@ -604,14 +607,15 @@ import {
   BILL_STATUS_MAP,
   BILL_STATUS_TAG_TYPE,
   DETAIL_TYPE_VALUE,
-  DETAIL_TYPE_OPTIONS
+  DETAIL_TYPE_OPTIONS,
+  APP_MAP,
+  APP_TAG_TYPE
 } from '@/constants/dict'
 
 interface BillRow {
   id: number
   cardId: number
   ownerName: string
-  ownerRelation: string
   bankName: string
   cardNoLast4: string
   billMonth: string
@@ -673,10 +677,21 @@ const now = new Date()
 const currentYear = now.getFullYear()
 const currentMonthNumber = now.getMonth() + 1
 const currentMonth = `${currentYear}-${String(currentMonthNumber).padStart(2, '0')}`
+const SINGLE_CARD_ANNUAL_PAGE_SIZE = 12
 const ANNUAL_PAGE_SIZE = 100
 const DETAIL_PREFETCH_DELAY = 80
 const DETAIL_PREFETCH_CONCURRENCY = 2
 const DETAIL_PREFETCH_ANNUAL_LIMIT = 20
+
+function appLabel(value?: string) {
+  if (value === 'invoice') return APP_MAP['other'] || '其他'
+  return value ? APP_MAP[value] : ''
+}
+
+function appTagType(value?: string) {
+  const normalized = value === 'invoice' ? 'other' : value
+  return normalized ? (APP_TAG_TYPE[normalized] || 'info') : 'info'
+}
 
 function createDebouncedTask(fn: () => void, delay = 300) {
   let timer = 0
@@ -725,9 +740,7 @@ const {
   },
   autoSearch: false,
   beforeFetch: (params) => {
-    if (isAnnualBillScope(params)) {
-      params.pageSize = Math.max(Number(params.pageSize || 0), ANNUAL_PAGE_SIZE)
-    }
+    params.pageSize = resolveBillPageSize(params)
     ;(params as any).current = params.pageNum
     ;(params as any).size = params.pageSize
     delete (params as any).pageNum
@@ -755,6 +768,9 @@ const billOverview = ref<BillOverview>({
 })
 
 const billScopeLabel = computed(() => formatBillRangeLabel(query.startBillMonth, query.endBillMonth))
+const singleCardAnnualMode = computed(() => isSingleCardAnnualScope(query))
+const billTableHeight = computed(() => singleCardAnnualMode.value ? undefined : 'calc(100% - 40px)')
+const showBillPagination = computed(() => !singleCardAnnualMode.value || total.value > SINGLE_CARD_ANNUAL_PAGE_SIZE)
 const triggerBillSearch = createDebouncedTask(() => {
   submitBillSearch()
 }, 300)
@@ -869,6 +885,20 @@ function isWholeYearRange(startBillMonth?: string | null, endBillMonth?: string 
 
 function isAnnualBillScope(params: any) {
   return isWholeYearRange(params?.startBillMonth, params?.endBillMonth)
+}
+
+function isSingleCardAnnualScope(params: any) {
+  return isAnnualBillScope(params) && Number(params?.cardId || 0) > 0 && !Number(params?.ownerId || 0)
+}
+
+function resolveBillPageSize(params: any) {
+  if (isSingleCardAnnualScope(params)) {
+    return SINGLE_CARD_ANNUAL_PAGE_SIZE
+  }
+  if (isAnnualBillScope(params)) {
+    return Math.max(Number(params?.pageSize || 0), ANNUAL_PAGE_SIZE)
+  }
+  return Number(params?.pageSize || 0) || 20
 }
 
 function syncBillMonthQuery() {
@@ -1699,6 +1729,41 @@ watch(
   box-sizing: border-box;
 }
 
+.single-card-annual-page {
+  --bill-gap: 4px;
+}
+
+.single-card-annual-page .page-header {
+  padding: 4px 8px;
+}
+
+.single-card-annual-page .bill-search-panel {
+  gap: 6px 10px;
+  padding: 6px 8px;
+}
+
+.single-card-annual-page .app-search-main {
+  gap: 6px;
+}
+
+.single-card-annual-page .app-search-title,
+.single-card-annual-page .app-search-meta {
+  min-height: 28px;
+}
+
+.single-card-annual-page .app-search-btn {
+  height: 28px;
+  padding: 0 10px;
+}
+
+.single-card-annual-page .bill-search-panel :deep(.el-input__wrapper),
+.single-card-annual-page .bill-search-panel :deep(.el-select__wrapper),
+.single-card-annual-page .bill-search-panel :deep(.el-date-editor.el-input__wrapper),
+.single-card-annual-page .bill-search-panel :deep(.el-date-editor .el-input__wrapper) {
+  min-height: 28px;
+  border-radius: 8px;
+}
+
 .card-shell {
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid #dbe2ea;
@@ -1952,6 +2017,12 @@ watch(
   overflow: hidden;
 }
 
+.bill-page-table.single-card-annual-table {
+  flex: 0 0 auto;
+  min-height: auto;
+  overflow: visible;
+}
+
 /*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-table),
 .bill-page-table :deep(.el-table__inner-wrapper),
@@ -2080,6 +2151,50 @@ watch(
 .bill-page-table :deep(.el-scrollbar__wrap) {
   overflow-x: hidden !important;
   overflow-y: auto !important;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-page-table.single-card-annual-table :deep(.el-table),
+.bill-page-table.single-card-annual-table :deep(.el-table__inner-wrapper),
+.bill-page-table.single-card-annual-table :deep(.el-table__body-wrapper),
+.bill-page-table.single-card-annual-table :deep(.el-scrollbar),
+.bill-page-table.single-card-annual-table :deep(.el-scrollbar__wrap),
+.bill-page-table.single-card-annual-table :deep(.el-scrollbar__view) {
+  height: auto !important;
+  max-height: none !important;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-page-table.single-card-annual-table :deep(.el-table),
+.bill-page-table.single-card-annual-table :deep(.el-table__body-wrapper),
+.bill-page-table.single-card-annual-table :deep(.el-scrollbar__wrap) {
+  overflow: visible !important;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-page-table.single-card-annual-table :deep(.el-table th.el-table__cell) {
+  padding: 3px 2px;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-page-table.single-card-annual-table :deep(.el-table td.el-table__cell) {
+  padding: 2px 2px;
+}
+
+.bill-page-table.single-card-annual-table .table-stack {
+  gap: 1px;
+  line-height: 1.1;
+}
+
+.bill-page-table.single-card-annual-table .table-stack-line {
+  line-height: 1.1;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-page-table.single-card-annual-table :deep(.el-tag) {
+  min-height: 14px;
+  padding: 0 4px;
+  line-height: 14px;
 }
 
 /*noinspection CssUnusedSymbol*/

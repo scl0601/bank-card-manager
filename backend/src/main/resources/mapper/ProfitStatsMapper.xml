@@ -63,7 +63,6 @@
             IFNULL(top_user.name, owner_user.name) AS user_name,
             owner_user.id AS owner_id,
             owner_user.name AS owner_name,
-            bc.owner_relation,
             bc.bank_name,
             bc.card_no_last4,
             COUNT(*) AS bill_count,
@@ -78,7 +77,6 @@
                  IFNULL(top_user.name, owner_user.name),
                  owner_user.id,
                  owner_user.name,
-                 bc.owner_relation,
                  bc.bank_name,
                  bc.card_no_last4
         ORDER BY total_net_profit DESC, total_bill_amount DESC, cb.card_id DESC

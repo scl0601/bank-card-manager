@@ -27,9 +27,6 @@ public class CardProfitVO {
     @Schema(description = "持卡人姓名")
     private String ownerName;
 
-    @Schema(description = "归属人关系")
-    private String ownerRelation;
-
     @Schema(description = "银行名称")
     private String bankName;
 

@@ -20,7 +20,6 @@ public class CardBillSqlProvider {
                     cb.card_id,
                     bc.card_no_last4,
                     bc.bank_name,
-                    bc.owner_relation,
                     cb.owner_id,
                     cu.name AS owner_name,
                     cb.bill_month,

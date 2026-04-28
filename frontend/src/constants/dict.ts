@@ -45,6 +45,35 @@ export const CARD_STATUS_TAG_TYPE: Record<number, string> = {
   [CARD_STATUS_VALUE.CANCELLED]: 'info'
 }
 
+// ==================== APP ====================
+export const APP_VALUE = {
+  CLOUDPAY: 'cloudpay',
+  WECHAT: 'wechat',
+  ALIPAY: 'alipay',
+  OTHER: 'other'
+} as const
+
+export const APP_OPTIONS = [
+  { label: '云闪付', value: APP_VALUE.CLOUDPAY },
+  { label: '微信', value: APP_VALUE.WECHAT },
+  { label: '支付宝', value: APP_VALUE.ALIPAY },
+  { label: '其他', value: APP_VALUE.OTHER }
+]
+
+export const APP_MAP: Record<string, string> = {
+  [APP_VALUE.CLOUDPAY]: '云闪付',
+  [APP_VALUE.WECHAT]: '微信',
+  [APP_VALUE.ALIPAY]: '支付宝',
+  [APP_VALUE.OTHER]: '其他'
+}
+
+export const APP_TAG_TYPE: Record<string, string> = {
+  [APP_VALUE.CLOUDPAY]: 'primary',
+  [APP_VALUE.WECHAT]: 'success',
+  [APP_VALUE.ALIPAY]: 'warning',
+  [APP_VALUE.OTHER]: 'info'
+}
+
 // ==================== 交易类型 ====================
 export const TXN_TYPE_VALUE = {
   INCOME: 1,   // 收入
