@@ -27,7 +27,7 @@ const router = createRouter({
           path: 'cards',
           name: 'Cards',
           component: () => import('@/views/card/CardList.vue'),
-          meta: { title: '银行卡管理', icon: 'CreditCard' }
+          meta: { title: '卡务管理', icon: 'CreditCard' }
         },
         {
           path: 'users',

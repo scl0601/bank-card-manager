@@ -11,41 +11,11 @@
         </span>
 
         <div class="header-title-group">
-          <h1 class="page-title">银行卡管理</h1>
+          <h1 class="page-title">{{ uiText.cardManagement }}</h1>
         </div>
       </div>
 
       <div class="header-actions">
-        <div class="search-box" :class="{ focused: searchFocused }">
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="search-icon"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            v-model="keyword"
-            placeholder="搜索银行 / 卡号后四位…"
-            @focus="searchFocused = true"
-            @blur="searchFocused = false"
-          />
-          <button v-if="keyword" class="search-clear" @click="clearKeyword">&times;</button>
-        </div>
-
-        <div class="type-switch">
-          <button :class="['chip', { active: query.cardType === undefined }]" @click="setCardType(undefined)">全部</button>
-          <button :class="['chip', { active: query.cardType === CARD_TYPE_VALUE.CREDIT }]" @click="setCardType(CARD_TYPE_VALUE.CREDIT)">信用卡</button>
-          <button :class="['chip', { active: query.cardType === CARD_TYPE_VALUE.DEBIT }]" @click="setCardType(CARD_TYPE_VALUE.DEBIT)">借记卡</button>
-        </div>
-
         <button class="icon-btn" @click="refreshAll" title="刷新">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 12a9 9 0 1 1-2.64-6.36" />
@@ -63,54 +33,12 @@
       </div>
     </div>
 
-    <div class="app-search-panel card-shell card-search-panel">
-      <div class="app-search-main">
-        <div class="app-search-title">筛选</div>
-        <el-input
-          v-model="query.bankName"
-          class="app-search-item app-search-item-lg"
-          placeholder="请输入开户行名称查询"
-          clearable
-          maxlength="30"
-        />
-        <el-input
-          v-model="query.cardNoLast4"
-          class="app-search-item app-search-item-md"
-          placeholder="请输入卡号"
-          clearable
-          maxlength="19"
-        />
-        <el-select
-          v-model="query.status"
-          class="app-search-item app-search-item-sm"
-          placeholder="请选择银行卡状态"
-          clearable
-        >
-          <el-option v-for="item in CARD_STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
-        </el-select>
-        <el-select
-          v-model="query.cardType"
-          class="app-search-item app-search-item-sm"
-          placeholder="请选择银行卡类型"
-          clearable
-        >
-          <el-option v-for="item in CARD_TYPE_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
-        </el-select>
-      </div>
-
-      <div class="app-search-extra">
-        <div class="app-search-actions">
-          <el-button class="app-search-btn" @click="handleCardReset">重置</el-button>
-        </div>
-      </div>
-    </div>
-
     <div class="main-body">
       <div class="cards-grid">
         <!-- 持卡人信息 -->
         <section class="panel is-users" v-loading="groupsVisibleLoading">
           <div class="panel-head">
-            <div class="panel-title"><span class="panel-dot"></span>持卡人信息</div>
+            <div class="panel-title"><span class="panel-dot"></span>{{ uiText.talkerInfo }}</div>
             <div class="panel-actions">
               <div class="user-search" :class="{ focused: userSearchFocused }">
                 <svg
@@ -129,14 +57,14 @@
                 </svg>
                 <input
                   v-model="userKeyword"
-                  placeholder="搜索持卡人 / 手机号…"
+                  :placeholder="uiText.searchTalkerPlaceholder"
                   @focus="userSearchFocused = true"
                   @blur="userSearchFocused = false"
                 />
                 <button v-if="userKeyword" class="search-clear" @click.stop="clearUserKeyword">&times;</button>
               </div>
 
-              <button class="icon-btn" @click="goUsers" title="管理持卡人">
+              <button class="icon-btn" @click="goUsers" :title="uiText.manageUserInfo">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                   <circle cx="12" cy="7" r="4" />
@@ -148,182 +76,144 @@
           <div class="panel-body">
             <div class="mini-stats">
               <div class="mini-stat">
-                <span class="ms-label">持卡人</span>
+                <span class="ms-label">{{ uiText.talker }}</span>
                 <span class="ms-value">{{ baseStats.userCount }}</span>
               </div>
               <div class="mini-stat">
-                <span class="ms-label">银行卡</span>
+                <span class="ms-label">{{ uiText.cards }}</span>
                 <span class="ms-value">{{ baseStats.cardCount }}</span>
               </div>
               <div class="mini-stat">
-                <span class="ms-label">当前费率</span>
-                <span class="ms-value font-mono">{{ activeUserFeeRate }}</span>
+                <span class="ms-label">{{ cardQuotaSummaryLabel }}</span>
+                <span class="ms-value font-mono">{{ formatMoneySafe(baseStats.totalQuota) }}</span>
               </div>
             </div>
 
-            <div class="user-split">
-              <div class="user-col">
-                <div class="child-head">
-                  <div class="child-title">
-                    <span>主用户</span>
-                    <span v-if="baseStats.userCount" class="child-count">{{ baseStats.userCount }}</span>
-                  </div>
-
-                  <div class="panel-actions">
-                    <div v-if="userPageCount > 1" class="pager">
-                      <button class="icon-btn" @click.stop="prevUserPage" title="上一页">
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2.2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <polyline points="15 18 9 12 15 6" />
-                        </svg>
-                      </button>
-                      <span class="panel-meta">{{ userPageIndex + 1 }}/{{ userPageCount }}</span>
-                      <button class="icon-btn" @click.stop="nextUserPage" title="下一页">
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2.2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <polyline points="9 18 15 12 9 6" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
+            <div class="talker-board">
+              <div class="child-head talker-board-head">
+                <div class="child-title">
+                  <span>{{ uiText.talker }}</span>
+                  <span v-if="baseStats.userCount" class="child-count">{{ baseStats.userCount }}</span>
                 </div>
 
-                <div class="user-list">
-                  <template v-for="(u, idx) in pagedUsersFilled" :key="u?.userId ?? `u-ph-${idx}`">
-                    <div
-                      v-if="u"
-                      :class="['list-item', 'user-item', { active: u.userId === activeUserId }]"
-                      role="button"
-                      tabindex="0"
-                      @click="setActiveUser(u.userId)"
-                      @keydown.enter.prevent="setActiveUser(u.userId)"
-                      @keydown.space.prevent="setActiveUser(u.userId)"
-                    >
-                      <div class="li-left">
-                        <div class="li-avatar" :class="{ ghost: u.userId === 0 }">
-                          <span>{{ userInitial(u.userName) }}</span>
-                        </div>
-                        <div class="li-main">
-                          <div class="li-title">{{ u.userName || '未命名' }}</div>
-                          <div class="li-sub">{{ u.phone ? maskPhone(u.phone) : '未填写' }}</div>
-                        </div>
-                      </div>
-                      <div class="li-right">
-                        <span class="pill">{{ Number(u.cardCount || 0) }}张</span>
-                        <span class="pill pill-fee">{{ formatRate(u.feeRate) }}%</span>
-                      </div>
-                    </div>
-
-                    <div v-else class="list-item placeholder" aria-hidden="true"></div>
-                  </template>
-
-                  <div v-if="groupsReady && !loadingGroups && filteredGroupList.length === 0" class="empty-hint">暂无主用户</div>
+                <div class="panel-actions">
+                  <div v-if="userPageCount > 1" class="pager">
+                    <button class="icon-btn" @click.stop="prevUserPage" :title="uiText.prevPage">
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <polyline points="15 18 9 12 15 6" />
+                      </svg>
+                    </button>
+                    <span class="panel-meta">{{ userPageIndex + 1 }}/{{ userPageCount }}</span>
+                    <button class="icon-btn" @click.stop="nextUserPage" :title="uiText.nextPage">
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div class="child-col">
-                <div class="child-head">
-                  <div class="child-title">
-                    <span>子用户</span>
-                    <span v-if="childTotal" class="child-count">{{ childTotal }}</span>
-                  </div>
-
-                  <div class="panel-actions">
-                    <div v-if="childPageCount > 1" class="pager">
-                      <button class="icon-btn" @click.stop="prevChildPage" title="上一页">
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2.2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <polyline points="15 18 9 12 15 6" />
-                        </svg>
-                      </button>
-                      <span class="panel-meta">{{ childPageIndex + 1 }}/{{ childPageCount }}</span>
-                      <button class="icon-btn" @click.stop="nextChildPage" title="下一页">
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2.2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <polyline points="9 18 15 12 9 6" />
-                        </svg>
-                      </button>
+              <div class="user-list talker-list">
+                <template v-for="(u, idx) in pagedUsersFilled" :key="u?.userId ?? `u-ph-${idx}`">
+                  <div
+                    v-if="u"
+                    :class="['list-item', 'user-item', 'talker-card', { active: u.userId === activeUserId }]"
+                    role="button"
+                    tabindex="0"
+                    @click="setActiveUser(u.userId)"
+                    @keydown.enter.prevent="setActiveUser(u.userId)"
+                    @keydown.space.prevent="setActiveUser(u.userId)"
+                  >
+                    <div class="talker-rate-tag" :class="{ 'has-rate': (u.feeRate ?? 0) > 0 }">
+                      <span class="rate-prefix">费率</span>{{ formatRate(u.feeRate) }}%
                     </div>
-                  </div>
-                </div>
-
-                <div class="child-list" v-loading="userTreeVisibleLoading">
-                  <template v-if="activeUserId && activeUserId > 0">
-                    <template v-for="(cu, idx) in pagedChildUsersFilled" :key="cu?.id ?? `c-ph-${idx}`">
-                      <div
-                        v-if="cu"
-                        :class="['list-item', 'child-item', { active: Number(cu.id) === Number(activeOwnerId), disabled: Number(cu.status) !== 0 }]"
-                        role="button"
-                        :tabindex="Number(cu.status) === 0 ? 0 : -1"
-                        :aria-disabled="Number(cu.status) !== 0"
-                        @click="setActiveChildUser(cu)"
-                        @keydown.enter.prevent="setActiveChildUser(cu)"
-                        @keydown.space.prevent="setActiveChildUser(cu)"
-                      >
-                        <div class="li-left">
-                          <div class="li-avatar sm" :class="{ ghost: Number(cu.status) !== 0 }">
-                            <span>{{ userInitial(cu.name) }}</span>
-                          </div>
-                          <div class="li-main">
-                            <div class="li-title">{{ cu.name || '未命名' }}</div>
-                            <div class="li-sub">{{ cu.phone ? maskPhone(cu.phone) : '未填写' }}</div>
-                          </div>
-                        </div>
-                        <div class="li-right">
-                          <span class="pill">{{ childCardCount(cu.id) }}张</span>
-                          <span class="pill pill-fee">{{ formatRate(childFeeRate(cu)) }}%</span>
+                    <div class="talker-main">
+                      <div class="li-avatar" :class="{ ghost: u.userId === 0 }">
+                        <span>{{ userInitial(u.userName) }}</span>
+                      </div>
+                      <div class="li-main">
+                        <div class="li-title">{{ u.userName || uiText.unnamed }}</div>
+                        <div class="li-sub">
+                          <span>{{ u.phone ? maskPhone(u.phone) : uiText.unfilled }}</span>
                         </div>
                       </div>
+                    </div>
+                    <div class="talker-footer">
+                      <div class="talker-stat-item">
+                        <span class="ts-label">{{ uiText.cards }}</span>
+                        <span class="ts-value">{{ formatCountLabel(u.cardCount) }}</span>
+                      </div>
+                      <div class="talker-stat-divider"></div>
+                      <div class="talker-stat-item talker-stat-amount">
+                        <span class="ts-label">{{ uiText.totalAmount }}</span>
+                        <span class="ts-value font-mono">{{ formatMoneySafe(userTotalQuota(u)) }}</span>
+                      </div>
+                    </div>
+                  </div>
 
-                      <div v-else class="list-item child-item placeholder" aria-hidden="true"></div>
-                    </template>
+                  <div v-else class="list-item talker-card placeholder" aria-hidden="true"></div>
+                </template>
 
-                    <div v-if="userTreeLoaded && !userTreeLoading && activeChildUsers.length === 0" class="empty-hint">暂无子用户</div>
-                  </template>
-                  <div v-else class="empty-hint">选择持卡人查看子用户</div>
-                </div>
+                <div v-if="groupsReady && !loadingGroups && filteredGroupList.length === 0" class="empty-hint">{{ uiText.emptyTalkers }}</div>
               </div>
             </div>
           </div>
         </section>
 
-        <!-- 银行卡管理 -->
+        <!-- 银行卡信息 -->
         <section class="panel">
           <div class="panel-head">
-            <div class="panel-title"><span class="panel-dot is-primary"></span>银行卡管理</div>
+            <div class="panel-title"><span class="panel-dot is-primary"></span>{{ uiText.bankCardInfo }}</div>
             <div class="panel-actions">
+              <div class="card-filters">
+                <div class="panel-search" :class="{ focused: searchFocused }">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="search-icon"
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  <input
+                    v-model="keyword"
+                    :placeholder="uiText.searchBankCardPlaceholder"
+                    @focus="searchFocused = true"
+                    @blur="searchFocused = false"
+                  />
+                  <button v-if="keyword" class="search-clear" @click="clearKeyword">&times;</button>
+                </div>
+                <el-select v-model="query.cardType" class="mini-filter card-filter" :placeholder="uiText.cardType" clearable>
+                  <el-option v-for="item in CARD_TYPE_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+                </el-select>
+                <el-select v-model="query.status" class="mini-filter card-filter" :placeholder="uiText.status" clearable>
+                  <el-option v-for="item in CARD_STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+                </el-select>
+              </div>
               <div v-if="cardPageCount > 1" class="pager">
                 <button class="icon-btn" @click.stop="prevCardPage" title="上一页">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -354,23 +244,7 @@
             </div>
           </div>
 
-          <div class="panel-body">
-            <div class="active-meta" v-if="activeUser">
-              <div class="am-left">
-                <div class="am-name">{{ activeUser.userName }}</div>
-                <div class="am-sub">卡片 {{ Number(activeUser.cardCount || 0) }} · 费率 {{ formatRate(activeUser.feeRate) }}%</div>
-              </div>
-              <div class="am-right" v-if="activeCard">
-                <StatusTag
-                  :value="activeCard.status"
-                  :label-map="CARD_STATUS_MAP"
-                  :type-map="CARD_STATUS_TAG_TYPE"
-                  size="small"
-                  effect="light"
-                />
-              </div>
-            </div>
-
+          <div class="panel-body card-panel-body">
             <div class="card-list">
               <template v-if="pagedCardsFilled.length">
                 <template v-for="(c, idx) in pagedCardsFilled" :key="c?.id ?? `card-ph-${idx}`">
@@ -383,7 +257,7 @@
                   @keydown.enter.prevent="setActiveCard(c.id)"
                   @keydown.space.prevent="setActiveCard(c.id)"
                 >
-                  <div class="li-left">
+                  <div class="li-left card-info-left">
                     <div class="li-icon" :class="{ credit: c.cardType === CARD_TYPE_VALUE.CREDIT }">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                         <rect x="3" y="5" width="18" height="14" rx="2" />
@@ -391,35 +265,32 @@
                       </svg>
                     </div>
                     <div class="li-main">
-                      <div class="li-title">
-                        <span class="bank-name">{{ c.bankName }}</span>
-                        <span class="muted"> {{ maskCardNo(c.cardNoLast4) }}</span>
+                      <div class="card-row-top">
+                        <span class="cig-name">{{ cardUserLabel(c) }}</span>
+                        <i class="cig-sep"></i>
+                        <span class="cig-bank">{{ c.bankName || '—' }}</span>
+                        <i class="cig-sep"></i>
+                        <span class="cig-last4 font-mono">{{ cardLast4Label(c) }}</span>
                       </div>
-                      <div class="li-sub">
-                        <span class="holder-chip" :title="cardHolderTooltip(c)">持卡人 {{ cardHolderName(c) }}</span>
-                        <i class="sub-divider"></i>
-                        <span class="muted">{{ CARD_TYPE_MAP[c.cardType] || '-' }}</span>
-                        <i class="sub-divider"></i>
-                        <span>有效期 {{ c.expireDate || '—' }}</span>
-                        <i class="sub-divider"></i>
-                        <template v-if="c.cardType === CARD_TYPE_VALUE.CREDIT">
-                          <span v-if="c.billDay">账单日 {{ c.billDay }}日</span>
-                          <span v-else class="muted">账单日 —</span>
-                          <i class="sub-divider"></i>
-                          <span v-if="c.repayDay">还款日 {{ c.repayDay }}日</span>
-                          <span v-else class="muted">还款日 —</span>
-                        </template>
-                        <template v-else>
-                          <span class="muted">—</span>
-                        </template>
+                      <div class="card-row-sub">
+                        <span class="cig-type">{{ CARD_TYPE_MAP[c.cardType] || '—' }}</span>
+                        <span class="cig-sep-dot"></span>
+                        <span class="cig-label">账单日</span>
+                        <span :class="['cig-date', { 'cig-empty': !c.billDay }]">{{ c.billDay ? `${c.billDay}日` : '—' }}</span>
+                        <span class="cig-sep-dot"></span>
+                        <span class="cig-label">还款日</span>
+                        <span :class="['cig-date', { 'cig-empty': !c.repayDay }]">{{ c.repayDay ? `${c.repayDay}日` : '—' }}</span>
+                        <span class="cig-sep-dot"></span>
+                        <span class="cig-label">有效期</span>
+                        <span :class="['cig-date', { 'cig-empty': !c.expireDate }]">{{ c.expireDate || '—' }}</span>
                       </div>
                     </div>
                   </div>
 
-                  <div class="li-right">
+                  <div class="li-right card-info-right">
                     <div class="amt">
-                      <span class="amt-label">{{ c.cardType === CARD_TYPE_VALUE.CREDIT ? '额度' : '余额' }}</span>
-                      <span class="amt-value font-mono">{{ formatMoneySafe(c.cardType === CARD_TYPE_VALUE.CREDIT ? c.creditLimit : c.balance) }}</span>
+                      <span class="amt-label">卡片额度</span>
+                      <span class="amt-value font-mono">{{ formatMoneySafe(cardDisplayAmount(c)) }}</span>
                     </div>
                     <div class="li-actions">
                       <button class="mini-icon" @click.stop="openCardBillsPage(c)" title="详情">
@@ -677,8 +548,6 @@ import { formatMoney, formatRate, maskCardNo, maskPhone } from '@/utils/formatte
 import {
   BILL_STATUS_MAP,
   BILL_STATUS_TAG_TYPE,
-  CARD_STATUS_MAP,
-  CARD_STATUS_TAG_TYPE,
   CARD_TYPE_MAP,
   CARD_TYPE_OPTIONS,
   CARD_TYPE_VALUE,
@@ -750,6 +619,31 @@ const currentMonth = new Date().getMonth() + 1
 const currentBillMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}`
 const yearOptions = Array.from({ length: 6 }, (_, index) => currentYear - 2 + index)
 const monthOptions = Array.from({ length: 12 }, (_, index) => index + 1)
+const uiText = {
+  cardManagement: '\u5361\u52a1\u7ba1\u7406',
+  bankCardInfo: '\u94f6\u884c\u5361\u4fe1\u606f',
+  talkerInfo: '\u6d3d\u8c08\u4eba\u4fe1\u606f',
+  talker: '\u6d3d\u8c08\u4eba',
+  ownedCardholders: '\u540d\u4e0b\u6301\u5361\u4eba',
+  searchTalkerPlaceholder: '\u641c\u7d22\u6d3d\u8c08\u4eba / \u624b\u673a\u53f7',
+  manageUserInfo: '\u7ba1\u7406\u7528\u6237\u4fe1\u606f',
+  searchBankCardPlaceholder: '\u641c\u7d22\u94f6\u884c / \u5361\u53f7\u540e\u56db\u4f4d\u2026',
+  cards: '\u94f6\u884c\u5361',
+  cardType: '\u5361\u7c7b\u578b',
+  status: '\u72b6\u6001',
+  totalQuota: '\u603b\u989d\u5ea6',
+  totalAmount: '\u603b\u91d1\u989d',
+  feeRate: '\u8d39\u7387',
+  prevPage: '\u4e0a\u4e00\u9875',
+  nextPage: '\u4e0b\u4e00\u9875',
+  cardCountSuffix: '\u5f20',
+  cardQuotaSummarySuffix: '\u5f20\u94f6\u884c\u5361\u603b\u91d1\u989d',
+  emptyTalkers: '\u6682\u65e0\u6d3d\u8c08\u4eba',
+  emptyOwnedCardholders: '\u6682\u65e0\u540d\u4e0b\u6301\u5361\u4eba',
+  selectTalkerHint: '\u9009\u62e9\u6d3d\u8c08\u4eba\u67e5\u770b\u540d\u4e0b\u6301\u5361\u4eba',
+  unnamed: '\u672a\u547d\u540d',
+  unfilled: '\u672a\u586b\u5199'
+} as const
 
 function createDebouncedTask(fn: () => void, delay = 300) {
   let timer = 0
@@ -804,14 +698,38 @@ const userPageIndex = ref(0)
 const cardPageIndex = ref(0)
 const childPageIndex = ref(0)
 
+function toAmount(value: any) {
+  const num = Number(value ?? 0)
+  return Number.isFinite(num) ? num : 0
+}
+
+function cardQuotaValue(card: any) {
+  if (!card) return 0
+  if (Number(card.cardType) === CARD_TYPE_VALUE.CREDIT) {
+    return toAmount(card.creditLimit ?? card.availableAmount)
+  }
+  return toAmount(card.totalLimit ?? card.balance ?? card.availableAmount)
+}
+
+function sumCardQuota(cards: any[]) {
+  return (cards || []).reduce((sum, card) => sum + cardQuotaValue(card), 0)
+}
+
+function cardDisplayAmount(card: any) {
+  return cardQuotaValue(card)
+}
+
 const baseStats = computed(() => {
-  const users = filteredGroupList.value.filter(item => item.userId !== 0)
-  const cardCount = groupList.value.reduce((sum, item) => sum + Number(item.cardCount || 0), 0)
+  const users = filteredGroupList.value.filter(item => Number(item?.userId || 0) > 0)
+  const visibleCards = users.flatMap(item => Array.isArray(item?.cards) ? item.cards : [])
   return {
     userCount: users.length,
-    cardCount
+    cardCount: visibleCards.length,
+    totalQuota: sumCardQuota(visibleCards)
   }
 })
+
+const cardQuotaSummaryLabel = computed(() => uiText.totalAmount)
 
 const activeUser = computed<UserGroup | undefined>(() => {
   if (!groupList.value.length) return undefined
@@ -819,10 +737,10 @@ const activeUser = computed<UserGroup | undefined>(() => {
   return found || groupList.value[0]
 })
 
+const activeUserCards = computed<any[]>(() => ((activeUser.value?.cards || []) as any[]))
+
 const activeCards = computed<any[]>(() => {
-  const cards = (activeUser.value?.cards || []) as any[]
-  if (!activeOwnerId.value) return cards
-  return cards.filter((c: any) => Number(c.userId) === Number(activeOwnerId.value))
+  return activeUserCards.value
 })
 
 const activeCard = computed<any | undefined>(() => {
@@ -832,10 +750,7 @@ const activeCard = computed<any | undefined>(() => {
 })
 
 
-const activeUserFeeRate = computed(() => {
-  if (!activeUser.value) return '—'
-  return `${formatRate(activeUser.value.feeRate)}%`
-})
+const activeCardsTotalQuota = computed(() => sumCardQuota(activeCards.value))
 
 // ====== 持卡人搜索（仅影响左侧列表展示，不请求后端） ======
 const userKeyword = ref('')
@@ -1020,42 +935,37 @@ function childFeeRate(child: any) {
   return Number(v)
 }
 
+function userTotalQuota(user: UserGroup | null | undefined) {
+  return sumCardQuota(Array.isArray(user?.cards) ? user.cards : [])
+}
+
+function childCards(childId: number) {
+  return activeUserCards.value.filter((c: any) => Number(c.userId) === Number(childId))
+}
+
 function childCardCount(childId: number) {
-  const cards = activeCards.value || []
-  const count = cards.filter((c: any) => Number(c.userId) === Number(childId)).length
-  return Number(count || 0)
+  return childCards(childId).length
 }
 
-function cardHolderName(card: any) {
-  return String(card?.userName || card?.ownerName || '未设置')
-}
-
-function cardHolderTooltip(card: any) {
-  const holder = cardHolderName(card)
-  const ownerName = card?.ownerName && card.ownerName !== holder ? `，归属人：${card.ownerName}` : ''
-  const relation = card?.ownerRelation ? `（${card.ownerRelation}）` : ''
-  return `持卡人：${holder}${ownerName}${relation}`
+function childTotalQuota(childId: number) {
+  return sumCardQuota(childCards(childId))
 }
 
 const canAddCardForUser = computed(() => {
-  if (activeOwnerId.value) {
-    const activeChild = activeChildUsers.value.find((item: any) => Number(item.id) === Number(activeOwnerId.value))
-    return !!activeChild && Number(activeChild.status) === 0
-  }
   return !!activeUser.value && Number(activeUser.value.userId) > 0 && Number(activeUser.value.status) === 0
 })
 
 const billScopeOwnerId = computed(() => {
-  const ownerId = activeOwnerId.value || activeUser.value?.userId
+  const ownerId = activeUser.value?.userId
   const normalized = Number(ownerId || 0)
   return Number.isFinite(normalized) && normalized > 0 ? normalized : undefined
 })
 
 const canOpenUserBills = computed(() => !!billScopeOwnerId.value)
 
-// 主用户区域：3条/页更稳，且与子用户对称
-const USER_PAGE_SIZE = 3
-const CARD_PAGE_SIZE = 3
+// 洽谈人区域按三列三行展示，与顶部三格统计保持一致
+const USER_PAGE_SIZE = 9
+const CARD_PAGE_SIZE = 5
 
 const userPageCount = computed(() => {
   const total = filteredGroupList.value.length
@@ -1118,20 +1028,23 @@ function formatMoneySafe(val: any) {
   return formatMoney(val)
 }
 
-function setCardType(type: number | undefined) {
-  query.cardType = type
+function formatCountLabel(count: any) {
+  return `${Number(count || 0)}${uiText.cardCountSuffix}`
 }
 
-function handleCardReset() {
-  triggerGroupSearch.cancel()
-  syncingKeywordQuery = true
-  keyword.value = ''
-  query.bankName = ''
-  query.cardNoLast4 = ''
-  query.cardType = undefined
-  query.status = undefined
-  syncingKeywordQuery = false
-  fetchGroups()
+function cardUserLabel(card: any) {
+  const userName = String(card?.userName || '').trim()
+  const ownerName = String(card?.ownerName || '').trim()
+  const relation = String(card?.ownerRelation || '').trim()
+  if (ownerName && userName && ownerName !== userName) return `${userName} / ${ownerName}`
+  if (ownerName) return ownerName
+  if (userName) return userName
+  return relation || uiText.unfilled
+}
+
+function cardLast4Label(card: any) {
+  const last4 = String(card?.cardNoLast4 || '').trim()
+  return last4 || '-'
 }
 
 function applyKeyword() {
@@ -1604,9 +1517,7 @@ function notifyUserDisabled(userId: number | null | undefined) {
 async function openAddCard() {
   isEdit.value = false
   Object.assign(formData, defaultForm)
-  if (activeOwnerId.value) {
-    formData.userId = activeOwnerId.value
-  } else if (activeUser.value?.userId) {
+  if (activeUser.value?.userId) {
     formData.userId = activeUser.value.userId
   }
   await syncUserOptions()
@@ -1620,7 +1531,7 @@ async function openAddCard() {
 async function openAddCardWithActiveUser() {
   if (!canAddCardForUser.value) return
   isEdit.value = false
-  Object.assign(formData, defaultForm, { userId: activeOwnerId.value || activeUser.value?.userId })
+  Object.assign(formData, defaultForm, { userId: activeUser.value?.userId })
   await syncUserOptions()
   if (isUserDisabled(formData.userId)) {
     notifyUserDisabled(formData.userId)
@@ -1940,17 +1851,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   flex-shrink: 0;
 }
 
-.card-search-panel {
-  margin: 0 12px 10px;
-  flex-shrink: 0;
-}
-
-.search-box,
-.type-switch {
-  display: none !important;
-}
-
-.search-box {
+.panel-search {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -1989,34 +1890,11 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   &:hover { color: $danger; }
 }
 
-.type-switch {
+.card-filters {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 3px;
-  background: rgba(148,163,184,.12);
-  border-radius: 999px;
-  border: 1px solid rgba(219,226,234,.7);
-}
-
-.chip {
-  height: 26px;
-  padding: 0 10px;
-  border: none;
-  border-radius: 999px;
-  cursor: pointer;
-  background: transparent;
-  color: $ink2;
-  font-size: 12px;
-  font-weight: 700;
-  transition: all .15s;
-  &.active {
-    background: $surface;
-    color: $primary;
-    box-shadow: 0 6px 14px rgba(15,23,42,.06);
-  }
-  &:hover { color: $primary; }
-  &.sm { height: 24px; padding: 0 9px; font-size: 11.5px; }
+  flex-wrap: wrap;
 }
 
 .icon-btn {
@@ -2093,28 +1971,54 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   }
 
   .panel-body {
-    padding: 8px 12px 10px;
-    gap: 8px;
+    padding: 7px 11px 10px;
+    gap: 7px;
+  }
+
+  .mini-stats {
+    gap: 6px;
   }
 
   .mini-stat {
-    padding: 9px 10px 8px;
-    gap: 5px;
+    min-height: 30px;
+    padding: 5px 10px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    border-radius: 10px;
+    background: rgba(148,163,184,.07);
+    border-color: rgba(219,226,234,.6);
+  }
+
+  .ms-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: $sub;
+  }
+
+  .ms-value {
+    font-size: 13.5px;
+    font-weight: 900;
+    color: $ink;
   }
 
   .list-item {
-    padding: 8px 9px;
-    min-height: 54px;
+    padding: 7px 9px;
+    min-height: 0;
     height: 100%;
+    border-radius: 12px;
   }
 
 }
 
 .list-item.placeholder {
   cursor: default;
-  background: rgba(148,163,184,.06);
+  background: transparent;
   border-style: dashed;
-  border-color: rgba(219,226,234,.7);
+  border-color: transparent;
+  box-shadow: none;
+  pointer-events: none;
   box-shadow: none;
   min-height: 54px;
   height: 100%;
@@ -2171,6 +2075,8 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .pager {
@@ -2191,6 +2097,10 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 
 .mini-filter {
   width: 88px;
+}
+
+.card-filter {
+  width: 102px;
 }
 
 .year-filter {
@@ -2265,13 +2175,164 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   &.danger { color: $danger; }
 }
 
-.user-split {
+.talker-board {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   overflow: hidden;
+}
+
+.talker-list {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: auto;
+  gap: 8px;
+  min-height: 0;
+  align-content: start;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.talker-list .empty-hint {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+}
+
+.talker-card {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 5px;
+  padding: 8px 8px 7px;
+  position: relative;
+  border-radius: 12px;
+}
+
+.talker-main {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.talker-card .li-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  flex-shrink: 0;
+}
+
+.talker-card .li-title {
+  font-size: 12.5px;
+  font-weight: 800;
+  padding-right: 48px;
+  line-height: 1.35;
+  letter-spacing: -0.1px;
+}
+
+.talker-card .li-sub {
+  font-size: 10.5px;
+  color: $faint;
+  line-height: 1.3;
+  margin-top: 1px;
+}
+
+.talker-footer {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-width: 0;
+  background: rgba(148, 163, 184, 0.05);
+  border: 1px solid rgba(219, 226, 234, 0.75);
+  border-radius: 7px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.talker-stats {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+  flex: 1;
+}
+
+.talker-stat-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 4px 7px;
+  min-width: 0;
+  flex: 1;
+}
+
+.talker-stat-amount {
+  flex: 1.8;
+  min-width: 0;
+}
+
+.talker-stat-divider {
+  width: 1px;
+  align-self: stretch;
+  background: rgba(219, 226, 234, 0.9);
+  flex-shrink: 0;
+}
+
+.ts-label {
+  font-size: 9.5px;
+  color: $faint;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.4;
+}
+
+.ts-value {
+  font-size: 11.5px;
+  color: $ink;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.talker-rate-tag {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(148, 163, 184, 0.09);
+  border: 1px solid rgba(219, 226, 234, 0.75);
+  color: $faint;
+  font-size: 9.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  line-height: 1.65;
+  transition: all 0.2s;
+  letter-spacing: 0.1px;
+}
+
+.talker-rate-tag.has-rate {
+  background: rgba($primary, 0.07);
+  border-color: rgba($primary, 0.15);
+  color: $primary;
+}
+
+.rate-prefix {
+  font-size: 8.5px;
+  font-weight: 500;
+  opacity: 0.65;
+  margin-right: 1px;
+  letter-spacing: 0;
 }
 
 .user-col,
@@ -2345,10 +2406,130 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 .card-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
   min-height: 0;
   min-width: 0;
   overflow: hidden;
+}
+
+.card-panel-body {
+  padding-top: 8px;
+  gap: 0;
+}
+
+.card-list .card-item,
+.card-list .card-item.placeholder {
+  height: auto;
+  min-height: 56px;
+}
+
+.card-item {
+  padding: 8px 10px;
+}
+
+.card-info-left {
+  min-width: 0;
+}
+
+.card-info-left .li-main {
+  gap: 2px;
+}
+
+.card-row-top {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+
+.card-row-sub {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+
+.cig-sep {
+  display: inline-block;
+  width: 1px;
+  height: 10px;
+  background: rgba(148,163,184,0.4);
+  margin: 0 7px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.cig-sep-dot {
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(148,163,184,0.5);
+  margin: 0 5px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.cig-label {
+  color: $sub;
+  font-weight: 600;
+  font-size: 11px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
+.cig-name {
+  font-size: 13px;
+  font-weight: 800;
+  color: $ink;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+}
+
+.cig-bank {
+  font-size: 13px;
+  font-weight: 700;
+  color: $ink;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+}
+
+.cig-last4 {
+  font-size: 13px;
+  font-weight: 800;
+  color: $ink;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.cig-type {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: $ink2;
+  flex-shrink: 0;
+}
+
+.cig-date {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: $ink2;
+  flex-shrink: 0;
+}
+
+.cig-empty {
+  color: $sub;
+  font-weight: 600;
 }
 
 .list-item {
@@ -2407,20 +2588,73 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   min-height: 54px;
 }
 
-.li-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.talker-board {
+  --user-head-h: 26px;
+}
+
+.talker-list {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: auto;
+  align-content: start;
+}
+
+.talker-card {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 8px 8px 7px;
+  position: relative;
+  border-radius: 12px;
+}
+
+.li-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
 .li-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .li-title { font-size: 13px; font-weight: 800; color: $ink; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .li-sub { font-size: 11.5px; color: $sub; display: flex; align-items: center; gap: 6px; min-width: 0; }
-.li-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.li-right { display: grid; grid-template-columns: repeat(2, minmax(78px, 1fr)); gap: 8px; flex-shrink: 0; }
 
-.holder-chip {
-  max-width: 120px;
-  color: $primary;
+.card-info-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.metrics-grid {
+  min-width: 176px;
+}
+
+.metric-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 8px;
+  min-width: 0;
+  border-radius: 12px;
+  background: rgba(148,163,184,.10);
+  border: 1px solid rgba(219,226,234,.75);
+}
+
+.metric-label {
+  font-size: 10.5px;
+  color: $sub;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.metric-value {
+  font-size: 12px;
+  color: $ink;
   font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  flex-shrink: 1;
+}
+
+.rate-inline {
+  color: $primary;
+  font-weight: 700;
 }
 
 .li-avatar {
@@ -2430,6 +2664,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 13px;
   font-weight: 800;
   color: $primary;
   background: linear-gradient(180deg, rgba($primary,.12) 0%, rgba($primary,.06) 100%);
@@ -2484,24 +2719,6 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   }
 }
 
-.pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 24px;
-  padding: 0 9px;
-  border-radius: 999px;
-  font-size: 11.5px;
-  font-weight: 800;
-  color: $ink2;
-  background: rgba(148,163,184,.12);
-  border: 1px solid rgba(219,226,234,.75);
-  &.pill-fee {
-    color: $primary;
-    background: $primary-soft;
-    border-color: rgba($primary,.18);
-  }
-}
 
 .li-icon {
   width: 34px;
@@ -2526,12 +2743,14 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 
 .amt {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
   text-align: right;
+  min-width: 88px;
 }
 
-.amt-label { font-size: 11.5px; color: $sub; font-weight: 800; }
+.amt-label { font-size: 11px; color: $sub; font-weight: 800; }
 .amt-value { font-size: 13px; font-weight: 900; color: $ink; letter-spacing: .2px; }
 
 .li-actions { display: flex; align-items: center; gap: 6px; }
@@ -2732,7 +2951,8 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 }
 
 @media (max-width: 1280px) {
-  .type-switch { display: none; }
+  .metrics-grid { min-width: 160px; }
+  .metric-box { padding: 6px 7px; }
   .bill-item { grid-template-columns: minmax(0, 1fr) 86px 110px; }
   .profit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

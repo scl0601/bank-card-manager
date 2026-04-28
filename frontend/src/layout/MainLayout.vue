@@ -4,7 +4,7 @@
     <aside class="sidebar" :class="{ collapsed: isCollapsed }">
       <div class="logo">
         <el-icon size="22"><CreditCard /></el-icon>
-        <span v-if="!isCollapsed" class="logo-text">银行卡管理</span>
+        <span v-if="!isCollapsed" class="logo-text">卡务管理</span>
       </div>
       <el-menu
         :default-active="activeMenu"
@@ -80,7 +80,7 @@ const isCollapsed = ref(false)
 const menuItems = [
   { path: '/dashboard',    title: '首页看板',   icon: 'House' },
   { path: '/users',        title: '用户信息',   icon: 'UserFilled' },
-  { path: '/cards',        title: '银行卡管理', icon: 'CreditCard' },
+  { path: '/cards',        title: '卡务管理',   icon: 'CreditCard' },
   { path: '/bills',        title: '账单管理',   icon: 'Document' },
   { path: '/profits',      title: '收益统计',   icon: 'TrendCharts' },
   { path: '/transactions', title: '流水管理',   icon: 'List' },
