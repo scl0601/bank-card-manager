@@ -12,13 +12,6 @@
 
         <div class="header-title-group">
           <h1 class="page-title">银行卡管理</h1>
-          <span class="page-subtitle">
-            持卡人 <strong>{{ baseStats.userCount }}</strong>
-            <i class="sub-divider"></i>
-            银行卡 <strong>{{ baseStats.cardCount }}</strong>
-            <i class="sub-divider"></i>
-            当前卡片 <strong>{{ activeCardLabel }}</strong>
-          </span>
         </div>
       </div>
 
@@ -106,8 +99,6 @@
       </div>
 
       <div class="app-search-extra">
-        <span class="app-search-meta">当前共 {{ baseStats.cardCount }} 张银行卡，涉及 {{ baseStats.userCount }} 位持卡人</span>
-        <span class="app-search-meta">支持按开户行、卡号关键词、状态和银行卡类型筛选，条件变化后自动刷新</span>
         <div class="app-search-actions">
           <el-button class="app-search-btn" @click="handleCardReset">重置</el-button>
         </div>
@@ -471,12 +462,11 @@
           </div>
         </section>
 
-        <!-- 账单明细 / 收益统计 -->
-        <section class="panel is-bill-profit">
+        <!-- 账单明细 -->
+        <section class="panel">
           <div class="panel-head">
-            <div class="panel-title"><span class="panel-dot is-warning"></span>账单明细 / 收益统计</div>
+            <div class="panel-title"><span class="panel-dot is-warning"></span>账单明细</div>
             <div class="panel-actions">
-              <span class="panel-meta">{{ scopedCardLabel }}</span>
               <el-select v-model="billFilter.year" class="mini-filter year-filter" placeholder="年份">
                 <el-option v-for="year in yearOptions" :key="year" :label="`${year}年`" :value="year" />
               </el-select>
@@ -488,6 +478,62 @@
                   <polyline points="9 18 15 12 9 6" />
                 </svg>
               </button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="block-head">
+              <strong>{{ billFilterLabel }}</strong>
+            </div>
+            <div class="mini-stats mini-stats-4" v-loading="billOverviewVisibleLoading">
+              <div class="mini-stat">
+                <span class="ms-label">账单数</span>
+                <span class="ms-value">{{ billOverview.billCount }}</span>
+              </div>
+              <div class="mini-stat">
+                <span class="ms-label">待还</span>
+                <span class="ms-value warn">{{ billOverview.pendingCount }}</span>
+              </div>
+              <div class="mini-stat">
+                <span class="ms-label">逾期</span>
+                <span class="ms-value danger">{{ billOverview.overdueCount }}</span>
+              </div>
+              <div class="mini-stat">
+                <span class="ms-label">代还总额</span>
+                <span class="ms-value font-mono">¥{{ formatMoneySafe(billOverview.totalBillAmount) }}</span>
+              </div>
+            </div>
+            <div class="bill-list" v-loading="recentBillsVisibleLoading">
+              <template v-if="recentBills.length">
+                <div v-for="b in recentBills" :key="b.id" class="bill-item" :class="{ current: b.billMonth === currentBillMonth }">
+                  <div class="bill-left">
+                    <div class="bill-month">{{ b.billMonth }}</div>
+                    <div class="bill-sub">
+                      <span>{{ billCardLabel(b) }}</span>
+                      <i class="sub-divider"></i>
+                      <span v-if="b.repayDate" class="muted">还款日 {{ fmtRepayDate(b.repayDate) }}</span>
+                      <span v-else class="muted">—</span>
+                    </div>
+                  </div>
+                  <div class="bill-mid">
+                    <StatusTag :value="b.status" :label-map="BILL_STATUS_MAP" :type-map="BILL_STATUS_TAG_TYPE" size="small" effect="light" />
+                  </div>
+                  <div class="bill-right">
+                    <span class="bill-amt font-mono">¥{{ formatMoneySafe(b.billAmount) }}</span>
+                  </div>
+                </div>
+              </template>
+              <div v-else-if="recentBillsReady" class="empty-hint">
+                <div v-if="!scopedCardIds.length">当前持卡人暂无银行卡数据</div>
+                <div v-else>暂无账单记录</div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <!-- 收益统计 -->
+        <section class="panel">
+          <div class="panel-head">
+            <div class="panel-title"><span class="panel-dot is-success"></span>收益统计</div>
+            <div class="panel-actions">
               <button class="icon-btn" @click="goProfits" :disabled="!canOpenScopedBills" title="收益详情">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="3 17 9 11 13 15 21 7" />
@@ -496,95 +542,30 @@
               </button>
             </div>
           </div>
-
-          <div class="panel-body">
-            <div class="bill-profit-grid">
-              <div class="bill-profit-block">
-                <div class="block-head">
-                  <span>账单明细</span>
-                  <strong>{{ billFilterLabel }}</strong>
-                </div>
-
-                <div class="mini-stats mini-stats-4" v-loading="billOverviewVisibleLoading">
-                  <div class="mini-stat">
-                    <span class="ms-label">账单数</span>
-                    <span class="ms-value">{{ billOverview.billCount }}</span>
-                  </div>
-                  <div class="mini-stat">
-                    <span class="ms-label">待还</span>
-                    <span class="ms-value warn">{{ billOverview.pendingCount }}</span>
-                  </div>
-                  <div class="mini-stat">
-                    <span class="ms-label">逾期</span>
-                    <span class="ms-value danger">{{ billOverview.overdueCount }}</span>
-                  </div>
-                  <div class="mini-stat">
-                    <span class="ms-label">代还总额</span>
-                    <span class="ms-value font-mono">¥{{ formatMoneySafe(billOverview.totalBillAmount) }}</span>
-                  </div>
-                </div>
-
-                <div class="bill-list" v-loading="recentBillsVisibleLoading">
-                  <template v-if="recentBills.length">
-                    <div v-for="b in recentBills" :key="b.id" class="bill-item" :class="{ current: b.billMonth === currentBillMonth }">
-                      <div class="bill-left">
-                        <div class="bill-month">{{ b.billMonth }}</div>
-                        <div class="bill-sub">
-                          <span>{{ billCardLabel(b) }}</span>
-                          <i class="sub-divider"></i>
-                          <span v-if="b.repayDate" class="muted">还款日 {{ fmtRepayDate(b.repayDate) }}</span>
-                          <span v-else class="muted">—</span>
-                        </div>
-                      </div>
-                      <div class="bill-mid">
-                        <StatusTag :value="b.status" :label-map="BILL_STATUS_MAP" :type-map="BILL_STATUS_TAG_TYPE" size="small" effect="light" />
-                      </div>
-                      <div class="bill-right">
-                        <span class="bill-amt font-mono">¥{{ formatMoneySafe(b.billAmount) }}</span>
-                      </div>
-                    </div>
-                  </template>
-                  <div v-else-if="recentBillsReady" class="empty-hint">
-                    <div v-if="!scopedCardIds.length">当前持卡人暂无银行卡数据</div>
-                    <div v-else>暂无账单记录</div>
-                  </div>
-                </div>
+          <div class="panel-body profit-summary-block" v-loading="profitVisibleLoading">
+            <div class="profit-kpi">
+              <div class="pk-label">净利润</div>
+              <div class="pk-value" :class="Number(profitOverview.totalNetProfit || 0) >= 0 ? 'pos' : 'neg'">
+                ¥{{ formatMoneySafe(profitOverview.totalNetProfit) }}
               </div>
-
-              <div class="bill-profit-block profit-summary-block" v-loading="profitVisibleLoading">
-                <div class="block-head">
-                  <span>收益统计</span>
-                  <strong>{{ profitScopeLabel }}</strong>
-                </div>
-
-                <div class="profit-kpi">
-                  <div class="pk-label">净利润</div>
-                  <div class="pk-value" :class="Number(profitOverview.totalNetProfit || 0) >= 0 ? 'pos' : 'neg'">
-                    ¥{{ formatMoneySafe(profitOverview.totalNetProfit) }}
-                  </div>
-                  <div class="pk-sub">手续费收入 - POS成本</div>
-                </div>
-
-                <div class="profit-grid">
-                  <div class="profit-metric">
-                    <span class="pm-label">手续费收入</span>
-                    <span class="pm-value pos font-mono">¥{{ formatMoneySafe(profitOverview.totalFeeAmount) }}</span>
-                  </div>
-                  <div class="profit-metric">
-                    <span class="pm-label">POS成本</span>
-                    <span class="pm-value neg font-mono">¥{{ formatMoneySafe(profitOverview.totalPosCostAmount) }}</span>
-                  </div>
-                  <div class="profit-metric">
-                    <span class="pm-label">代还金额</span>
-                    <span class="pm-value font-mono">¥{{ formatMoneySafe(profitOverview.totalBillAmount) }}</span>
-                  </div>
-                  <div class="profit-metric">
-                    <span class="pm-label">本月手续费状态</span>
-                    <span class="pm-value" :class="currentMonthFeeStatusClass">{{ currentMonthFeeStatusText }}</span>
-                  </div>
-                </div>
-
-                <div class="panel-hint">统计范围：当前持卡人名下 {{ scopedCardIds.length }} 张卡</div>
+              <div class="pk-sub">手续费收入 - POS成本</div>
+            </div>
+            <div class="profit-grid">
+              <div class="profit-metric">
+                <span class="pm-label">手续费收入</span>
+                <span class="pm-value pos font-mono">¥{{ formatMoneySafe(profitOverview.totalFeeAmount) }}</span>
+              </div>
+              <div class="profit-metric">
+                <span class="pm-label">POS成本</span>
+                <span class="pm-value neg font-mono">¥{{ formatMoneySafe(profitOverview.totalPosCostAmount) }}</span>
+              </div>
+              <div class="profit-metric">
+                <span class="pm-label">代还金额</span>
+                <span class="pm-value font-mono">¥{{ formatMoneySafe(profitOverview.totalBillAmount) }}</span>
+              </div>
+              <div class="profit-metric">
+                <span class="pm-label">本月手续费状态</span>
+                <span class="pm-value" :class="currentMonthFeeStatusClass">{{ currentMonthFeeStatusText }}</span>
               </div>
             </div>
           </div>
@@ -850,10 +831,6 @@ const activeCard = computed<any | undefined>(() => {
   return found || activeCards.value[0]
 })
 
-const activeCardLabel = computed(() => {
-  if (!activeCard.value) return '—'
-  return `${activeCard.value.bankName || ''}${activeCard.value.cardNoLast4 ? ` · ${activeCard.value.cardNoLast4}` : ''}`.trim() || '—'
-})
 
 const activeUserFeeRate = computed(() => {
   if (!activeUser.value) return '—'
@@ -1305,10 +1282,6 @@ const billFilterLabel = computed(() => {
   return billFilter.month ? `${billFilter.year}年${billFilter.month}月` : `${billFilter.year}年全年`
 })
 
-const scopedCardLabel = computed(() => {
-  const count = scopedCardIds.value.length
-  return count ? `当前名下 ${count} 张卡` : '当前名下暂无卡片'
-})
 
 const canOpenScopedBills = computed(() => scopedCardIds.value.length > 0)
 
@@ -1455,9 +1428,6 @@ const profitOverview = ref<ProfitOverview>({
 })
 const profitVisibleLoading = computed(() => profitLoading.value && !profitReady.value)
 
-const profitScopeLabel = computed(() => {
-  return billFilterLabel.value
-})
 
 function emptyProfitOverview(): ProfitOverview {
   return {
@@ -2082,10 +2052,6 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   min-height: 0;
 }
 
-.panel.is-bill-profit {
-  grid-column: 1 / -1;
-}
-
 /* 持卡人信息面板：更紧凑，避免第4行裁切 */
 .panel.is-users {
   .panel-head {
@@ -2252,17 +2218,6 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   min-height: 0;
   overflow: hidden;
   min-width: 0;
-}
-
-.panel-hint {
-  font-size: 11.5px;
-  color: $faint;
-  padding-left: 2px;
-  align-self: stretch;
-  line-height: 1.45;
-  white-space: normal;
-  word-break: break-word;
-  flex-shrink: 0;
 }
 
 .mini-stats {
@@ -2653,24 +2608,6 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   padding-right: 2px;
 }
 
-.bill-profit-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-}
-
-.bill-profit-block {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  min-height: 0;
-  min-width: 0;
-  overflow: hidden;
-}
-
 .profit-summary-block {
   overflow-y: auto;
   overflow-x: hidden;
@@ -2798,6 +2735,5 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   .type-switch { display: none; }
   .bill-item { grid-template-columns: minmax(0, 1fr) 86px 110px; }
   .profit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .bill-profit-grid { grid-template-columns: minmax(0, 1fr); }
 }
 </style>

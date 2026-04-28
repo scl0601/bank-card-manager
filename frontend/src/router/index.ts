@@ -33,7 +33,7 @@ const router = createRouter({
           path: 'users',
           name: 'CardUsers',
           component: () => import('@/views/card/CardUserList.vue'),
-          meta: { title: '持卡人管理', icon: 'UserFilled' }
+          meta: { title: '用户信息', icon: 'UserFilled' }
         },
         {
           path: 'transactions',

@@ -2,77 +2,34 @@
   <div class="card-user-page">
     <div class="page-header">
       <div class="header-copy">
-        <div class="header-title">持卡人管理</div>
-        <div class="header-subtitle">极致一屏压缩布局，保留持卡人管理全部操作</div>
-      </div>
-
-      <div class="header-stat-row">
-        <div class="header-stat" v-for="item in statCards" :key="item.label">
-          <div class="header-stat-icon" :style="{ background: item.bg, color: item.color }">
-            <el-icon :size="16"><component :is="item.icon" /></el-icon>
-          </div>
-          <div class="header-stat-body">
-            <span class="header-stat-value">{{ item.value }}</span>
-            <span class="header-stat-label">{{ item.label }}</span>
-          </div>
-        </div>
+        <div class="header-title">用户信息</div>
       </div>
 
       <div class="header-actions">
         <el-button class="action-btn" :icon="RefreshRight" @click="refreshData">刷新</el-button>
-        <el-button type="primary" class="action-btn" :icon="Plus" @click="openAddTopUser">新增账户</el-button>
       </div>
     </div>
 
     <div class="app-search-panel card-shell user-search-panel">
       <div class="app-search-main">
-        <div class="app-search-title">筛选</div>
+        <div class="app-search-title">检索</div>
         <el-input
           v-model="query.name"
-          class="app-search-item app-search-item-lg"
-          placeholder="请输入持卡人姓名模糊查询"
+          class="app-search-item app-search-item-xl"
+          placeholder="请输入用户名称或手机号"
           clearable
-          maxlength="20"
+          maxlength="30"
         />
-        <el-input
-          v-model="query.phone"
-          class="app-search-item app-search-item-md"
-          placeholder="请输入联系电话模糊查询"
-          clearable
-          maxlength="11"
-        />
-        <el-select v-model="query.status" class="app-search-item app-search-item-sm" placeholder="请选择持卡人状态" clearable>
-          <el-option label="正常" :value="0" />
-          <el-option label="停用" :value="1" />
-        </el-select>
-        <el-select v-model="query.hasCard" class="app-search-item app-search-item-sm" placeholder="请选择绑卡情况" clearable>
-          <el-option label="已绑卡" :value="1" />
-          <el-option label="未绑卡" :value="0" />
-        </el-select>
-      </div>
-
-      <div class="app-search-extra">
-        <span class="app-search-meta">当前共 {{ filteredCount }} 条持卡人记录</span>
-        <span class="app-search-meta">筛选条件变化后自动刷新列表</span>
-        <el-button link type="primary" :icon="expandAll ? Fold : Expand" @click="toggleExpandAll">
-          {{ expandAll ? '收起全部' : '展开全部' }}
-        </el-button>
         <div class="app-search-actions">
+          <el-button link type="primary" :icon="expandAll ? Fold : Expand" @click="toggleExpandAll">
+            {{ expandAll ? '收起全部' : '展开全部' }}
+          </el-button>
           <el-button class="app-search-btn" @click="resetQuery">重置</el-button>
         </div>
       </div>
-    </div>
 
-    <div class="workspace-grid">
-      <aside class="side-panel card-shell">
-        <div class="panel-head">
-          <div>
-            <div class="panel-title">快捷菜单</div>
-            <div class="panel-desc">快速切换</div>
-          </div>
-        </div>
-
-        <div class="menu-list">
+      <div class="app-search-extra quick-menu-bar">
+        <div class="menu-list menu-list-inline">
           <button
             v-for="item in quickMenus"
             :key="item.key"
@@ -86,22 +43,19 @@
             <span class="menu-count">{{ item.count }}</span>
           </button>
         </div>
-      </aside>
+      </div>
+    </div>
 
+    <div class="workspace-grid">
       <section class="data-panel card-shell">
         <div class="panel-head data-head">
-          <div>
-            <div class="panel-title">持卡人数据区</div>
-            <div class="panel-desc">{{ activeCategoryLabel }} · 一屏优先</div>
-          </div>
-          <div class="inline-summary">
-            <span>主 {{ visibleMainCount }}</span>
-            <span>子 {{ visibleChildCount }}</span>
-            <span>正 {{ visibleActiveCount }}</span>
+          <div class="panel-title">用户列表</div>
+          <div class="data-head-actions">
+            <el-button type="primary" class="action-btn" :icon="Plus" @click="openAddTopUser">新增用户</el-button>
           </div>
         </div>
 
-        <div ref="tableWrapRef" class="user-table-wrap" :style="tableStyleVars">
+        <div ref="tableWrapRef" class="user-table-wrap" :class="{ expanded: expandAll }" :style="tableStyleVars">
           <div v-if="showTableSkeleton" class="user-table-skeleton">
             <el-skeleton animated>
               <template #template>
@@ -128,8 +82,7 @@
             :data="treeData"
             row-key="id"
             border
-            stripe
-            height="100%"
+            :height="tableHeight"
             table-layout="fixed"
             :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
             :header-cell-style="{ background: '#f7f9fc', color: '#5b6472', fontWeight: '600', padding: '0' }"
@@ -137,7 +90,7 @@
             :cell-style="{ padding: '0' }"
             @expand-change="onExpandChange"
           >
-            <el-table-column prop="name" label="姓名/类型">
+            <el-table-column prop="name" label="姓名/角色">
               <template #default="{ row }">
                 <div class="user-cell">
                   <div class="avatar-wrap" :class="{ 'avatar-child': !!row.parentId }">
@@ -148,8 +101,8 @@
                   <div class="user-info">
                     <div class="name-row">
                       <span class="name-text">{{ row.name }}</span>
-                      <el-tag v-if="!row.parentId" type="warning" size="small" effect="light">主账户</el-tag>
-                      <el-tag v-else type="info" size="small" effect="plain">子用户</el-tag>
+                      <el-tag v-if="!row.parentId" type="warning" size="small" effect="light">洽谈人</el-tag>
+                      <el-tag v-else type="info" size="small" effect="plain">名下持卡人</el-tag>
                     </div>
                   </div>
                 </div>
@@ -159,15 +112,20 @@
             <el-table-column prop="phone" label="联系电话" align="center">
               <template #default="{ row }">
                 <span class="plain-cell phone-cell">
-                  <el-icon :size="12"><Phone /></el-icon>{{ row.phone || '—' }}
+                  <span class="phone-cell-inner">
+                    <span class="phone-icon">
+                      <el-icon :size="12"><Phone /></el-icon>
+                    </span>
+                    <span class="phone-text" :class="{ empty: !row.phone }">{{ row.phone || '—' }}</span>
+                  </span>
                 </span>
               </template>
             </el-table-column>
 
-            <el-table-column label="所属关系" align="center">
+            <el-table-column label="归属洽谈人" align="center">
               <template #default="{ row }">
                 <span class="plain-cell relation-cell">
-                  {{ row.parentId ? (row.parentName || '子用户') : '主账户' }}
+                  {{ row.parentId ? (row.parentName || '未指定') : '本人' }}
                 </span>
               </template>
             </el-table-column>
@@ -249,14 +207,14 @@
                     type="success"
                     link
                     class="action-icon-btn"
-                    title="添加子用户"
+                    title="添加名下持卡人"
                     @click="openAddChild(row)"
                   >
-                    <el-icon :size="15"><CirclePlus /></el-icon>
+                    <el-icon :size="16"><CirclePlus /></el-icon>
                   </el-button>
 
                   <el-button type="primary" link class="action-icon-btn" title="编辑" @click="openEditUser(row)">
-                    <el-icon :size="15"><EditPen /></el-icon>
+                    <el-icon :size="16"><EditPen /></el-icon>
                   </el-button>
 
                   <el-popconfirm
@@ -273,13 +231,13 @@
                         class="action-icon-btn"
                         :title="row.status === 0 ? '停用' : '启用'"
                       >
-                        <el-icon :size="15"><component :is="row.status === 0 ? CircleClose : CircleCheck" /></el-icon>
+                        <el-icon :size="16"><component :is="row.status === 0 ? CircleClose : CircleCheck" /></el-icon>
                       </el-button>
                     </template>
                   </el-popconfirm>
 
                   <el-popconfirm
-                    title="确认删除该用户？关联的子用户、银行卡及历史账单/流水需先处理。"
+                    title="确认删除该用户？关联的名下持卡人、银行卡及历史账单/流水需先处理。"
                     confirm-button-text="确定"
                     cancel-button-text="取消"
                     icon-color="#f56c6c"
@@ -287,7 +245,7 @@
                   >
                     <template #reference>
                       <el-button type="danger" link class="action-icon-btn" title="删除">
-                        <el-icon :size="15"><Delete /></el-icon>
+                        <el-icon :size="16"><Delete /></el-icon>
                       </el-button>
                     </template>
                   </el-popconfirm>
@@ -296,7 +254,7 @@
             </el-table-column>
           </el-table>
 
-          <el-empty v-else-if="dataReady" description="暂无持卡人数据">
+          <el-empty v-else-if="dataReady" description="暂无用户信息">
             <template #image>
               <el-icon :size="58" color="#c0c7d6"><UserFilled /></el-icon>
             </template>
@@ -305,124 +263,81 @@
         </div>
 
         <div v-if="filteredTotal > 0" class="user-pagination">
+          <div class="pagination-meta">
+            <span>一共 {{ filteredTotal }} 条</span>
+            <span>第 {{ query.pageNum }} / {{ totalPages }} 页</span>
+            <span>一页 {{ query.pageSize }} 条</span>
+          </div>
           <el-pagination
             background
             small
             :current-page="query.pageNum"
             :page-size="query.pageSize"
+            :page-sizes="pageSizeOptions"
             :total="filteredTotal"
-            layout="total, prev, pager, next"
+            layout="sizes, prev, pager, next, jumper"
             @current-change="handleCurrentChange"
+            @size-change="handlePageSizeChange"
           />
         </div>
       </section>
-
-      <aside class="action-panel card-shell">
-        <div class="panel-head">
-          <div>
-            <div class="panel-title">功能操作区</div>
-            <div class="panel-desc">集中常用动作与视图摘要</div>
-          </div>
-        </div>
-
-        <div class="side-card">
-          <div class="side-card-title">快捷操作</div>
-          <div class="action-stack">
-            <el-button type="primary" :icon="Plus" @click="openAddTopUser">新增</el-button>
-            <el-button :icon="expandAll ? Fold : Expand" @click="toggleExpandAll">{{ expandAll ? '收起' : '展开' }}</el-button>
-            <el-button :icon="RefreshRight" @click="fetchData">刷新</el-button>
-            <el-button @click="resetQuery">清空</el-button>
-          </div>
-        </div>
-
-        <div class="side-card">
-          <div class="side-card-title">当前视图</div>
-          <div class="summary-list">
-            <div class="summary-item">
-              <span>当前分类</span>
-              <strong>{{ activeCategoryLabel }}</strong>
-            </div>
-            <div class="summary-item">
-              <span>展示人数</span>
-              <strong>{{ currentSummary.total }}</strong>
-            </div>
-            <div class="summary-item">
-              <span>主账户</span>
-              <strong>{{ currentSummary.main }}</strong>
-            </div>
-            <div class="summary-item">
-              <span>子用户</span>
-              <strong>{{ currentSummary.child }}</strong>
-            </div>
-          </div>
-        </div>
-
-        <div class="side-card">
-          <div class="side-card-title">状态说明</div>
-          <div class="legend-list">
-            <div class="legend-item">
-              <span class="legend-dot success" />
-              <span>正常</span>
-            </div>
-            <div class="legend-item">
-              <span class="legend-dot danger" />
-              <span>停用</span>
-            </div>
-            <div class="legend-item">
-              <span class="legend-dot primary" />
-              <span>主账户</span>
-            </div>
-            <div class="legend-item">
-              <span class="legend-dot muted" />
-              <span>子用户</span>
-            </div>
-          </div>
-        </div>
-      </aside>
     </div>
 
-    <el-dialog v-model="editVisible" :title="editTitle" width="520px" destroy-on-close :close-on-click-modal="false">
-      <el-form :model="editForm" label-width="90px" ref="formRef" :rules="formRules" size="large">
-        <el-form-item label="用户类型" v-if="!editForm.id">
-          <el-radio-group v-model="isChildMode" :disabled="!!editForm.id">
-            <el-radio :label="false">主账户（可设置费率）</el-radio>
-            <el-radio :label="true">子用户（继承父级费率）</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="姓名" prop="name">
-          <el-input v-model="editForm.name" placeholder="请输入姓名" maxlength="20" show-word-limit />
-        </el-form-item>
-        <el-form-item label="所属主账户" v-if="isChildMode || editForm.parentId">
-          <el-select v-model="editForm.parentId" placeholder="选择主账户" clearable style="width:100%" :disabled="!!editForm.parentId">
-            <el-option v-for="u in parentUserOptions" :key="u.id" :label="u.name" :value="u.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="手续费率" prop="feeRate" v-if="(!isChildMode && !editForm.parentId) || (!editForm.id && !isChildMode)">
-          <el-input
-            v-model="editForm.feeRate"
-            placeholder="请输入手续费率，例如: 0.5"
-            @blur="formatFeeRateOnBlur"
-          >
-            <template #append>%</template>
-          </el-input>
-          <div class="form-tip">修改此值将级联同步更新所有关联的子用户</div>
-        </el-form-item>
-        <el-form-item label="手续费率" v-else-if="isChildMode || editForm.parentId">
-          <span class="inherit-hint">继承自父级（{{ formatFeeRate(inheritedRate) }}%）</span>
-        </el-form-item>
-        <el-form-item label="联系电话">
-          <el-input v-model="editForm.phone" placeholder="选填，用于联系" maxlength="11" />
-        </el-form-item>
-        <el-form-item label="状态" v-if="editForm.id">
-          <el-radio-group v-model="editForm.status">
-            <el-radio :value="0">正常</el-radio>
-            <el-radio :value="1">停用</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="editForm.remark" type="textarea" rows="3" placeholder="选填" maxlength="200" show-word-limit />
-        </el-form-item>
-      </el-form>
+    <el-dialog v-model="editVisible" :title="editTitle" width="620px" class="user-edit-dialog" destroy-on-close :close-on-click-modal="false">
+      <div class="user-edit-panel">
+        <el-form class="user-edit-form" :model="editForm" label-width="90px" ref="formRef" :rules="formRules" size="large">
+          <el-form-item label="用户类型" v-if="!editForm.id" class="type-form-item">
+            <div class="user-type-block">
+              <template v-if="childModeLocked">
+                <div class="user-type-fixed">
+                  <span class="user-type-fixed-tag">名下持卡人</span>
+                  <span class="user-type-fixed-text">当前从洽谈人下创建，类型已固定。</span>
+                </div>
+              </template>
+              <el-radio-group v-else v-model="isChildMode" :disabled="!!editForm.id" class="user-type-group">
+                <el-radio-button :label="false">洽谈人</el-radio-button>
+                <el-radio-button :label="true">名下持卡人</el-radio-button>
+              </el-radio-group>
+              <div class="type-inline-tip">
+                {{ isChildMode ? '名下持卡人将继承所属洽谈人的手续费率。' : '洽谈人可单独设置手续费率，并同步名下持卡人。' }}
+              </div>
+            </div>
+          </el-form-item>
+          <el-form-item label="姓名" prop="name">
+            <el-input v-model="editForm.name" placeholder="请输入姓名" maxlength="20" show-word-limit />
+          </el-form-item>
+          <el-form-item label="所属洽谈人" v-if="isChildMode || editForm.parentId">
+            <el-select v-model="editForm.parentId" placeholder="选择洽谈人" clearable style="width:100%" :disabled="!!editForm.parentId">
+              <el-option v-for="u in parentUserOptions" :key="u.id" :label="u.name" :value="u.id" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="手续费率" prop="feeRate" v-if="(!isChildMode && !editForm.parentId) || (!editForm.id && !isChildMode)">
+            <el-input
+              v-model="editForm.feeRate"
+              placeholder="请输入手续费率，例如: 0.5"
+              @blur="formatFeeRateOnBlur"
+            >
+              <template #append>%</template>
+            </el-input>
+            <div class="form-tip">修改此值将级联同步更新所有名下持卡人</div>
+          </el-form-item>
+          <el-form-item label="手续费率" v-else-if="isChildMode || editForm.parentId">
+            <span class="inherit-hint">继承自洽谈人（{{ formatFeeRate(inheritedRate) }}%）</span>
+          </el-form-item>
+          <el-form-item label="联系电话">
+            <el-input v-model="editForm.phone" placeholder="选填，用于联系" maxlength="11" />
+          </el-form-item>
+          <el-form-item label="状态" v-if="editForm.id">
+            <el-radio-group v-model="editForm.status">
+              <el-radio :value="0">正常</el-radio>
+              <el-radio :value="1">停用</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item label="备注">
+            <el-input v-model="editForm.remark" type="textarea" rows="3" placeholder="选填" maxlength="200" show-word-limit />
+          </el-form-item>
+        </el-form>
+      </div>
       <template #footer>
         <el-button @click="editVisible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="handleSaveUser">
@@ -451,8 +366,7 @@ import {
   CircleCheck,
   RefreshRight,
   Fold,
-  Expand,
-  CreditCard
+  Expand
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import {
@@ -489,6 +403,10 @@ interface CardUserViewCache {
 type QuickMenuKey = 'all' | 'main' | 'child' | 'active' | 'disabled' | 'withCard' | 'noCard'
 
 const DEFAULT_PAGE_SIZE = 10
+const USER_HEADER_HEIGHT = 20
+const USER_ROW_HEIGHT = 42
+const USER_FONT_SIZE = 12
+const USER_AVATAR_SIZE = 18
 const VIEW_CACHE_TTL = 30 * 1000
 const VIEW_CACHE_KEY = 'card-user-list-cache-v1'
 
@@ -558,10 +476,6 @@ let syncingExpandedRows = false
 
 const query = reactive({
   name: '',
-  phone: '',
-  status: undefined as number | undefined,
-  type: '' as '' | 'main' | 'child',
-  hasCard: undefined as 0 | 1 | undefined,
   pageNum: 1,
   pageSize: DEFAULT_PAGE_SIZE
 })
@@ -573,13 +487,16 @@ const triggerFilterSearch = createDebouncedTask(() => {
 const editingFeeId = ref<number | null>(null)
 const editingFeeRate = ref(0)
 const savingFee = ref(false)
+const pageSizeManuallyChanged = ref(false)
+const autoPageSize = ref(DEFAULT_PAGE_SIZE)
 
 const editVisible = ref(false)
 const saving = ref(false)
 const formRef = ref()
-const editTitle = ref('新增主账户')
+const editTitle = ref('新增用户')
 const inheritedRate = ref(0)
 const isChildMode = ref(false)
+const childModeLocked = ref(false)
 const parentUserOptions = ref<{ id: number; name: string }[]>(initialCache?.parentUserOptions || [])
 
 const defaultForm: Record<string, any> = {
@@ -598,27 +515,12 @@ const formRules = {
   feeRate: [{ required: true, message: '请输入手续费率', trigger: 'blur' }]
 }
 
-const statCards = computed(() => {
-  const flat = flattenTree(rawData.value)
-  const total = flat.length
-  const active = flat.filter((u) => u.status === 0).length
-  const mainAccounts = flat.filter((u) => !u.parentId).length
-  const totalCards = flat.reduce((sum, u) => sum + (u.cardCount || 0), 0)
-
-  return [
-    { value: total, label: '人数', icon: UserFilled, bg: '#eaf2ff', color: '#0958d9' },
-    { value: active, label: '正常', icon: CircleCheck, bg: '#e8f7ed', color: '#2f9e44' },
-    { value: mainAccounts, label: '主户', icon: User, bg: '#fff4db', color: '#d97706' },
-    { value: totalCards, label: '卡片', icon: CreditCard, bg: '#fdebec', color: '#cf1322' }
-  ]
-})
-
 const quickMenus = computed(() => {
   const flat = flattenTree(rawData.value)
   return [
     { key: 'all' as QuickMenuKey, label: '全部', count: flat.length, color: '#0958d9' },
-    { key: 'main' as QuickMenuKey, label: '主账户', count: flat.filter((u) => !u.parentId).length, color: '#d97706' },
-    { key: 'child' as QuickMenuKey, label: '子用户', count: flat.filter((u) => !!u.parentId).length, color: '#7c8799' },
+    { key: 'main' as QuickMenuKey, label: '洽谈人', count: flat.filter((u) => !u.parentId).length, color: '#d97706' },
+    { key: 'child' as QuickMenuKey, label: '名下持卡人', count: flat.filter((u) => !!u.parentId).length, color: '#7c8799' },
     { key: 'active' as QuickMenuKey, label: '正常', count: flat.filter((u) => u.status === 0).length, color: '#2f9e44' },
     { key: 'disabled' as QuickMenuKey, label: '停用', count: flat.filter((u) => u.status === 1).length, color: '#cf1322' },
     { key: 'withCard' as QuickMenuKey, label: '已绑卡', count: flat.filter((u) => (u.cardCount || 0) > 0).length, color: '#5b8ff9' },
@@ -626,43 +528,49 @@ const quickMenus = computed(() => {
   ]
 })
 
-const activeCategoryLabel = computed(() => quickMenus.value.find((item) => item.key === activeCategory.value)?.label || '全部')
-const filteredCount = computed(() => filteredTotal.value)
-const currentSummary = computed(() => {
-  const flat = flattenTree(treeData.value)
-  return {
-    total: flat.length,
-    main: flat.filter((u) => !u.parentId).length,
-    child: flat.filter((u) => !!u.parentId).length,
-    active: flat.filter((u) => u.status === 0).length
-  }
-})
-const visibleMainCount = computed(() => currentSummary.value.main)
-const visibleChildCount = computed(() => currentSummary.value.child)
-const visibleActiveCount = computed(() => currentSummary.value.active)
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredTotal.value / query.pageSize)))
 const visibleRowCount = computed(() => Math.max(collectVisibleRows(treeData.value).length, 1))
+const visibleRowIndexMap = computed(() => {
+  const indexMap = new Map<number, number>()
+  collectVisibleRows(treeData.value).forEach((row, index) => {
+    indexMap.set(row.id, index)
+  })
+  return indexMap
+})
 const showTableSkeleton = computed(() => loading.value && !dataReady.value && treeData.value.length === 0)
+const tableHeight = computed(() => '100%')
+const pageSizeOptions = computed(() => Array.from(new Set([10, autoPageSize.value, 15, 20, 30].filter((size) => size > 0))).sort((a, b) => a - b))
 const tableStyleVars = computed(() => {
-  const headerHeight = visibleRowCount.value > 16 ? 20 : 22
-  const availableHeight = Math.max(tableWrapHeight.value - headerHeight - 2, 120)
-  const rowHeight = Math.max(9, Math.min(30, Math.floor(availableHeight / visibleRowCount.value)))
-  const fontSize = Math.max(5, Math.min(12, Math.floor(rowHeight * 0.48)))
-  const avatarSize = Math.max(8, Math.min(20, rowHeight - 3))
-
   return {
-    '--user-header-height': `${headerHeight}px`,
-    '--user-row-height': `${rowHeight}px`,
-    '--user-font-size': `${fontSize}px`,
-    '--user-avatar-size': `${avatarSize}px`,
-    '--user-line-height': `${rowHeight <= 18 ? 1.05 : 1.15}`
+    '--user-header-height': `${USER_HEADER_HEIGHT}px`,
+    '--user-row-height': `${USER_ROW_HEIGHT}px`,
+    '--user-font-size': `${USER_FONT_SIZE}px`,
+    '--user-avatar-size': `${USER_AVATAR_SIZE}px`,
+    '--user-line-height': '1.1'
   }
 })
+
+function calculateAutoPageSize() {
+  if (!tableWrapHeight.value || expandAll.value) return DEFAULT_PAGE_SIZE
+  const availableHeight = Math.max(tableWrapHeight.value - USER_HEADER_HEIGHT - 2, USER_ROW_HEIGHT * DEFAULT_PAGE_SIZE)
+  return Math.max(DEFAULT_PAGE_SIZE, Math.floor(availableHeight / USER_ROW_HEIGHT))
+}
+
+function syncAutoPageSize() {
+  autoPageSize.value = calculateAutoPageSize()
+  if (pageSizeManuallyChanged.value || expandAll.value || query.pageSize === autoPageSize.value) return
+
+  const firstItemIndex = Math.max((query.pageNum - 1) * query.pageSize, 0)
+  query.pageSize = autoPageSize.value
+  query.pageNum = Math.floor(firstItemIndex / autoPageSize.value) + 1
+}
 
 function updateTableLayout() {
   if (tableLayoutFrame) return
   tableLayoutFrame = window.requestAnimationFrame(() => {
     tableLayoutFrame = 0
     tableWrapHeight.value = tableWrapRef.value?.clientHeight || 0
+    syncAutoPageSize()
     tableRef.value?.doLayout?.()
   })
 }
@@ -723,15 +631,48 @@ function refreshData() {
   fetchData({ force: true })
 }
 
-function normalizeTree(list: UserData[]): UserData[] {
-  return list.map((item) => {
-    const children = item.children?.length ? normalizeTree(item.children) : undefined
+function syncLocalFeeRate(userId: number, feeRate: number) {
+  let updated = false
+
+  rawData.value = rawData.value.map((user) => {
+    if (user.id !== userId) return user
+
+    updated = true
     return {
-      ...item,
-      children,
-      hasChildren: !!children?.length
+      ...user,
+      feeRate,
+      effectiveFeeRate: feeRate,
+      children: user.children?.map((child) => ({
+        ...child,
+        feeRate: 0,
+        effectiveFeeRate: feeRate
+      }))
     }
   })
+
+  if (!updated) return
+
+  writeViewCache(rawData.value, parentUserOptions.value)
+  applyFilter()
+}
+
+function normalizeTree(list: UserData[]): UserData[] {
+  return [...list]
+    .sort(compareUsersByCreateTimeDesc)
+    .map((item) => {
+      const children = item.children?.length ? normalizeTree(item.children) : undefined
+      return {
+        ...item,
+        children,
+        hasChildren: !!children?.length
+      }
+    })
+}
+
+function compareUsersByCreateTimeDesc(a: UserData, b: UserData) {
+  const timeA = a.createTime ? new Date(a.createTime).getTime() : 0
+  const timeB = b.createTime ? new Date(b.createTime).getTime() : 0
+  return timeB - timeA
 }
 
 function filterTreeBy(list: UserData[], predicate: (item: UserData) => boolean): UserData[] {
@@ -748,17 +689,12 @@ function filterTreeBy(list: UserData[], predicate: (item: UserData) => boolean):
 }
 
 function matchesCurrentFilters(user: UserData) {
-  const name = query.name.trim()
-  const phone = query.phone.trim()
+  const keyword = query.name.trim()
 
-  if (name && !String(user.name || '').includes(name)) return false
-  if (phone && !String(user.phone || '').includes(phone)) return false
-  if (query.status !== undefined && user.status !== query.status) return false
-  if (query.type === 'main' && !!user.parentId) return false
-  if (query.type === 'child' && !user.parentId) return false
-  if (query.hasCard !== undefined) {
-    const hasCard = (user.cardCount || 0) > 0 ? 1 : 0
-    if (hasCard !== query.hasCard) return false
+  if (keyword) {
+    const nameMatched = String(user.name || '').includes(keyword)
+    const phoneMatched = String(user.phone || '').includes(keyword)
+    if (!nameMatched && !phoneMatched) return false
   }
 
   switch (activeCategory.value) {
@@ -839,12 +775,12 @@ function collectExpandableIds(list: UserData[]) {
 }
 
 function collectNameMatchExpandIds(list: UserData[], keyword: string) {
-  const name = keyword.trim()
-  if (!name) return []
+  const normalizedKeyword = keyword.trim()
+  if (!normalizedKeyword) return []
 
   const matchedParentIds = new Set<number>()
   const walk = (item: UserData): boolean => {
-    const selfMatched = String(item.name || '').includes(name)
+    const selfMatched = String(item.name || '').includes(normalizedKeyword) || String(item.phone || '').includes(normalizedKeyword)
     const childMatched = !!item.children?.some((child) => walk(child))
     if (childMatched && item.children?.length) matchedParentIds.add(item.id)
     return selfMatched || childMatched
@@ -855,7 +791,7 @@ function collectNameMatchExpandIds(list: UserData[], keyword: string) {
 }
 
 function collectContextExpandIds(list: UserData[]) {
-  if (activeCategory.value !== 'child' && query.type !== 'child') {
+  if (activeCategory.value !== 'child') {
     return []
   }
   return collectExpandableIds(list)
@@ -865,12 +801,9 @@ function resetQuery() {
   triggerFilterSearch.cancel()
   syncingFilterQuery = true
   query.name = ''
-  query.phone = ''
-  query.status = undefined
-  query.type = ''
-  query.hasCard = undefined
   query.pageNum = 1
-  query.pageSize = DEFAULT_PAGE_SIZE
+  pageSizeManuallyChanged.value = false
+  query.pageSize = autoPageSize.value
   activeCategory.value = 'all'
   expandAll.value = false
   syncingFilterQuery = false
@@ -891,6 +824,12 @@ function handleCurrentChange(pageNum: number) {
   query.pageNum = pageNum
 }
 
+function handlePageSizeChange(pageSize: number) {
+  pageSizeManuallyChanged.value = true
+  query.pageSize = pageSize
+  query.pageNum = 1
+}
+
 function onExpandChange(row: UserData, expanded: boolean) {
   if (syncingExpandedRows) return
   if (expanded) {
@@ -899,12 +838,16 @@ function onExpandChange(row: UserData, expanded: boolean) {
     expandedRowIds.value = expandedRowIds.value.filter((id) => id !== row.id)
   }
   syncExpandState()
-  nextTick(updateTableLayout)
+  nextTick(() => {
+    updateTableLayout()
+    if (expanded) {
+      window.requestAnimationFrame(() => ensureExpandedRowVisible(row))
+    }
+  })
 }
 
 function syncExpandState() {
-  const expandableIds = collectExpandableIds(treeData.value)
-  expandAll.value = expandableIds.length > 0 && expandableIds.every((id) => expandedRowIds.value.includes(id))
+  expandAll.value = expandedRowIds.value.length > 0
 }
 
 function toggleExpandAll() {
@@ -912,29 +855,73 @@ function toggleExpandAll() {
   expandAll.value = !expandAll.value
   expandedRowIds.value = expandAll.value ? collectExpandableIds(treeData.value) : []
   nextTick(() => {
-    applyExpandedRows()
-    updateTableLayout()
+    window.requestAnimationFrame(() => {
+      if (expandAll.value) {
+        applyExpandedRows()
+      } else {
+        collapseAllExpandedRows()
+      }
+      updateTableLayout()
+    })
   })
 }
 
 function applyExpandedRows() {
+  const expandedIds = new Set(expandedRowIds.value)
+  const rows = flattenTree(treeData.value).filter((row) => row.children?.length)
+
   syncingExpandedRows = true
   try {
-    setRowExpansionByIds(treeData.value, new Set(expandedRowIds.value))
+    rows.forEach((row) => {
+      tableRef.value?.toggleRowExpansion(row, expandedIds.has(row.id))
+    })
   } finally {
     syncingExpandedRows = false
   }
 }
 
-function setRowExpansionByIds(rows: UserData[], expandedIds: Set<number>) {
-  rows.forEach((row) => {
-    tableRef.value?.toggleRowExpansion(row, expandedIds.has(row.id))
-    if (row.children?.length) setRowExpansionByIds(row.children, expandedIds)
-  })
+function collapseAllExpandedRows() {
+  const rows = flattenTree(treeData.value)
+    .filter((row) => row.children?.length)
+    .reverse()
+
+  syncingExpandedRows = true
+  try {
+    rows.forEach((row) => {
+      tableRef.value?.toggleRowExpansion(row, false)
+    })
+  } finally {
+    syncingExpandedRows = false
+  }
+}
+
+function getTableScrollContainer() {
+  return (tableWrapRef.value?.querySelector('.el-scrollbar__wrap') as HTMLElement | null) || tableWrapRef.value
+}
+
+function ensureExpandedRowVisible(row: UserData) {
+  const container = getTableScrollContainer()
+  const rowEl = tableWrapRef.value?.querySelector(`.user-row-${row.id}`) as HTMLElement | null
+  if (!container || !rowEl) return
+
+  const containerRect = container.getBoundingClientRect()
+  const rowRect = rowEl.getBoundingClientRect()
+  const childCount = row.children?.length || 0
+  if (!childCount) return
+
+  const previewChildCount = Math.min(childCount, 3)
+  const desiredBottom = rowRect.bottom + previewChildCount * USER_ROW_HEIGHT + 8
+
+  if (desiredBottom > containerRect.bottom) {
+    container.scrollTop += desiredBottom - containerRect.bottom
+  }
 }
 
 function rowClassName({ row }: { row: UserData }) {
-  return row.status === 1 ? 'row-disabled' : ''
+  const visibleIndex = visibleRowIndexMap.value.get(row.id) ?? 0
+  const classNames = [`user-row-${row.id}`, visibleIndex % 2 === 0 ? 'row-even' : 'row-odd']
+  if (row.status === 1) classNames.push('row-disabled')
+  return classNames.join(' ')
 }
 
 function formatTime(time?: string) {
@@ -950,10 +937,12 @@ function startEditFee(row: UserData) {
 async function handleSaveFeeRate(row: UserData) {
   savingFee.value = true
   try {
-    await updateUserFeeRateApi({ userId: row.id, feeRate: editingFeeRate.value })
-    ElMessage.success('费率已更新并同步到所有子用户')
+    const nextFeeRate = Number(formatFeeRate(editingFeeRate.value))
+    await updateUserFeeRateApi({ userId: row.id, feeRate: nextFeeRate })
+    syncLocalFeeRate(row.id, nextFeeRate)
+    ElMessage.success('费率已更新并同步到所有名下持卡人')
     cancelEditFee()
-    fetchData({ force: true })
+    void fetchData({ force: true })
   } finally {
     savingFee.value = false
   }
@@ -979,21 +968,24 @@ function formatFeeRateOnBlur() {
 }
 
 function openAddTopUser() {
+  childModeLocked.value = false
   isChildMode.value = false
-  editTitle.value = '新增主账户'
+  editTitle.value = '新增用户'
   Object.assign(editForm, defaultForm)
   editVisible.value = true
 }
 
 function openAddChild(parentRow: UserData) {
+  childModeLocked.value = true
   isChildMode.value = true
-  editTitle.value = `添加子用户 - ${parentRow.name}`
+  editTitle.value = `添加名下持卡人 - ${parentRow.name}`
   inheritedRate.value = Number(parentRow.effectiveFeeRate ?? parentRow.feeRate ?? 0)
   Object.assign(editForm, { id: undefined, parentId: parentRow.id, name: '', phone: '', feeRate: 0, remark: '', status: 0 })
   editVisible.value = true
 }
 
 function openEditUser(row: UserData) {
+  childModeLocked.value = false
   editTitle.value = '编辑用户'
   isChildMode.value = !!row.parentId
   inheritedRate.value = Number(row.effectiveFeeRate ?? row.feeRate ?? 0)
@@ -1100,7 +1092,7 @@ watch(
   }
 )
 watch(
-  () => [query.name, query.phone, query.status, query.type, query.hasCard],
+  () => query.name,
   () => {
     if (syncingFilterQuery) return
     triggerFilterSearch()
@@ -1131,17 +1123,6 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   --user-line-height: 1.1;
 }
 
-.card-user-page,
-.card-user-page * {
-  scrollbar-width: none;
-}
-
-.card-user-page ::-webkit-scrollbar {
-  width: 0 !important;
-  height: 0 !important;
-  display: none;
-}
-
 .card-shell {
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid #dbe2ea;
@@ -1151,7 +1132,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 
 .page-header {
   display: grid;
-  grid-template-columns: minmax(122px, 0.58fr) minmax(232px, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 4px;
   padding: 4px 6px;
@@ -1163,7 +1144,6 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 }
 
 .header-copy,
-.header-stat-body,
 .user-info {
   min-width: 0;
 }
@@ -1175,55 +1155,6 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   color: #1f2a37;
 }
 
-.header-subtitle {
-  margin-top: 1px;
-  font-size: 10px;
-  line-height: 1.2;
-  color: #8a94a6;
-  white-space: nowrap;
-}
-
-.header-stat-row {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 3px;
-  min-width: 0;
-}
-
-.header-stat {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 5px;
-  background: #fff;
-  border: 1px solid #e5eaf1;
-  border-radius: 8px;
-  min-width: 0;
-}
-
-.header-stat-icon {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.header-stat-value {
-  font-size: 13px;
-  line-height: 1;
-  font-weight: 700;
-  color: #1f2a37;
-}
-
-.header-stat-label {
-  margin-top: 0;
-  font-size: 9px;
-  color: #7c8799;
-}
-
 .header-actions {
   display: flex;
   align-items: center;
@@ -1231,12 +1162,16 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 }
 
 .user-search-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   flex-shrink: 0;
   gap: 6px 10px;
   padding: 6px 8px;
 }
 
 .user-search-panel .app-search-main {
+  justify-content: space-between;
   gap: 6px;
 }
 
@@ -1245,29 +1180,33 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   gap: 6px;
 }
 
-.user-search-panel .app-search-title,
-.user-search-panel .app-search-meta {
+.user-search-panel .app-search-title {
   min-height: 28px;
   font-size: 11px;
 }
 
-.user-search-panel .app-search-item-sm {
-  width: 128px;
+.user-search-panel .app-search-item-xl {
+  width: auto;
+  flex: 1 1 360px;
+  min-width: 220px;
 }
 
-.user-search-panel .app-search-item-md {
-  width: 156px;
+.user-search-panel .app-search-actions {
+  margin-left: auto;
 }
 
-.user-search-panel .app-search-item-lg {
-  width: 190px;
+.quick-menu-bar {
+  align-items: stretch;
+  justify-content: flex-start;
+  padding-top: 4px;
+  border-top: 1px dashed #e5eaf1;
 }
 
 .user-search-panel .app-search-btn {
-  height: 28px;
-  padding: 0 12px;
+  height: 34px;
+  padding: 0 16px;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 /*noinspection CssUnusedSymbol*/
@@ -1289,30 +1228,28 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 }
 
 .action-btn {
-  height: 24px;
-  padding: 0 7px;
-  border-radius: 7px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.06);
 }
 
 .workspace-grid {
   display: grid;
-  grid-template-columns: 104px minmax(0, 1fr) 112px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
-.side-panel,
-.action-panel,
 .data-panel {
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 
-.side-panel,
-.action-panel,
 .data-panel {
   padding: 4px;
   overflow: hidden;
@@ -1328,7 +1265,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 }
 
 .panel-title {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: #1f2a37;
   line-height: 1.1;
@@ -1344,55 +1281,69 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   overflow: hidden;
 }
 
+.menu-list-inline {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
+}
+
 .menu-item {
   display: grid;
   grid-template-columns: 8px 1fr auto;
   align-items: center;
-  gap: 4px;
-  height: 24px;
-  padding: 0 5px;
-  border: 1px solid #e7edf4;
-  border-radius: 7px;
-  background: #f8fafc;
-  color: #435266;
+  gap: 6px;
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(218, 226, 236, 0.92);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(248,250,253,0.97) 100%);
+  color: #55657b;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: 0 6px 16px rgba(15,23,42,0.05);
 }
 
 .menu-item:hover {
-  border-color: #b9c7d8;
-  background: #f2f6fb;
+  transform: translateY(-1px);
+  border-color: rgba(180, 206, 255, 0.92);
+  box-shadow: 0 10px 18px rgba(15,23,42,0.07);
 }
 
 .menu-item.active {
-  border-color: #b4ceff;
-  background: #eaf2ff;
+  transform: translateY(-1px);
+  border-color: transparent;
+  background: linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(234,242,255,0.95) 160%);
   color: #0958d9;
-  box-shadow: inset 0 0 0 1px rgba(9, 88, 217, 0.04);
+  box-shadow: inset 0 0 0 1.5px rgba(180, 206, 255, 0.85), 0 12px 22px rgba(15,23,42,0.08);
 }
 
 .menu-dot {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
 }
 
 .menu-label {
-  text-align: left;
-  font-size: 10px;
-  font-weight: 600;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .menu-count {
-  min-width: 16px;
-  height: 15px;
-  padding: 0 3px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
   border-radius: 999px;
-  background: rgba(9, 88, 217, 0.08);
+  background: rgba(9, 88, 217, 0.1);
   color: inherit;
-  font-size: 9px;
-  line-height: 15px;
+  font-size: 11px;
+  line-height: 20px;
   text-align: center;
 }
 
@@ -1400,26 +1351,44 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   align-items: center;
 }
 
-.inline-summary {
+.data-head-actions {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 0 5px;
-  height: 20px;
-  border-radius: 6px;
-  background: #f5f8fc;
-  color: #667085;
-  font-size: 10px;
-  white-space: nowrap;
+  gap: 4px;
 }
 
 .user-table-wrap {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   border: 1px solid #e5eaf1;
   border-radius: 8px;
   background: #fff;
+  scrollbar-width: thin;
+  scrollbar-color: #cdd6e3 transparent;
+  scroll-behavior: smooth;
+}
+
+.user-table-wrap.expanded {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.user-table-wrap::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.user-table-wrap::-webkit-scrollbar-thumb {
+  background: #cdd6e3;
+  border-radius: 999px;
+}
+
+.user-table-wrap::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .user-table-skeleton {
@@ -1447,11 +1416,21 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 
 .user-pagination {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
-  height: 26px;
+  gap: 8px;
+  min-height: 28px;
   padding-top: 3px;
   flex-shrink: 0;
+}
+
+.pagination-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: #667085;
+  white-space: nowrap;
 }
 
 /*noinspection CssUnusedSymbol*/
@@ -1463,10 +1442,9 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 
 /*noinspection CssUnusedSymbol*/
 :deep(.el-table) {
-  height: 100% !important;
   --el-table-border-color: #e5eaf1;
   font-size: var(--user-font-size);
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 /*noinspection CssUnusedSymbol*/
@@ -1476,7 +1454,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 :deep(.el-scrollbar),
 :deep(.el-scrollbar__wrap),
 :deep(.el-scrollbar__view) {
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 /*noinspection CssUnusedSymbol*/
@@ -1553,9 +1531,23 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 }
 
 /*noinspection CssUnusedSymbol*/
+:deep(.el-table__body tr.row-even > td.el-table__cell) {
+  background: #ffffff;
+}
+
+/*noinspection CssUnusedSymbol*/
+:deep(.el-table__body tr.row-odd > td.el-table__cell) {
+  background: #f8fafc;
+}
+
+/*noinspection CssUnusedSymbol*/
 :deep(.row-disabled) {
   opacity: 0.62;
-  background: #fafbfc;
+}
+
+/*noinspection CssUnusedSymbol*/
+:deep(.el-table__body tr.row-disabled > td.el-table__cell) {
+  background: #f2f4f7 !important;
 }
 
 .user-cell {
@@ -1597,10 +1589,10 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 
 /*noinspection CssUnusedSymbol*/
 .name-row :deep(.el-tag) {
-  height: max(7px, calc(var(--user-row-height) - 8px));
+  height: 20px;
   padding: 0 3px;
-  font-size: max(5px, calc(var(--user-font-size) - 1px));
-  line-height: 1;
+  font-size: 10px;
+  line-height: 18px;
 }
 
 .name-text {
@@ -1627,6 +1619,32 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   overflow: visible;
 }
 
+.phone-cell-inner {
+  display: inline-flex;
+  align-items: center;
+  width: 98px;
+  max-width: 100%;
+}
+
+.phone-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+.phone-text {
+  min-width: 0;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+.phone-text.empty {
+  letter-spacing: 0;
+}
+
 .fee-cell {
   display: flex;
   flex-direction: column;
@@ -1650,7 +1668,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 /*noinspection CssUnusedSymbol*/
 .fee-input :deep(.el-input__wrapper) {
   min-height: 0;
-  height: max(8px, calc(var(--user-row-height) - 8px));
+  height: 22px;
   padding: 0 2px;
 }
 
@@ -1674,10 +1692,10 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   align-items: center;
   justify-content: center;
   gap: 2px;
-  min-height: max(7px, calc(var(--user-row-height) - 8px));
+  min-height: 20px;
   padding: 0 4px;
   border-radius: 999px;
-  font-size: var(--user-font-size);
+  font-size: 10px;
   font-weight: 700;
   line-height: 1.05;
   background: #f3f5f8;
@@ -1723,9 +1741,9 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  min-height: max(7px, calc(var(--user-row-height) - 8px));
+  min-height: 20px;
   padding: 0 4px;
-  font-size: var(--user-font-size);
+  font-size: 10px;
   font-weight: 700;
 }
 
@@ -1753,8 +1771,8 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 }
 
 .action-icon-btn {
-  width: max(8px, calc(var(--user-row-height) - 5px));
-  height: max(8px, calc(var(--user-row-height) - 5px));
+  width: 24px;
+  height: 24px;
   padding: 0;
   margin-left: 0 !important;
   min-height: 0;
@@ -1765,123 +1783,186 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   color: #c0c7d6;
 }
 
-.side-card {
-  padding: 5px;
-  background: #f8fafc;
-  border: 1px solid #e7edf4;
-  border-radius: 8px;
+.user-edit-panel {
+  padding: 4px 2px 0;
 }
 
-.side-card + .side-card {
-  margin-top: 4px;
-}
-
-.side-card-title {
-  margin-bottom: 4px;
-  font-size: 10px;
-  font-weight: 700;
-  color: #1f2a37;
-}
-
-.action-stack {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 3px;
+.user-edit-form {
+  padding: 2px 4px 0;
 }
 
 /*noinspection CssUnusedSymbol*/
-.action-stack :deep(.el-button) {
+.user-edit-form :deep(.el-form-item) {
+  margin-bottom: 18px;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-edit-form :deep(.el-form-item:last-child) {
+  margin-bottom: 8px;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-edit-form :deep(.el-form-item__label) {
+  font-weight: 600;
+  color: #344054;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-edit-form :deep(.el-form-item__content) {
+  min-width: 0;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-edit-form :deep(.el-input__wrapper),
+.user-edit-form :deep(.el-select__wrapper),
+.user-edit-form :deep(.el-textarea__inner) {
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px #d7dee8 inset;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-edit-form :deep(.el-input__wrapper:hover),
+.user-edit-form :deep(.el-select__wrapper:hover),
+.user-edit-form :deep(.el-textarea__inner:hover) {
+  box-shadow: 0 0 0 1px #b8c7da inset;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-edit-form :deep(.el-input__wrapper.is-focus),
+.user-edit-form :deep(.el-select__wrapper.is-focused),
+.user-edit-form :deep(.el-textarea__inner:focus) {
+  box-shadow: 0 0 0 1px #1677ff inset, 0 0 0 3px rgba(22, 119, 255, 0.08);
+}
+
+.user-type-block {
   width: 100%;
-  height: 23px;
-  margin-left: 0;
-  border-radius: 7px;
-  font-size: 10px;
 }
 
-.summary-list,
-.legend-list {
-  display: grid;
-  gap: 3px;
-}
-
-.summary-item,
-.legend-item {
+.user-type-fixed {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 50px;
+  padding: 10px 14px;
+  border: 1px solid #dbe7ff;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(234, 242, 255, 0.95) 160%);
+}
+
+.user-type-fixed-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96px;
+  min-height: 30px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: #0958d9;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.user-type-fixed-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #526074;
+  text-align: right;
+}
+
+.user-type-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px;
-  font-size: 9px;
+  width: 100%;
+  padding: 4px;
+  border-radius: 14px;
+  background: #f6f8fb;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-type-group :deep(.el-radio-button) {
+  margin: 0;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-type-group :deep(.el-radio-button__inner) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 42px;
+  padding: 0 16px;
+  border: none !important;
+  border-radius: 10px !important;
+  background: transparent;
+  color: #526074;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: none;
+  white-space: nowrap;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-type-group :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(234, 242, 255, 0.95) 160%);
+  color: #0958d9;
+  box-shadow: inset 0 0 0 1.5px rgba(180, 206, 255, 0.85), 0 8px 16px rgba(15, 23, 42, 0.08);
+}
+
+.type-inline-tip {
+  margin-top: 8px;
+  padding: 0 2px;
+  font-size: 12px;
+  line-height: 1.5;
   color: #667085;
 }
 
-.summary-item strong {
-  color: #1f2a37;
-  font-size: 10px;
-  word-break: break-all;
-}
-
-.legend-item {
-  justify-content: flex-start;
-}
-
-.legend-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.legend-dot.success {
-  background: #2f9e44;
-}
-
-.legend-dot.danger {
-  background: #cf1322;
-}
-
-.legend-dot.primary {
-  background: #0958d9;
-}
-
-.legend-dot.muted {
-  background: #98a2b3;
-}
-
 .form-tip {
-  margin-top: 4px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fff7e6;
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 1.5;
   color: #d97706;
 }
 
 .inherit-hint {
   display: inline-flex;
   align-items: center;
-  min-height: 32px;
-  padding: 0 10px;
-  border-radius: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
   background: #f5f7fa;
-  color: #667085;
+  border: 1px solid #e5eaf1;
+  color: #526074;
   font-size: 12px;
 }
 
 @media (max-width: 1480px) {
   .page-header {
-    grid-template-columns: minmax(112px, 0.58fr) minmax(210px, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .workspace-grid {
-    grid-template-columns: 96px minmax(0, 1fr) 104px;
+  .menu-list-inline {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 1320px) {
-  .inline-summary {
+  .pagination-meta {
     display: none;
   }
 
-  .workspace-grid {
-    grid-template-columns: 88px minmax(0, 1fr) 96px;
+  .menu-list-inline {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 </style>
