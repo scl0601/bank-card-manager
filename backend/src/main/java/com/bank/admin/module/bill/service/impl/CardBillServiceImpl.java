@@ -149,6 +149,8 @@ public class CardBillServiceImpl
         BeanUtils.copyProperties(dto, entity);
         entity.setBillAmount(scaleMoney(dto.getBillAmount()));
         entity.setFeePaid(Boolean.TRUE.equals(dto.getFeePaid()));
+        entity.setVerified(Boolean.TRUE.equals(dto.getVerified()));
+        entity.setExpenseVerified(Boolean.TRUE.equals(dto.getExpenseVerified()));
         applyOwnerInfo(entity, card.getUserId());
         entity.setBillDay(dto.getBillDay() != null ? dto.getBillDay() : card.getBillDay());
         applyFeeAndRepayInfo(entity, dto, card);
@@ -181,6 +183,12 @@ public class CardBillServiceImpl
         entity.setRemark(dto.getRemark());
         if (dto.getFeePaid() != null) {
             entity.setFeePaid(dto.getFeePaid());
+        }
+        if (dto.getVerified() != null) {
+            entity.setVerified(dto.getVerified());
+        }
+        if (dto.getExpenseVerified() != null) {
+            entity.setExpenseVerified(dto.getExpenseVerified());
         }
         entity.setBillDay(dto.getBillDay() != null ? dto.getBillDay() : (entity.getBillDay() != null ? entity.getBillDay() : card.getBillDay()));
         if (dto.getActualPayAmount() != null) {
@@ -334,6 +342,7 @@ public class CardBillServiceImpl
         heads.add(List.of("手续费率"));
         heads.add(List.of("手续费收入"));
         heads.add(List.of("手续费状态"));
+        heads.add(List.of("是否核实"));
         heads.add(List.of("POS成本"));
         heads.add(List.of("净利润"));
         heads.add(List.of("还款日"));
@@ -351,6 +360,7 @@ public class CardBillServiceImpl
             row.add(formatRatePercent(vo.getFeeRate()));
             row.add(defaultZero(vo.getFeeAmount()).toString());
             row.add(Boolean.TRUE.equals(vo.getFeePaid()) ? "已付" : "未付");
+            row.add(Boolean.TRUE.equals(vo.getVerified()) ? "已核实" : "未核实");
             row.add(defaultZero(vo.getPosCostAmount()).toString());
             row.add(defaultZero(vo.getNetProfit()).toString());
             row.add(vo.getRepayDate());
@@ -411,6 +421,8 @@ public class CardBillServiceImpl
                 bill.setFeeRate(normalizedFeeRate);
                 bill.setFeeAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
                 bill.setFeePaid(false);
+                bill.setVerified(false);
+                bill.setExpenseVerified(false);
                 bill.setPosCostAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
                 bill.setNetProfit(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
                 refreshBillState(bill);

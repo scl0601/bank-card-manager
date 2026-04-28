@@ -33,7 +33,7 @@
 
 | 服务 | 访问地址 | 状态 |
 |------|----------|------|
-| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604272121](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604272121) | ✅ 已上线 |
+| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604281958](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604281958) | ✅ 已上线 |
 | **后端 API** | `https://bank-admin-backend-239413-10-1411764939.sh.run.tcloudbase.com` | ✅ 运行中 |
 
 ---
@@ -47,7 +47,7 @@
 
 ### 云托管服务配置
 - **服务名称**: bank-admin-backend
-- **当前线上版本**: bank-admin-backend-023 (部署中...)
+- **当前线上版本**: bank-admin-backend-024 (部署中...)
 - **服务类型**: 容器型 (Container)
 - **CPU**: 1 核
 - **内存**: 2 GB
@@ -142,6 +142,18 @@ npm run dev
 ---
 
 ## 更新日志
+
+### 2026-04-28 (19:58 更新)
+- **部署最新代码**: 银行卡管理页面多次优化后的最新提交 (44185a3)
+- **数据库补丁执行**:
+  - `bank_card` 表删除废弃字段：`owner_relation`、`owner_name`、`total_limit`
+  - `bank_card` 表更新 `repay_method` 默认值（空值→cloudpay, invoice→other）
+  - `bank_card` 表更新 `verified` 默认值（NULL→0）
+  - 新建 `repay_month_bill` 代还月度账单条目表
+  - `card_user.fee_rate` 字段已确认存在，跳过
+- 前端重新构建并上传到静态托管（44个文件全部更新）
+- 后端云托管服务 `bank-admin-backend` 已触发新的容器部署 (v024)
+- 更新前端缓存刷新访问参数为 `?v=202604281958`
 
 ### 2026-04-27 (21:20 更新)
 - **紧急修复**: 发现线上代码落后于本地最新提交

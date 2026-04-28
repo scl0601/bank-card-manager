@@ -110,6 +110,8 @@ CREATE TABLE `card_bill` (
   `fee_rate`          DECIMAL(8,2)    DEFAULT 0.00            COMMENT '约定费率%（如1表示1%）',
   `fee_amount`        DECIMAL(18,2)   DEFAULT 0.00            COMMENT '本期应收手续费',
   `fee_paid`          TINYINT(1)      NOT NULL DEFAULT 0      COMMENT '手续费是否已支付',
+  `verified`          TINYINT(1)      NOT NULL DEFAULT 0      COMMENT '当月账单是否已核实',
+  `expense_verified`  TINYINT(1)      NOT NULL DEFAULT 0      COMMENT '本月支出明细是否已核实',
   `pos_cost_amount`   DECIMAL(18,2)   DEFAULT 0.00            COMMENT 'POS机使用成本',
   `net_profit`        DECIMAL(18,2)   DEFAULT 0.00            COMMENT '本期净利润',
   `is_deleted`        TINYINT(1)      NOT NULL DEFAULT 0,

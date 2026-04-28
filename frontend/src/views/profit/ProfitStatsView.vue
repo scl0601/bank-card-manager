@@ -344,7 +344,7 @@ const currentScopeLabel = computed(() => query.month ? `${query.year}年${query.
 
 const summaryCards = computed(() => [
   {
-    label: '代还总额',
+    label: '账单总金额',
     value: `¥${formatMoney(overview.totalBillAmount)}`,
     sub: `${currentScopeLabel.value}账单汇总`,
     className: '',

@@ -308,8 +308,18 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
         );
         ensureColumnExists(
                 "card_bill",
+                "verified",
+                "ALTER TABLE `card_bill` ADD COLUMN `verified` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '当月账单是否已核实' AFTER `fee_paid`"
+        );
+        ensureColumnExists(
+                "card_bill",
+                "expense_verified",
+                "ALTER TABLE `card_bill` ADD COLUMN `expense_verified` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '本月支出明细是否已核实' AFTER `verified`"
+        );
+        ensureColumnExists(
+                "card_bill",
                 "pos_cost_amount",
-                "ALTER TABLE `card_bill` ADD COLUMN `pos_cost_amount` DECIMAL(18,2) DEFAULT 0.00 COMMENT 'POS机使用成本' AFTER `fee_amount`"
+                "ALTER TABLE `card_bill` ADD COLUMN `pos_cost_amount` DECIMAL(18,2) DEFAULT 0.00 COMMENT 'POS机使用成本' AFTER `expense_verified`"
         );
         ensureColumnExists(
                 "card_bill",

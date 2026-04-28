@@ -38,6 +38,8 @@ public class CardBillSqlProvider {
                     cb.pos_cost_amount,
                     cb.net_profit,
                     bc.repay_method,
+                    cb.verified,
+                    cb.expense_verified,
                     cb.create_time
                 FROM card_bill cb
                 LEFT JOIN bank_card bc ON bc.id = cb.card_id AND bc.is_deleted = 0

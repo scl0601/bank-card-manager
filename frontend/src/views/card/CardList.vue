@@ -352,9 +352,6 @@
             </div>
           </div>
           <div class="panel-body">
-            <div class="block-head">
-              <strong>{{ billFilterLabel }}</strong>
-            </div>
             <div class="mini-stats mini-stats-4" v-loading="billOverviewVisibleLoading">
               <div class="mini-stat">
                 <span class="ms-label">账单数</span>
@@ -369,27 +366,49 @@
                 <span class="ms-value danger">{{ billOverview.overdueCount }}</span>
               </div>
               <div class="mini-stat">
-                <span class="ms-label">代还总额</span>
+                <span class="ms-label">账单总金额</span>
                 <span class="ms-value font-mono">¥{{ formatMoneySafe(billOverview.totalBillAmount) }}</span>
               </div>
             </div>
             <div class="bill-list" v-loading="recentBillsVisibleLoading">
               <template v-if="recentBills.length">
                 <div v-for="b in recentBills" :key="b.id" class="bill-item" :class="{ current: b.billMonth === currentBillMonth }">
-                  <div class="bill-left">
-                    <div class="bill-month">{{ b.billMonth }}</div>
-                    <div class="bill-sub">
-                      <span>{{ billCardLabel(b) }}</span>
-                      <i class="sub-divider"></i>
-                      <span v-if="b.repayDate" class="muted">还款日 {{ fmtRepayDate(b.repayDate) }}</span>
-                      <span v-else class="muted">—</span>
-                    </div>
+                  <div class="bill-owner" :title="b.ownerName || '未命名'">
+                    {{ b.ownerName || '未命名' }}
                   </div>
-                  <div class="bill-mid">
+                  <div class="bill-bank" :title="displayBankName(b.bankName)">
+                    {{ displayBankName(b.bankName) }}
+                  </div>
+                  <div class="bill-last4 font-mono">尾号{{ b.cardNoLast4 || '-' }}</div>
+                  <div class="bill-repay">还款日 {{ fmtRepayDay(b.repayDate) }}</div>
+                  <div class="bill-amount-edit">
+                    <span class="bill-amount-symbol">¥</span>
+                    <el-input-number
+                      :model-value="billAmountDraftValue(b)"
+                      :min="0"
+                      :precision="2"
+                      :controls="false"
+                      size="small"
+                      class="bill-amount-input"
+                      placeholder="账单金额"
+                      :disabled="savingBillId === b.id"
+                      @update:model-value="(val: any) => updateBillAmountDraft(b.id, val)"
+                      @keyup.enter="saveBillAmount(b)"
+                    />
+                    <el-button
+                      type="primary"
+                      link
+                      size="small"
+                      class="bill-save-btn"
+                      :loading="savingBillId === b.id"
+                      :disabled="!isBillAmountChanged(b)"
+                      @click="saveBillAmount(b)"
+                    >
+                      保存
+                    </el-button>
+                  </div>
+                  <div class="bill-status">
                     <StatusTag :value="b.status" :label-map="BILL_STATUS_MAP" :type-map="BILL_STATUS_TAG_TYPE" size="small" effect="light" />
-                  </div>
-                  <div class="bill-right">
-                    <span class="bill-amt font-mono">¥{{ formatMoneySafe(b.billAmount) }}</span>
                   </div>
                 </div>
               </template>
@@ -405,6 +424,10 @@
           <div class="panel-head">
             <div class="panel-title"><span class="panel-dot is-success"></span>收益统计</div>
             <div class="panel-actions">
+              <div class="scope-toggle profit-scope-toggle">
+                <button type="button" :class="{ active: profitScope === 'month' }" @click="setProfitScope('month')">本月</button>
+                <button type="button" :class="{ active: profitScope === 'year' }" @click="setProfitScope('year')">本年</button>
+              </div>
               <button class="icon-btn" @click="goProfits" :disabled="!canOpenScopedBills" title="收益详情">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="3 17 9 11 13 15 21 7" />
@@ -414,30 +437,52 @@
             </div>
           </div>
           <div class="panel-body profit-summary-block" v-loading="profitVisibleLoading">
-            <div class="profit-kpi">
-              <div class="pk-label">净利润</div>
-              <div class="pk-value" :class="Number(profitOverview.totalNetProfit || 0) >= 0 ? 'pos' : 'neg'">
-                ¥{{ formatMoneySafe(profitOverview.totalNetProfit) }}
+            <div class="profit-net-grid">
+              <div class="profit-kpi">
+                <div class="pk-label">预计{{ profitScopeLabel }}净利润</div>
+                <div class="pk-value" :class="Number(profitOverview.expectedNetProfit || 0) >= 0 ? 'pos' : 'neg'">
+                  ¥{{ formatMoneySafe(profitOverview.expectedNetProfit) }}
+                </div>
+                <div class="pk-sub">应收手续费 - POS成本</div>
               </div>
-              <div class="pk-sub">手续费收入 - POS成本</div>
+              <div class="profit-kpi">
+                <div class="pk-label">实际{{ profitScopeLabel }}净利润</div>
+                <div class="pk-value" :class="Number(profitOverview.totalNetProfit || 0) >= 0 ? 'pos' : 'neg'">
+                  ¥{{ formatMoneySafe(profitOverview.totalNetProfit) }}
+                </div>
+                <div class="pk-sub">已收手续费 - POS成本</div>
+              </div>
             </div>
             <div class="profit-grid">
               <div class="profit-metric">
-                <span class="pm-label">手续费收入</span>
-                <span class="pm-value pos font-mono">¥{{ formatMoneySafe(profitOverview.totalFeeAmount) }}</span>
+                <span class="pm-label">已收手续费</span>
+                <span class="pm-value pos font-mono">¥{{ formatMoneySafe(profitOverview.paidFeeAmount) }}</span>
               </div>
               <div class="profit-metric">
                 <span class="pm-label">POS成本</span>
                 <span class="pm-value neg font-mono">¥{{ formatMoneySafe(profitOverview.totalPosCostAmount) }}</span>
               </div>
-              <div class="profit-metric">
-                <span class="pm-label">代还金额</span>
-                <span class="pm-value font-mono">¥{{ formatMoneySafe(profitOverview.totalBillAmount) }}</span>
+            </div>
+            <div class="fee-pay-card">
+              <div class="fee-pay-head">
+                <span>手续费收款明细</span>
+                <span class="fee-pay-summary">
+                  已收 {{ profitOverview.paidFeeCount }} 笔 ¥{{ formatMoneySafe(profitOverview.paidFeeAmount) }}
+                  / 待收 {{ profitOverview.unpaidFeeCount }} 笔 ¥{{ formatMoneySafe(profitOverview.unpaidFeeAmount) }}
+                </span>
               </div>
-              <div class="profit-metric">
-                <span class="pm-label">本月手续费状态</span>
-                <span class="pm-value" :class="currentMonthFeeStatusClass">{{ currentMonthFeeStatusText }}</span>
+              <div v-if="feePaymentItems.length" class="fee-pay-list">
+                <div v-for="item in feePaymentItems" :key="item.key" class="fee-pay-row">
+                  <div class="fee-pay-main">
+                    <span class="fee-pay-title">{{ item.label }}</span>
+                    <span class="fee-pay-sub">{{ item.repayText }}</span>
+                  </div>
+                  <div class="fee-pay-amount" :class="item.paid ? 'pos' : 'warn'">
+                    {{ item.paid ? '用户已给' : '用户未给' }} ¥{{ formatMoneySafe(item.amount) }}
+                  </div>
+                </div>
               </div>
+              <div v-else class="fee-pay-empty">暂无手续费记录</div>
             </div>
           </div>
         </section>
@@ -526,8 +571,8 @@ import {
   deleteCardApi,
   getUserTreeApi
 } from '@/api/card'
-import { getBillPageApi } from '@/api/bill'
-import { formatMoney, formatRate, maskCardNo, maskPhone } from '@/utils/formatters'
+import { getBillPageApi, updateBillApi } from '@/api/bill'
+import { formatMoney, formatRate, maskPhone } from '@/utils/formatters'
 import {
   BILL_STATUS_MAP,
   BILL_STATUS_TAG_TYPE,
@@ -556,13 +601,22 @@ interface BillRow {
   cardNoLast4?: string
   ownerName?: string
   billMonth: string
+  billDay?: number | null
   repayDate: string | null
+  repayDay?: number | null
   billAmount: number | null
+  minPayAmount?: number | null
+  actualPayAmount?: number | null
+  actualPayDate?: string | null
+  feeRate?: number | null
   feeAmount?: number | null
   feePaid?: boolean | null
   posCostAmount?: number | null
   netProfit?: number | null
+  verified?: boolean | null
+  expenseVerified?: boolean | null
   status: number
+  remark?: string | null
 }
 
 interface BillOverview {
@@ -580,11 +634,15 @@ interface ProfitOverview {
   totalBillAmount: number
   totalFeeAmount: number
   totalPosCostAmount: number
+  expectedNetProfit: number
   totalNetProfit: number
-  currentMonthFeePaidCount: number
-  currentMonthFeeUnpaidCount: number
-  currentMonthFeeUnknownCount: number
+  paidFeeAmount: number
+  unpaidFeeAmount: number
+  paidFeeCount: number
+  unpaidFeeCount: number
 }
+
+type ProfitScope = 'month' | 'year'
 
 interface UserTreeNode {
   id: number
@@ -1154,6 +1212,8 @@ const billOverview = ref<BillOverview>({
 const recentBillsLoading = ref(false)
 const recentBillsReady = ref(false)
 const recentBills = ref<BillRow[]>([])
+const billAmountDraftMap = ref<Record<number, number>>({})
+const savingBillId = ref<number | null>(null)
 let billScopeRequestSeq = 0
 const billOverviewVisibleLoading = computed(() => billOverviewLoading.value && !billOverviewReady.value)
 const recentBillsVisibleLoading = computed(() => recentBillsLoading.value && !recentBillsReady.value)
@@ -1167,11 +1227,6 @@ const scopedCardIds = computed(() => {
 const selectedBillMonth = computed(() => {
   return billFilter.month ? `${billFilter.year}-${String(billFilter.month).padStart(2, '0')}` : ''
 })
-
-const billFilterLabel = computed(() => {
-  return billFilter.month ? `${billFilter.year}年${billFilter.month}月` : `${billFilter.year}年全年`
-})
-
 
 const canOpenScopedBills = computed(() => scopedCardIds.value.length > 0)
 
@@ -1214,19 +1269,15 @@ async function fetchBillScopeData(options: { silent?: boolean } = {}) {
     billOverview.value = emptyBillOverview()
     recentBills.value = []
     recentBillsLoading.value = false
-    profitLoading.value = false
-    profitOverview.value = emptyProfitOverview()
     billOverviewReady.value = groupsReady.value
     recentBillsReady.value = groupsReady.value
-    profitReady.value = groupsReady.value
     return
   }
 
-  const showLoading = !options.silent && (!billOverviewReady.value || !recentBillsReady.value || !profitReady.value)
+  const showLoading = !options.silent && (!billOverviewReady.value || !recentBillsReady.value)
   if (showLoading) {
     billOverviewLoading.value = true
     recentBillsLoading.value = true
-    profitLoading.value = true
   }
   try {
     const res: any = await getBillPageApi({
@@ -1243,28 +1294,85 @@ async function fetchBillScopeData(options: { silent?: boolean } = {}) {
       return aCard.localeCompare(bCard)
     })
     recentBills.value = records
+    syncBillAmountDrafts(records)
     billOverview.value = buildBillOverviewFromRows(records)
-    profitOverview.value = buildProfitOverviewFromRows(records)
     billOverviewReady.value = true
     recentBillsReady.value = true
-    profitReady.value = true
   } finally {
     if (requestSeq === billScopeRequestSeq) {
       billOverviewLoading.value = false
       recentBillsLoading.value = false
-      profitLoading.value = false
     }
   }
 }
 
-function fmtRepayDate(date: string) {
-  const match = String(date).match(/(\d{4})-(\d{2})-(\d{2})/)
-  return match ? `${Number(match[2])}月${Number(match[3])}日` : date
+function fmtRepayDay(date: string | null | undefined) {
+  const match = String(date || '').match(/(\d{4})-(\d{2})-(\d{2})/)
+  return match ? `${Number(match[3])}日` : '—'
 }
 
-function billCardLabel(row: BillRow) {
-  const card = `${row.bankName || ''}${row.cardNoLast4 ? ` ${maskCardNo(row.cardNoLast4)}` : ''}`.trim()
-  return card || `银行卡 ${row.cardId}`
+function displayBankName(name: string | null | undefined) {
+  const value = String(name || '').trim()
+  if (!value) return '—'
+  return value.includes('银行') ? value : `${value}银行`
+}
+
+function syncBillAmountDrafts(rows: BillRow[]) {
+  const next: Record<number, number> = {}
+  rows.forEach(row => {
+    next[row.id] = billAmountDraftMap.value[row.id] ?? toAmount(row.billAmount)
+  })
+  billAmountDraftMap.value = next
+}
+
+function billAmountDraftValue(row: BillRow) {
+  return billAmountDraftMap.value[row.id] ?? toAmount(row.billAmount)
+}
+
+function updateBillAmountDraft(billId: number, value: any) {
+  billAmountDraftMap.value[billId] = toAmount(value)
+}
+
+function isBillAmountChanged(row: BillRow) {
+  return Math.abs(billAmountDraftValue(row) - toAmount(row.billAmount)) >= 0.005
+}
+
+function buildBillAmountUpdatePayload(row: BillRow, billAmount: number) {
+  return {
+    id: row.id,
+    cardId: row.cardId,
+    billMonth: row.billMonth,
+    billDay: row.billDay,
+    billAmount,
+    minPayAmount: row.minPayAmount,
+    repayDate: row.repayDate,
+    repayDay: row.repayDay,
+    actualPayAmount: row.actualPayAmount,
+    actualPayDate: row.actualPayDate,
+    feeRate: row.feeRate,
+    feePaid: row.feePaid,
+    verified: row.verified,
+    expenseVerified: row.expenseVerified,
+    posCostAmount: row.posCostAmount,
+    status: row.status,
+    remark: row.remark || ''
+  }
+}
+
+async function saveBillAmount(row: BillRow) {
+  if (!isBillAmountChanged(row) || savingBillId.value === row.id) return
+  savingBillId.value = row.id
+  try {
+    const billAmount = billAmountDraftValue(row)
+    await updateBillApi(buildBillAmountUpdatePayload(row, billAmount))
+    ElMessage.success('账单金额已保存')
+    await fetchBillScopeData({ silent: true })
+    await fetchProfitScopeData({ silent: true })
+  } catch (error: any) {
+    ElMessage.error(error?.response?.data?.message || error?.message || '保存账单金额失败')
+  } finally {
+    savingBillId.value = null
+  }
 }
 
 function openUserBillsPage() {
@@ -1303,6 +1411,8 @@ function openCardBillsPage(card: any) {
 // ====== 收益模块 ======
 const profitLoading = ref(false)
 const profitReady = ref(false)
+const profitScope = ref<ProfitScope>('month')
+const profitRows = ref<BillRow[]>([])
 const profitOverview = ref<ProfitOverview>({
   year: currentYear,
   month: currentMonth,
@@ -1311,89 +1421,211 @@ const profitOverview = ref<ProfitOverview>({
   totalBillAmount: 0,
   totalFeeAmount: 0,
   totalPosCostAmount: 0,
+  expectedNetProfit: 0,
   totalNetProfit: 0,
-  currentMonthFeePaidCount: 0,
-  currentMonthFeeUnpaidCount: 0,
-  currentMonthFeeUnknownCount: 0
+  paidFeeAmount: 0,
+  unpaidFeeAmount: 0,
+  paidFeeCount: 0,
+  unpaidFeeCount: 0
 })
 const profitVisibleLoading = computed(() => profitLoading.value && !profitReady.value)
+const profitScopeLabel = computed(() => profitScope.value === 'month' ? '本月' : '本年')
+let profitScopeRequestSeq = 0
 
+const feePaymentItems = computed(() => {
+  const rows = [...profitRows.value]
+    .filter(row => billFeeAmount(row) > 0)
+    .sort((a, b) => {
+      if (Boolean(a.feePaid) !== Boolean(b.feePaid)) {
+        return Boolean(a.feePaid) ? 1 : -1
+      }
+      const monthDelta = billMonthOrder(a) - billMonthOrder(b)
+      if (monthDelta !== 0) return monthDelta
+      return profitBillLabel(a).localeCompare(profitBillLabel(b))
+    })
+
+  return rows.map(row => ({
+    key: row.id,
+    label: profitBillLabel(row),
+    repayText: row.repayDate ? `还款日 ${fmtRepayDay(row.repayDate)}` : '还款日 —',
+    amount: billFeeAmount(row),
+    paid: row.feePaid === true
+  }))
+})
 
 function emptyProfitOverview(): ProfitOverview {
   return {
-    year: billFilter.year,
-    month: billFilter.month,
+    year: currentYear,
+    month: profitScope.value === 'month' ? currentMonth : undefined,
     userCount: 0,
     cardCount: 0,
     totalBillAmount: 0,
     totalFeeAmount: 0,
     totalPosCostAmount: 0,
+    expectedNetProfit: 0,
     totalNetProfit: 0,
-    currentMonthFeePaidCount: 0,
-    currentMonthFeeUnpaidCount: 0,
-    currentMonthFeeUnknownCount: 0
+    paidFeeAmount: 0,
+    unpaidFeeAmount: 0,
+    paidFeeCount: 0,
+    unpaidFeeCount: 0
   }
+}
+
+function buildProfitQueryParams() {
+  return {
+    cardIds: scopedCardIds.value.join(','),
+    ownerId: undefined,
+    cardName: '',
+    year: currentYear,
+    billMonth: profitScope.value === 'month' ? currentBillMonth : undefined,
+    status: undefined
+  }
+}
+
+function setProfitScope(scope: ProfitScope) {
+  if (profitScope.value === scope) return
+  profitReady.value = false
+  profitScope.value = scope
+}
+
+async function fetchProfitScopeData(options: { silent?: boolean } = {}) {
+  const cardIds = scopedCardIds.value
+  const requestSeq = ++profitScopeRequestSeq
+  if (!cardIds.length) {
+    profitLoading.value = false
+    profitRows.value = []
+    profitOverview.value = emptyProfitOverview()
+    profitReady.value = groupsReady.value
+    return
+  }
+
+  const showLoading = !options.silent && !profitReady.value
+  if (showLoading) {
+    profitLoading.value = true
+  }
+
+  try {
+    const records = await fetchAllProfitBillRows()
+    if (requestSeq !== profitScopeRequestSeq) return
+
+    records.sort((a, b) => {
+      const monthDelta = billMonthOrder(a) - billMonthOrder(b)
+      if (monthDelta !== 0) return monthDelta
+      const aCard = `${a.ownerName || ''}${a.bankName || ''}${a.cardNoLast4 || ''}`
+      const bCard = `${b.ownerName || ''}${b.bankName || ''}${b.cardNoLast4 || ''}`
+      return aCard.localeCompare(bCard)
+    })
+    if (requestSeq !== profitScopeRequestSeq) return
+
+    profitRows.value = records
+    profitOverview.value = buildProfitOverviewFromRows(records)
+    profitReady.value = true
+  } finally {
+    if (requestSeq === profitScopeRequestSeq) {
+      profitLoading.value = false
+    }
+  }
+}
+
+async function fetchAllProfitBillRows() {
+  const pageSize = 100
+  const params = buildProfitQueryParams()
+  const records: BillRow[] = []
+  let current = 1
+  let total = 0
+
+  while (true) {
+    const res: any = await getBillPageApi({
+      current,
+      size: pageSize,
+      ...params
+    })
+    const pageRecords = (res.data?.records || []) as BillRow[]
+    total = Number(res.data?.total ?? total)
+    records.push(...pageRecords)
+
+    if (!pageRecords.length) break
+    if (total > 0 && records.length >= total) break
+    if (pageRecords.length < pageSize) break
+    current += 1
+  }
+
+  return records
 }
 
 function buildProfitOverviewFromRows(list: BillRow[]): ProfitOverview {
   const ownerIds = new Set<number>()
-  let currentMonthFeePaidCount = 0
-  let currentMonthFeeUnpaidCount = 0
-  let currentMonthFeeUnknownCount = 0
+  let paidFeeAmount = 0
+  let unpaidFeeAmount = 0
+  let paidFeeCount = 0
+  let unpaidFeeCount = 0
+
   for (const row of list) {
     const ownerId = Number(row?.ownerId || 0)
     if (ownerId > 0) ownerIds.add(ownerId)
-    if (row?.billMonth === currentBillMonth) {
-      if (row.feePaid === true) currentMonthFeePaidCount += 1
-      else if (row.feePaid === false) currentMonthFeeUnpaidCount += 1
-      else currentMonthFeeUnknownCount += 1
+    const feeAmount = billFeeAmount(row)
+    if (feeAmount > 0) {
+      if (row.feePaid === true) {
+        paidFeeAmount += feeAmount
+        paidFeeCount += 1
+      } else {
+        unpaidFeeAmount += feeAmount
+        unpaidFeeCount += 1
+      }
     }
   }
-  return list.reduce((acc, item) => {
+
+  const overview = list.reduce((acc, item) => {
     acc.totalBillAmount += Number(item?.billAmount ?? 0)
-    acc.totalFeeAmount += Number(item?.feeAmount ?? 0)
+    acc.totalFeeAmount += billFeeAmount(item)
     acc.totalPosCostAmount += Number(item?.posCostAmount ?? 0)
-    acc.totalNetProfit += Number(item?.netProfit ?? 0)
     return acc
   }, {
     ...emptyProfitOverview(),
     userCount: ownerIds.size,
-    cardCount: scopedCardIds.value.length,
-    currentMonthFeePaidCount,
-    currentMonthFeeUnpaidCount,
-    currentMonthFeeUnknownCount
+    cardCount: scopedCardIds.value.length
   })
+
+  overview.expectedNetProfit = overview.totalFeeAmount - overview.totalPosCostAmount
+  overview.paidFeeAmount = paidFeeAmount
+  overview.unpaidFeeAmount = unpaidFeeAmount
+  overview.paidFeeCount = paidFeeCount
+  overview.unpaidFeeCount = unpaidFeeCount
+  overview.totalNetProfit = overview.paidFeeAmount - overview.totalPosCostAmount
+  return overview
 }
 
-const currentMonthFeeStatusText = computed(() => {
-  const paid = profitOverview.value.currentMonthFeePaidCount || 0
-  const unpaid = profitOverview.value.currentMonthFeeUnpaidCount || 0
-  const unknown = profitOverview.value.currentMonthFeeUnknownCount || 0
-  const total = paid + unpaid + unknown
-  if (!total) return `${currentMonth}月暂无账单`
-  if (!unpaid && !unknown) return `${currentMonth}月已全部支付`
-  if (!paid && !unknown) return `${currentMonth}月待支付 ${unpaid}/${total}`
-  return `${currentMonth}月已付 ${paid}/${total}`
-})
+function billFeeAmount(row: BillRow) {
+  const billAmount = toAmount(row.billAmount)
+  const feeRate = Number(row.feeRate)
+  if (Number.isFinite(feeRate)) {
+    return Number(((billAmount * feeRate) / 100).toFixed(2))
+  }
+  return toAmount(row.feeAmount)
+}
 
-const currentMonthFeeStatusClass = computed(() => {
-  const paid = profitOverview.value.currentMonthFeePaidCount || 0
-  const unpaid = profitOverview.value.currentMonthFeeUnpaidCount || 0
-  const unknown = profitOverview.value.currentMonthFeeUnknownCount || 0
-  const total = paid + unpaid + unknown
-  if (!total) return ''
-  if (!unpaid && !unknown) return 'pos'
-  if (!paid && !unknown) return 'neg'
-  return 'warn'
-})
+function profitBillLabel(row: BillRow) {
+  const parts = [
+    profitScope.value === 'year' ? billMonthShortLabel(row.billMonth) : '',
+    row.ownerName || '未命名',
+    displayBankName(row.bankName),
+    `尾号${row.cardNoLast4 || '-'}`
+  ].filter(Boolean)
+  return parts.join(' · ')
+}
+
+function billMonthShortLabel(billMonth: string | null | undefined) {
+  const match = String(billMonth || '').match(/^(\d{4})-(\d{2})$/)
+  return match ? `${Number(match[2])}月` : ''
+}
 
 function goProfits() {
   if (!scopedCardIds.value.length) return
   const routeQuery: Record<string, string> = {
-    year: String(billFilter.year)
+    year: String(currentYear)
   }
-  if (billFilter.month) {
-    routeQuery.month = String(billFilter.month)
+  if (profitScope.value === 'month') {
+    routeQuery.month = String(currentMonth)
   }
   if (scopedCardIds.value.length === 1) {
     routeQuery.cardId = String(scopedCardIds.value[0])
@@ -1670,6 +1902,14 @@ watch(
   () => [scopedCardIds.value.join(','), billFilter.year, billFilter.month],
   () => {
     fetchBillScopeData({ silent: true })
+  },
+  { immediate: true }
+)
+
+watch(
+  () => [scopedCardIds.value.join(','), profitScope.value],
+  () => {
+    fetchProfitScopeData()
   },
   { immediate: true }
 )
@@ -2780,6 +3020,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 .profit-summary-block {
   overflow-y: auto;
   overflow-x: hidden;
+  gap: 5px;
   padding-right: 2px;
 }
 
@@ -2801,11 +3042,11 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 
 .bill-item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 94px 120px;
-  gap: 10px;
+  grid-template-columns: minmax(86px, 1fr) minmax(86px, .9fr) 66px 82px minmax(152px, 1.2fr) 74px;
+  gap: 8px;
   align-items: center;
-  padding: 10px 10px;
-  border-radius: 14px;
+  padding: 8px 10px;
+  border-radius: 12px;
   background: $surface;
   border: 1px solid rgba(219,226,234,.85);
   min-width: 0;
@@ -2816,69 +3057,248 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   background: linear-gradient(180deg, rgba(255,255,255,.99) 0%, rgba($warning,.08) 150%);
 }
 
-.bill-left,
-.bill-mid,
-.bill-right {
+.bill-owner,
+.bill-bank,
+.bill-last4,
+.bill-repay,
+.bill-amount-edit,
+.bill-status {
   min-width: 0;
 }
 
-.bill-month { font-size: 13px; font-weight: 900; color: $ink; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bill-sub {
-  margin-top: 3px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11.5px;
-  color: $sub;
-  font-weight: 700;
+.bill-owner,
+.bill-bank {
   overflow: hidden;
+  color: $ink;
+  font-size: 12.5px;
+  font-weight: 900;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.bill-sub span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.bill-bank {
+  color: $ink2;
 }
-.bill-right { text-align: right; }
-.bill-amt { font-size: 13px; font-weight: 900; color: $ink; }
+
+.bill-last4,
+.bill-repay {
+  overflow: hidden;
+  color: $sub;
+  font-size: 11.5px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bill-amount-edit {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.bill-amount-symbol {
+  color: $sub;
+  font-size: 11.5px;
+  font-weight: 900;
+}
+
+.bill-amount-input {
+  width: 96px;
+}
+
+.bill-amount-input :deep(.el-input__wrapper) {
+  min-height: 26px;
+  padding: 0 7px;
+  border-radius: 8px;
+}
+
+.bill-amount-input :deep(.el-input__inner) {
+  font-size: 12px;
+  font-weight: 900;
+  color: $ink;
+  text-align: right;
+}
+
+.bill-save-btn {
+  min-width: 34px;
+  padding: 0;
+  font-weight: 900;
+}
+
+.bill-status {
+  display: flex;
+  justify-content: flex-end;
+}
 
 .scope-switch { display: flex; align-items: center; gap: 6px; }
 
+.scope-toggle {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border: 1px solid rgba(219,226,234,.9);
+  border-radius: 999px;
+  background: rgba(148,163,184,.10);
+}
+
+.scope-toggle button {
+  height: 24px;
+  min-width: 44px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: $sub;
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 900;
+  line-height: 24px;
+}
+
+.scope-toggle button.active {
+  background: $success;
+  color: #fff;
+  box-shadow: 0 4px 10px rgba($success,.18);
+}
+
+.profit-scope-toggle {
+  flex-shrink: 0;
+}
+
 .profit-kpi {
-  padding: 12px 12px;
-  border-radius: 16px;
+  padding: 5px 8px;
+  border-radius: 10px;
   border: 1px solid rgba(219,226,234,.85);
   background: linear-gradient(180deg, rgba(255,255,255,.99) 0%, rgba($primary,.03) 180%);
 }
 
-.pk-label { font-size: 11.5px; color: $sub; font-weight: 800; }
-.pk-value { margin-top: 8px; font-size: 26px; font-weight: 900; letter-spacing: -0.5px; }
+.pk-label { font-size: 10.5px; color: $sub; font-weight: 800; }
+.pk-value { margin-top: 2px; font-size: 18px; font-weight: 900; letter-spacing: 0; line-height: 1.05; }
 .pk-value.pos { color: $success; }
 .pk-value.neg { color: $danger; }
-.pk-sub { margin-top: 6px; font-size: 11.5px; color: $faint; font-weight: 700; }
+.pk-sub { margin-top: 1px; font-size: 10px; color: $faint; font-weight: 700; }
 
+.profit-net-grid,
 .profit-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
 }
 
 .profit-metric {
-  border-radius: 14px;
+  border-radius: 10px;
   border: 1px solid rgba(219,226,234,.75);
   background: rgba(148,163,184,.10);
-  padding: 10px 10px 9px;
+  padding: 6px 8px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
 }
 
-.pm-label { font-size: 11.5px; color: $sub; font-weight: 800; }
-.pm-value { font-size: 13px; font-weight: 900; color: $ink; }
+.pm-label { font-size: 10.5px; color: $sub; font-weight: 800; }
+.pm-value { font-size: 12px; font-weight: 900; color: $ink; }
 .pm-value.pos { color: $success; }
 .pm-value.warn { color: $warning; }
 .pm-value.neg { color: $danger; }
+
+.fee-pay-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 0;
+  padding: 6px 8px;
+  border: 1px solid rgba(219,226,234,.75);
+  border-radius: 10px;
+  background: rgba(255,255,255,.96);
+}
+
+.fee-pay-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  color: $ink;
+  font-size: 11.5px;
+  font-weight: 900;
+}
+
+.fee-pay-summary {
+  color: $sub;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.fee-pay-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 238px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.fee-pay-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: rgba(148,163,184,.08);
+}
+
+.fee-pay-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.fee-pay-title,
+.fee-pay-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fee-pay-title {
+  color: $ink;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.fee-pay-sub {
+  color: $faint;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.fee-pay-amount {
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.fee-pay-amount.pos {
+  color: $success;
+}
+
+.fee-pay-amount.warn {
+  color: $warning;
+}
+
+.fee-pay-empty {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $faint;
+  font-size: 12px;
+  font-weight: 800;
+}
 
 .font-mono {
   font-family: var(--font-mono), monospace;
@@ -2903,7 +3323,12 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 @media (max-width: 1280px) {
   .metrics-grid { min-width: 160px; }
   .metric-box { padding: 6px 7px; }
-  .bill-item { grid-template-columns: minmax(0, 1fr) 86px 110px; }
+  .bill-item {
+    grid-template-columns: minmax(80px, 1fr) minmax(76px, .9fr) 60px 70px minmax(130px, 1fr) 64px;
+    gap: 6px;
+    padding: 8px;
+  }
+  .bill-amount-input { width: 82px; }
   .profit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 </style>

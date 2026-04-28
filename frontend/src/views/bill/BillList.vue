@@ -3,21 +3,8 @@
     <div class="page-header">
       <div class="header-copy">
         <div class="header-title-row">
-          <div class="header-title">账单管理</div>
+          <div class="header-title">账单信息</div>
           <span v-if="detailModeMessage" class="detail-mode-chip">明细模式</span>
-        </div>
-        <div class="header-subtitle">{{ currentScopeLabel }} · 极致一屏压缩布局</div>
-      </div>
-
-      <div class="header-stat-row" v-loading="overviewLoading">
-        <div v-for="item in summaryCards" :key="item.label" class="header-stat">
-          <div class="header-stat-icon" :style="{ background: item.iconBg, color: item.iconColor }">
-            <el-icon :size="15"><component :is="item.icon" /></el-icon>
-          </div>
-          <div class="header-stat-body">
-            <span class="header-stat-value" :class="item.className">{{ item.value }}</span>
-            <span class="header-stat-label">{{ item.label }}</span>
-          </div>
         </div>
       </div>
 
@@ -62,29 +49,14 @@
           <el-option label="已支付" :value="true" />
           <el-option label="未支付" :value="false" />
         </el-select>
-      </div>
-
-      <div class="app-search-extra">
-        <span class="app-search-meta">共 {{ total }} 条账单记录</span>
-        <span v-if="billScopeLabel" class="app-search-meta">账单时间：{{ billScopeLabel }}</span>
-        <span class="app-search-meta">筛选条件变化后自动刷新列表</span>
-        <span v-if="detailModeMessage" class="app-search-meta">{{ detailModeMessage }}</span>
         <div class="app-search-actions">
+          <el-button v-if="detailModeMessage" link type="primary" @click="clearRouteFilters">查看全部</el-button>
           <el-button class="app-search-btn" @click="handleResetAll">重置</el-button>
         </div>
       </div>
-    </div>
 
-    <div class="workspace-grid">
-      <aside class="side-panel card-shell">
-        <div class="panel-head">
-          <div>
-            <div class="panel-title">状态分区</div>
-            <div class="panel-desc">按账单状态快速切换</div>
-          </div>
-        </div>
-
-        <div class="menu-list">
+      <div class="app-search-extra quick-menu-bar">
+        <div class="menu-list menu-list-inline">
           <button
             v-for="item in quickMenus"
             :key="item.key"
@@ -98,34 +70,32 @@
             <span class="menu-count">{{ item.count }}</span>
           </button>
         </div>
-      </aside>
+      </div>
+    </div>
 
+    <div class="workspace-grid">
       <section class="data-panel card-shell">
         <div class="panel-head data-head">
           <div>
             <div class="panel-title">账单数据区</div>
-            <div class="panel-desc">{{ currentScopeLabel }} · 展开后可维护账单明细</div>
-          </div>
-          <div class="inline-summary">
-            <span>账单 {{ billOverview.billCount }}</span>
-            <span>待还 {{ billOverview.pendingCount }}</span>
-            <span>利润 {{ formatMoney(billOverview.totalNetProfit) }}</span>
           </div>
         </div>
 
         <PageTable
           ref="billTableRef"
           class="bill-page-table"
-          :class="{ 'single-card-annual-table': singleCardAnnualMode }"
-          :data="sortedList"
+          :class="{
+            'single-card-annual-table': singleCardAnnualMode,
+            'bill-page-table-scrollable': isBillTableScrollable
+          }"
+          :data="tableDisplayList"
           :loading="loading"
           :total="total"
           :page-num="query.pageNum"
-          :page-size="query.pageSize"
-          :page-sizes="[SINGLE_CARD_ANNUAL_PAGE_SIZE, 20, 50, ANNUAL_PAGE_SIZE]"
+          :page-size="safeBillPageSize"
           :height="billTableHeight"
-          :show-pagination="showBillPagination"
-          pagination-layout="total, prev, pager, next"
+          :empty-text="loading ? ' ' : '暂无数据'"
+          :show-pagination="false"
           border
           row-key="id"
           :expand-row-keys="expandedRowKeys"
@@ -238,6 +208,16 @@
                         <div class="detail-pane-title">
                           <span>支出</span>
                           <el-tag type="danger" size="small" effect="light">{{ detailTypeTotalCount(row.id, DETAIL_TYPE_VALUE.EXPENSE) }}</el-tag>
+                          <div class="detail-verify-switch" @click.stop>
+                            <span>明细核实</span>
+                            <el-switch
+                              :model-value="Boolean(row.expenseVerified)"
+                              :loading="savingId === row.id"
+                              active-text="已核实"
+                              inactive-text="未核实"
+                              @change="(val: any) => handleExpenseVerifiedChange(row, Boolean(val))"
+                            />
+                          </div>
                         </div>
                         <span class="detail-pane-sub">右侧展示支出</span>
                       </div>
@@ -304,7 +284,7 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="持卡人" width="70" align="center" header-align="center">
+      <el-table-column label="持卡人" width="96" align="center" header-align="center">
         <template #default="{ row }">
           <div class="owner-cell">
             <el-button
@@ -314,7 +294,7 @@
               class="row-action-btn detail-toggle-btn owner-expand-btn"
               :loading="pendingExpandBillId === row.id"
               :class="{ expanded: currentExpandedRow?.id === row.id }"
-              :title="currentExpandedRow?.id === row.id ? '鏀惰捣鏄庣粏' : '灞曞紑鏄庣粏'"
+              :title="currentExpandedRow?.id === row.id ? '收起明细' : '展开明细'"
               @click.stop="toggleBillDetail(row)"
             >
               <el-icon :size="14"><ArrowRight /></el-icon>
@@ -326,74 +306,62 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="bankName" label="银行/尾号" width="116" align="center" header-align="center">
+      <el-table-column prop="bankName" label="银行/尾号" width="150" align="center" header-align="center">
         <template #default="{ row }">
-          <div class="bank-cell bank-card-cell">
-            <div class="bank-line">
-              <el-icon :size="13" color="#67c23a"><CreditCard /></el-icon>
-              <span>{{ displayBankName(row.bankName) }}</span>
-            </div>
-            <span class="card-no-badge">{{ row.cardNoLast4 }}</span>
+          <div class="bank-inline-cell" :title="bankCardText(row)">
+            <el-icon :size="13" color="#67c23a"><CreditCard /></el-icon>
+            <span class="bank-inline-name">{{ displayBankName(row.bankName) }}</span>
+            <span class="bank-inline-last4">尾号{{ row.cardNoLast4 || '-' }}</span>
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="billMonth" label="月份" width="66" align="center">
+      <el-table-column prop="billMonth" label="年份" width="64" align="center">
         <template #default="{ row }">
-          <el-tag type="primary" size="small" effect="light">{{ row.billMonth }}</el-tag>
+          <span class="year-cell">{{ billYearLabel(row.billMonth) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="日期" width="96" align="center" header-align="center">
+      <el-table-column label="账单日期" width="88" align="center" header-align="center">
         <template #default="{ row }">
-          <div class="table-stack table-stack-center">
-            <span class="table-stack-line">账 {{ billPeriodLabel(row.billMonth, row.billDay) }}</span>
-            <span class="table-stack-line">还 {{ row.repayDate ? fmtRepayDate(row.repayDate) : '-' }}</span>
-          </div>
+          <span class="date-cell">{{ billDateLabel(row.billMonth, row.billDay) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="代还" width="72" align="center" header-align="center">
+      <el-table-column label="还款日期" width="88" align="center" header-align="center">
+        <template #default="{ row }">
+          <span class="date-cell">{{ repayDateLabel(row.repayDate) }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="账单金额" width="88" align="center" header-align="center">
         <template #default="{ row }">
           <div class="amount-cell">
             <span class="amount-value">{{ formatMoney(row.billAmount) }}</span>
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="费率" width="50" align="center">
+      <el-table-column label="费率" width="54" align="center">
         <template #default="{ row }">
           <span class="fee-rate-badge">{{ formatRate(row.feeRate) }}%</span>
         </template>
       </el-table-column>
-      <el-table-column label="手续费" width="108" align="center" header-align="center">
+      <el-table-column label="手续费" width="88" align="center" header-align="center">
         <template #default="{ row }">
-          <div class="table-stack table-stack-center">
-            <span class="table-stack-line amt-pos amount-value">{{ formatMoney(row.feeAmount) }}</span>
-            <span class="table-stack-line">
-              <el-tag v-if="row.feePaid" type="success" size="small" effect="light">已付</el-tag>
-              <el-tag v-else type="info" size="small" effect="plain">未付</el-tag>
-            </span>
-          </div>
+          <span class="amount-value amt-pos">{{ formatMoney(row.feeAmount) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="收益" width="110" align="center" header-align="center">
+      <el-table-column label="手续费支付" width="86" align="center" header-align="center">
         <template #default="{ row }">
-          <div class="table-stack table-stack-center">
-            <span class="table-stack-line amt-neg amount-value">POS {{ formatMoney(row.posCostAmount) }}</span>
-            <span class="table-stack-line amount-value" :class="Number(row.netProfit || 0) >= 0 ? 'amt-pos' : 'amt-neg'">利 {{ formatMoney(row.netProfit) }}</span>
-          </div>
+          <el-tag v-if="row.feePaid" class="fee-paid-tag" type="success" size="small" effect="light">已支付</el-tag>
+          <el-tag v-else class="fee-paid-tag" type="warning" size="small" effect="plain">未支付</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="状态" width="102" align="center" header-align="center">
+      <el-table-column label="是否核实" width="78" align="center" header-align="center">
         <template #default="{ row }">
-          <div class="table-stack table-stack-center">
-            <span class="table-stack-line">
-              <el-tag v-if="appLabel(row.repayMethod)" :type="appTagType(row.repayMethod)" size="small" effect="light">
-                {{ appLabel(row.repayMethod) }}
-              </el-tag>
-              <span v-else class="no-data">-</span>
-            </span>
-            <span class="table-stack-line">
-              <StatusTag :value="row.status" :label-map="BILL_STATUS_MAP" :type-map="BILL_STATUS_TAG_TYPE" />
-            </span>
-          </div>
+          <el-tag v-if="row.verified" class="verify-tag" type="success" size="small" effect="light">已核实</el-tag>
+          <el-tag v-else class="verify-tag" type="warning" size="small" effect="plain">未核实</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="状态" width="78" align="center" header-align="center">
+        <template #default="{ row }">
+          <StatusTag :value="row.status" :label-map="BILL_LIST_STATUS_MAP" :type-map="BILL_STATUS_TAG_TYPE" size="small" />
         </template>
       </el-table-column>
       <el-table-column label="操作" width="92" align="center">
@@ -425,55 +393,26 @@
         </template>
       </el-table-column>
         </PageTable>
+
+        <div v-if="showBillPagination && total > 0" class="bill-pagination">
+          <div class="pagination-meta">
+            <span>一共 {{ total }} 条</span>
+            <span>第 {{ query.pageNum }} / {{ totalPages }} 页</span>
+            <span>一页 {{ safeBillPageSize }} 条</span>
+          </div>
+          <el-pagination
+            background
+            small
+            :current-page="query.pageNum"
+            :page-size="safeBillPageSize"
+            :page-sizes="billPageSizeOptions"
+            :total="total"
+            layout="sizes, prev, pager, next, jumper"
+            @current-change="handleCurrentChange"
+            @size-change="handleSizeChange"
+          />
+        </div>
       </section>
-
-      <aside class="action-panel card-shell">
-        <div v-if="detailModeMessage" class="side-card detail-mode-card">
-          <div class="side-card-title">当前模式</div>
-          <div class="detail-mode-text">{{ detailModeMessage }}</div>
-          <el-button type="primary" link @click="clearRouteFilters">查看全部账单</el-button>
-        </div>
-
-        <div class="side-card">
-          <div class="side-card-title">快捷操作</div>
-          <div class="action-stack">
-            <el-button type="primary" :icon="RefreshRight" @click="refresh">刷新</el-button>
-            <el-button @click="handleResetAll">重置</el-button>
-            <el-button v-if="detailModeMessage" @click="clearRouteFilters">全部</el-button>
-          </div>
-        </div>
-
-        <div class="side-card">
-          <div class="side-card-title">当前视图</div>
-          <div class="summary-list">
-            <div class="summary-item">
-              <span>范围</span>
-              <strong>{{ currentScopeLabel }}</strong>
-            </div>
-            <div class="summary-item">
-              <span>账单</span>
-              <strong>{{ billOverview.billCount }}</strong>
-            </div>
-            <div class="summary-item">
-              <span>待还</span>
-              <strong>{{ billOverview.pendingCount }}</strong>
-            </div>
-            <div class="summary-item">
-              <span>利润</span>
-              <strong :class="billOverview.totalNetProfit >= 0 ? 'amt-pos' : 'amt-neg'">{{ formatMoney(billOverview.totalNetProfit) }}</strong>
-            </div>
-          </div>
-        </div>
-
-        <div class="side-card">
-          <div class="side-card-title">快捷键</div>
-          <div class="shortcut-list">
-            <div class="shortcut-item"><span>保存</span><kbd>Ctrl+S</kbd></div>
-            <div class="shortcut-item"><span>新增明细</span><kbd>Ctrl+N</kbd></div>
-            <div class="shortcut-item"><span>关闭弹窗</span><kbd>ESC</kbd></div>
-          </div>
-        </div>
-      </aside>
     </div>
 
     <el-dialog v-model="billEditDialogVisible" title="编辑账单" width="480px" destroy-on-close>
@@ -525,6 +464,14 @@
               active-text="已付"
               inactive-text="未付"
               @update:model-value="(val:any) => updateEditField(billEditRowId, 'feePaid', val)"
+            />
+          </el-form-item>
+          <el-form-item label="是否核实">
+            <el-switch
+              :model-value="editFormMap[billEditRowId]?.verified"
+              active-text="已核实"
+              inactive-text="未核实"
+              @update:model-value="(val:any) => updateEditField(billEditRowId, 'verified', val)"
             />
           </el-form-item>
           <el-form-item label="手续费率">
@@ -580,7 +527,7 @@ defineOptions({ name: 'Bills' })
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, ArrowRight, UserFilled, CreditCard, Money, Delete, Wallet, TrendCharts, RefreshRight, Edit, Document } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowRight, UserFilled, CreditCard, Delete, RefreshRight, Edit } from '@element-plus/icons-vue'
 import PageTable from '@/components/PageTable/index.vue'
 import StatusTag from '@/components/StatusTag/index.vue'
 import ExportButton from '@/components/ExportButton/index.vue'
@@ -604,12 +551,9 @@ import {
 import { formatMoney, formatRate, toNumber } from '@/utils/formatters'
 import {
   BILL_STATUS_OPTIONS,
-  BILL_STATUS_MAP,
   BILL_STATUS_TAG_TYPE,
   DETAIL_TYPE_VALUE,
-  DETAIL_TYPE_OPTIONS,
-  APP_MAP,
-  APP_TAG_TYPE
+  DETAIL_TYPE_OPTIONS
 } from '@/constants/dict'
 
 interface BillRow {
@@ -628,8 +572,9 @@ interface BillRow {
   posCostAmount: number | null
   netProfit: number | null
   status: number
+  verified?: boolean | null
+  expenseVerified?: boolean | null
   remark?: string
-  repayMethod?: string
 }
 
 interface EditFormItem {
@@ -639,6 +584,7 @@ interface EditFormItem {
   posCostAmount: number
   repayDay: number | null
   feePaid: boolean
+  verified: boolean
   feeAmount: string
   netProfit: string
 }
@@ -678,19 +624,15 @@ const currentYear = now.getFullYear()
 const currentMonthNumber = now.getMonth() + 1
 const currentMonth = `${currentYear}-${String(currentMonthNumber).padStart(2, '0')}`
 const SINGLE_CARD_ANNUAL_PAGE_SIZE = 12
-const ANNUAL_PAGE_SIZE = 100
+const DEFAULT_BILL_PAGE_SIZE = 18
 const DETAIL_PREFETCH_DELAY = 80
 const DETAIL_PREFETCH_CONCURRENCY = 2
 const DETAIL_PREFETCH_ANNUAL_LIMIT = 20
-
-function appLabel(value?: string) {
-  if (value === 'invoice') return APP_MAP['other'] || '其他'
-  return value ? APP_MAP[value] : ''
-}
-
-function appTagType(value?: string) {
-  const normalized = value === 'invoice' ? 'other' : value
-  return normalized ? (APP_TAG_TYPE[normalized] || 'info') : 'info'
+const BILL_LIST_STATUS_MAP: Record<number, string> = {
+  0: '未还',
+  1: '已还款',
+  2: '部分',
+  3: '逾期'
 }
 
 function createDebouncedTask(fn: () => void, delay = 300) {
@@ -721,14 +663,14 @@ const {
   loadData,
   handleSearch,
   resetQuery,
-  handleCurrentChange,
-  handleSizeChange,
+  handleCurrentChange: handleTableCurrentChange,
+  handleSizeChange: handleTableSizeChange,
   refresh,
   refreshFirstPage
 } = usePageTable({
   fetchApi: getBillPageApi,
   defaultQuery: {
-    pageSize: 20,
+    pageSize: DEFAULT_BILL_PAGE_SIZE,
     cardId: undefined as any,
     ownerId: undefined as any,
     ownerName: '',
@@ -752,7 +694,6 @@ const {
   }
 })
 
-const overviewLoading = ref(false)
 const billTableRef = ref<any>(null)
 const billOverview = ref<BillOverview>({
   year: undefined,
@@ -769,8 +710,15 @@ const billOverview = ref<BillOverview>({
 
 const billScopeLabel = computed(() => formatBillRangeLabel(query.startBillMonth, query.endBillMonth))
 const singleCardAnnualMode = computed(() => isSingleCardAnnualScope(query))
-const billTableHeight = computed(() => singleCardAnnualMode.value ? undefined : 'calc(100% - 40px)')
-const showBillPagination = computed(() => !singleCardAnnualMode.value || total.value > SINGLE_CARD_ANNUAL_PAGE_SIZE)
+const safeBillPageSize = computed(() => Number(query.pageSize || 0) || DEFAULT_BILL_PAGE_SIZE)
+const isBillTableScrollable = computed(() => safeBillPageSize.value > defaultPageSizeForScope(query))
+const billTableHeight = computed(() => '100%')
+const showBillPagination = computed(() => true)
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / safeBillPageSize.value)))
+const billPageSizeOptions = computed(() => {
+  return Array.from(new Set([SINGLE_CARD_ANNUAL_PAGE_SIZE, 15, DEFAULT_BILL_PAGE_SIZE, 20, 30, safeBillPageSize.value].filter((size) => Number(size) > 0)))
+    .sort((a, b) => Number(a) - Number(b))
+})
 const triggerBillSearch = createDebouncedTask(() => {
   submitBillSearch()
 }, 300)
@@ -786,56 +734,6 @@ const detailModeMessage = computed(() => {
     return scopeText ? `当前为持卡人/子用户账单模式，已定位到 ${scopeText}。` : '当前为持卡人/子用户账单模式。'
   }
   return ''
-})
-
-const currentScopeLabel = computed(() => {
-  if (billScopeLabel.value) return `${billScopeLabel.value}账单`
-  return '全部账单'
-})
-
-const summaryCards = computed(() => {
-  return [
-    {
-      label: '账单',
-      value: String(billOverview.value.billCount),
-      className: '',
-      icon: Document,
-      iconBg: '#eaf2ff',
-      iconColor: '#0958d9'
-    },
-    {
-      label: '代还',
-      value: `¥${formatMoney(billOverview.value.totalBillAmount)}`,
-      className: '',
-      icon: Wallet,
-      iconBg: '#edf7ff',
-      iconColor: '#0ea5e9'
-    },
-    {
-      label: '手续费',
-      value: `¥${formatMoney(billOverview.value.totalFeeAmount)}`,
-      className: 'amt-pos',
-      icon: Money,
-      iconBg: '#e8f7ed',
-      iconColor: '#2f9e44'
-    },
-    {
-      label: 'POS',
-      value: `¥${formatMoney(billOverview.value.totalPosCostAmount)}`,
-      className: 'amt-neg',
-      icon: CreditCard,
-      iconBg: '#fdebec',
-      iconColor: '#cf1322'
-    },
-    {
-      label: '利润',
-      value: `¥${formatMoney(billOverview.value.totalNetProfit)}`,
-      className: billOverview.value.totalNetProfit >= 0 ? 'amt-pos' : 'amt-neg',
-      icon: TrendCharts,
-      iconBg: billOverview.value.totalNetProfit >= 0 ? '#e8f7ed' : '#fdebec',
-      iconColor: billOverview.value.totalNetProfit >= 0 ? '#2f9e44' : '#cf1322'
-    }
-  ]
 })
 
 const quickMenus = computed(() => [
@@ -891,14 +789,15 @@ function isSingleCardAnnualScope(params: any) {
   return isAnnualBillScope(params) && Number(params?.cardId || 0) > 0 && !Number(params?.ownerId || 0)
 }
 
+function defaultPageSizeForScope(params: any) {
+  return isSingleCardAnnualScope(params) ? SINGLE_CARD_ANNUAL_PAGE_SIZE : DEFAULT_BILL_PAGE_SIZE
+}
+
 function resolveBillPageSize(params: any) {
   if (isSingleCardAnnualScope(params)) {
     return SINGLE_CARD_ANNUAL_PAGE_SIZE
   }
-  if (isAnnualBillScope(params)) {
-    return Math.max(Number(params?.pageSize || 0), ANNUAL_PAGE_SIZE)
-  }
-  return Number(params?.pageSize || 0) || 20
+  return Number(params?.pageSize || 0) || defaultPageSizeForScope(params)
 }
 
 function syncBillMonthQuery() {
@@ -948,8 +847,28 @@ const sortedList = computed<BillRow[]>(() => {
   })
 })
 
+const tableDisplayList = computed<BillRow[]>(() => loading.value ? [] : sortedList.value)
+
 function billRowClassName({ row }: { row: BillRow }) {
   return row?.billMonth === currentMonth ? 'current-month-row' : ''
+}
+
+function resetBillTableTransientState() {
+  cancelDetailPrefetch()
+  expandRequestToken += 1
+  pendingExpandBillId.value = null
+  currentExpandedRow.value = null
+  nextTick(scheduleBillTableLayout)
+}
+
+function handleCurrentChange(pageNum: number) {
+  resetBillTableTransientState()
+  handleTableCurrentChange(pageNum)
+}
+
+function handleSizeChange(pageSize: number) {
+  resetBillTableTransientState()
+  handleTableSizeChange(pageSize)
 }
 
 function applyQuickMenu(status?: number) {
@@ -978,10 +897,15 @@ function buildExportParams() {
   }
 }
 
+function buildOverviewParams() {
+  const params = buildExportParams()
+  delete (params as any).status
+  return params
+}
+
 async function fetchBillOverview() {
-  overviewLoading.value = true
   try {
-    const res: any = await getBillOverviewApi(buildExportParams())
+    const res: any = await getBillOverviewApi(buildOverviewParams())
     billOverview.value = {
       year: res.data?.year != null ? Number(res.data.year) : undefined,
       billCount: Number(res.data?.billCount ?? 0),
@@ -994,8 +918,8 @@ async function fetchBillOverview() {
       totalPosCostAmount: Number(res.data?.totalPosCostAmount ?? 0),
       totalNetProfit: Number(res.data?.totalNetProfit ?? 0)
     }
-  } finally {
-    overviewLoading.value = false
+  } catch (error) {
+    console.error('加载账单概览失败:', error)
   }
 }
 
@@ -1085,6 +1009,7 @@ function ensureEditForm(row: BillRow) {
       posCostAmount: toNumber(row.posCostAmount),
       repayDay: parseRepayDay(row.repayDate),
       feePaid: row.feePaid ?? false,
+      verified: Boolean(row.verified),
       feeAmount: '0.00',
       netProfit: '0.00'
     }
@@ -1381,10 +1306,11 @@ async function handleSaveDetail() {
   }
   detailSaving.value = true
   try {
-    if (detailForm.id) {
-      await updateDetailApi(detailForm)
+    const payload = { ...detailForm }
+    if (payload.id) {
+      await updateDetailApi(payload)
     } else {
-      await saveDetailApi(detailForm)
+      await saveDetailApi(payload)
     }
     ElMessage.success('操作成功')
     detailDialogVisible.value = false
@@ -1478,30 +1404,54 @@ function updateEditField(billId: number, field: string, value: any) {
   }
 }
 
+function buildBillUpdatePayload(row: BillRow, form: EditFormItem, overrides: Record<string, any> = {}) {
+  const rowData = row as any
+  return {
+    id: row.id,
+    cardId: row.cardId,
+    ownerId: rowData.ownerId,
+    billMonth: row.billMonth,
+    billDay: form.billDay,
+    repayDay: form.repayDay,
+    billAmount: toNumber(form.billAmount),
+    minPayAmount: toNumber(rowData.minPayAmount),
+    actualPayAmount: toNumber(rowData.actualPayAmount),
+    actualPayDate: rowData.actualPayDate,
+    feeRate: row.feeRate,
+    feePaid: form.feePaid,
+    verified: form.verified,
+    expenseVerified: Boolean(row.expenseVerified),
+    posCostAmount: toNumber(form.posCostAmount),
+    status: row.status,
+    remark: row.remark || '',
+    ...overrides
+  }
+}
+
+async function handleExpenseVerifiedChange(row: BillRow, expenseVerified: boolean) {
+  const form = ensureEditForm(row)
+  const previous = Boolean(row.expenseVerified)
+  row.expenseVerified = expenseVerified
+  savingId.value = row.id
+  try {
+    await updateBillApi(buildBillUpdatePayload(row, form, { expenseVerified }))
+    row.expenseVerified = expenseVerified
+    ElMessage.success(expenseVerified ? '支出明细已标记为已核实' : '支出明细已标记为未核实')
+  } catch (error) {
+    row.expenseVerified = previous
+    handleError(error, '更新支出明细核实状态')
+  } finally {
+    savingId.value = null
+  }
+}
+
 async function handleInlineSave(row: BillRow) {
   const form = editFormMap.value[row.id]
   if (!form) return
   savingId.value = row.id
   let saved = false
   try {
-    const rowData = row as any
-    await updateBillApi({
-      id: row.id,
-      cardId: row.cardId,
-      ownerId: rowData.ownerId,
-      billMonth: row.billMonth,
-      billDay: form.billDay,
-      repayDay: form.repayDay,
-      billAmount: toNumber(form.billAmount),
-      minPayAmount: toNumber(rowData.minPayAmount),
-      actualPayAmount: toNumber(rowData.actualPayAmount),
-      actualPayDate: rowData.actualPayDate,
-      feeRate: row.feeRate,
-      feePaid: form.feePaid,
-      posCostAmount: toNumber(form.posCostAmount),
-      status: row.status,
-      remark: row.remark || ''
-    })
+    await updateBillApi(buildBillUpdatePayload(row, form))
 
     ElMessage.success(`保存成功，净利润 ¥${form.netProfit}`)
     handleSearch()
@@ -1626,15 +1576,29 @@ function parseRepayDay(repayDate: string | null | undefined) {
   return parts[2] ? Number(parts[2]) : null
 }
 
-function fmtRepayDate(date: string) {
-  const match = String(date).match(/(\d{4})-(\d{2})-(\d{2})/)
-  return match ? `${Number(match[2])}月${Number(match[3])}日` : date
+function padMonthDay(value: number | string | null | undefined) {
+  const num = Number(value)
+  return Number.isFinite(num) && num > 0 ? String(num).padStart(2, '0') : ''
 }
 
-function billPeriodLabel(billMonth: string | null | undefined, billDay: number | null | undefined) {
-  if (!billMonth || !billDay) return '-'
-  const month = Number(String(billMonth).split('-')[1] || 0)
-  return `${month}月${billDay}日`
+function billYearLabel(billMonth: string | null | undefined) {
+  return parseBillMonthParts(billMonth)?.year || '-'
+}
+
+function billDateLabel(billMonth: string | null | undefined, billDay: number | null | undefined) {
+  const parts = parseBillMonthParts(billMonth)
+  const day = padMonthDay(billDay)
+  if (!parts || !day) return '-'
+  return `${padMonthDay(parts.month)}月${day}日`
+}
+
+function repayDateLabel(date: string | null | undefined) {
+  const match = String(date || '').match(/(\d{4})-(\d{2})-(\d{2})/)
+  return match ? `${match[2]}月${match[3]}日` : '-'
+}
+
+function bankCardText(row: BillRow) {
+  return `${displayBankName(row.bankName)} 尾号${row.cardNoLast4 || '-'}`
 }
 
 function displayBankName(name: string | null | undefined) {
@@ -1694,11 +1658,18 @@ watch(
     triggerBillSearch.cancel()
     const previousSyncState = syncingBillFilters
     syncingBillFilters = true
-    const [routeStartBillMonth, routeEndBillMonth] = normalizeRouteBillRange(startBillMonth, endBillMonth, year, billMonth)
-    query.cardId = toRouteNumber(cardId) as any
-    query.ownerId = toRouteNumber(ownerId) as any
+    const routeCardId = toRouteNumber(cardId)
+    const routeOwnerId = toRouteNumber(ownerId)
+    let [routeStartBillMonth, routeEndBillMonth] = normalizeRouteBillRange(startBillMonth, endBillMonth, year, billMonth)
+    if (routeCardId && !routeOwnerId && !routeStartBillMonth && !routeEndBillMonth) {
+      routeStartBillMonth = `${currentYear}-01`
+      routeEndBillMonth = `${currentYear}-12`
+    }
+    query.cardId = routeCardId as any
+    query.ownerId = routeOwnerId as any
     query.status = toRouteBillStatus(status) as any
     applyBillMonthRange(routeStartBillMonth, routeEndBillMonth)
+    query.pageSize = defaultPageSizeForScope(query)
     syncingBillFilters = previousSyncState
     currentExpandedRow.value = null
     if (skipRouteDrivenSearch) {
@@ -1714,9 +1685,9 @@ watch(
 <style scoped>
 .bill-page {
   --bill-gap: 6px;
-  --bill-font-size: clamp(10px, 0.56vw, 12px);
-  --bill-small-font-size: clamp(9px, 0.5vw, 11px);
-  --bill-title-size: clamp(13px, 0.74vw, 16px);
+  --bill-font-size: 12px;
+  --bill-small-font-size: 11px;
+  --bill-title-size: 15px;
   display: flex;
   flex-direction: column;
   gap: var(--bill-gap);
@@ -1773,7 +1744,7 @@ watch(
 
 .page-header {
   display: grid;
-  grid-template-columns: minmax(140px, 0.72fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--bill-gap);
   padding: 6px 8px;
@@ -1784,8 +1755,7 @@ watch(
   flex-shrink: 0;
 }
 
-.header-copy,
-.header-stat-body {
+.header-copy {
   min-width: 0;
 }
 
@@ -1813,57 +1783,6 @@ watch(
   font-weight: 600;
 }
 
-.header-subtitle {
-  margin-top: 2px;
-  font-size: var(--bill-small-font-size);
-  line-height: 1.25;
-  color: #8a94a6;
-  white-space: normal;
-  word-break: break-word;
-}
-
-.header-stat-row {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 5px;
-  min-width: 0;
-}
-
-.header-stat {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 7px;
-  background: #fff;
-  border: 1px solid #e5eaf1;
-  border-radius: 9px;
-  min-width: 0;
-}
-
-.header-stat-icon {
-  width: 24px;
-  height: 24px;
-  border-radius: 7px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.header-stat-value {
-  font-size: clamp(12px, 0.72vw, 14px);
-  line-height: 1;
-  font-weight: 700;
-  color: #1f2a37;
-  word-break: break-all;
-}
-
-.header-stat-label {
-  margin-top: 1px;
-  font-size: var(--bill-small-font-size);
-  color: #7c8799;
-}
-
 .header-actions {
   display: flex;
   align-items: center;
@@ -1883,21 +1802,80 @@ watch(
   border-radius: 8px;
 }
 
+.bill-search-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-shrink: 0;
+  gap: 6px 10px;
+  padding: 6px 8px;
+}
+
+.bill-search-panel .app-search-main {
+  gap: 6px;
+}
+
+.bill-search-panel .app-search-extra,
+.bill-search-panel .app-search-actions {
+  gap: 6px;
+}
+
+.bill-search-panel .app-search-title {
+  min-height: 28px;
+  font-size: 11px;
+}
+
+.bill-search-panel .app-search-actions {
+  margin-left: auto;
+}
+
+.quick-menu-bar {
+  align-items: stretch;
+  justify-content: flex-start;
+  padding-top: 4px;
+  border-top: 1px dashed #e5eaf1;
+}
+
+.bill-search-panel .app-search-btn {
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-search-panel :deep(.el-input__wrapper),
+.bill-search-panel :deep(.el-select__wrapper),
+.bill-search-panel :deep(.el-date-editor.el-input__wrapper),
+.bill-search-panel :deep(.el-date-editor .el-input__wrapper) {
+  min-height: 28px;
+  border-radius: 8px;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-search-panel :deep(.el-input__inner),
+.bill-search-panel :deep(.el-select__selected-item),
+.bill-search-panel :deep(.el-range-input),
+.bill-search-panel :deep(.el-input-number__input),
+.bill-search-panel :deep(.el-date-editor .el-range-separator) {
+  font-size: 12px;
+}
+
 .workspace-grid {
   display: grid;
-  grid-template-columns: 100px minmax(0, 1fr) 120px;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--bill-gap);
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 
-.side-panel,
-.action-panel,
 .data-panel {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 6px;
+  padding: 4px;
+  overflow: hidden;
 }
 
 .panel-head {
@@ -1910,7 +1888,7 @@ watch(
 }
 
 .panel-title {
-  font-size: clamp(11px, 0.62vw, 13px);
+  font-size: 13px;
   font-weight: 700;
   color: #1f2a37;
   line-height: 1.15;
@@ -1927,81 +1905,78 @@ watch(
 
 .menu-list {
   display: grid;
-  gap: 5px;
+  gap: 3px;
+  overflow: hidden;
+}
+
+.menu-list-inline {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
 }
 
 .menu-item {
   display: grid;
-  grid-template-columns: 7px minmax(0, 1fr) auto;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 5px;
-  min-height: 32px;
-  padding: 5px 8px;
-  border: 1px solid #e7edf4;
-  border-radius: 9px;
-  background: #f8fafc;
-  color: #435266;
+  gap: 6px;
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(218, 226, 236, 0.92);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(248,250,253,0.97) 100%);
+  color: #55657b;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: 0 6px 16px rgba(15,23,42,0.05);
 }
 
 .menu-item:hover {
-  border-color: #b9c7d8;
-  background: #f2f6fb;
+  transform: translateY(-1px);
+  border-color: rgba(180, 206, 255, 0.92);
+  box-shadow: 0 10px 18px rgba(15,23,42,0.07);
 }
 
 .menu-item.active {
-  border-color: #b4ceff;
-  background: #eaf2ff;
+  transform: translateY(-1px);
+  border-color: transparent;
+  background: linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(234,242,255,0.95) 160%);
   color: #0958d9;
-  box-shadow: inset 0 0 0 1px rgba(9, 88, 217, 0.04);
+  box-shadow: inset 0 0 0 1.5px rgba(180, 206, 255, 0.85), 0 12px 22px rgba(15,23,42,0.08);
 }
 
 .menu-dot {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
 }
 
 .menu-label {
-  text-align: left;
-  font-size: var(--bill-font-size);
-  font-weight: 600;
-  line-height: 1.15;
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
-  word-break: break-word;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .menu-count {
-  min-width: 18px;
-  min-height: 18px;
+  min-width: 20px;
+  height: 20px;
   padding: 0 4px;
   border-radius: 999px;
-  background: rgba(9, 88, 217, 0.08);
+  background: rgba(9, 88, 217, 0.1);
   color: inherit;
-  font-size: var(--bill-small-font-size);
-  line-height: 18px;
+  font-size: 11px;
+  line-height: 20px;
   text-align: center;
 }
 
 .data-head {
   align-items: flex-start;
-}
-
-.inline-summary {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 7px;
-  min-height: 24px;
-  border-radius: 8px;
-  background: #f5f8fc;
-  color: #667085;
-  font-size: var(--bill-small-font-size);
-  white-space: normal;
-  flex-wrap: wrap;
 }
 
 .bill-page-table {
@@ -2018,9 +1993,9 @@ watch(
 }
 
 .bill-page-table.single-card-annual-table {
-  flex: 0 0 auto;
-  min-height: auto;
-  overflow: visible;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /*noinspection CssUnusedSymbol*/
@@ -2150,51 +2125,14 @@ watch(
 .bill-page-table :deep(.el-table__body-wrapper),
 .bill-page-table :deep(.el-scrollbar__wrap) {
   overflow-x: hidden !important;
+  overflow-y: hidden !important;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-page-table.bill-page-table-scrollable :deep(.el-table__body-wrapper),
+.bill-page-table.bill-page-table-scrollable :deep(.el-scrollbar__wrap) {
+  overflow-x: hidden !important;
   overflow-y: auto !important;
-}
-
-/*noinspection CssUnusedSymbol*/
-.bill-page-table.single-card-annual-table :deep(.el-table),
-.bill-page-table.single-card-annual-table :deep(.el-table__inner-wrapper),
-.bill-page-table.single-card-annual-table :deep(.el-table__body-wrapper),
-.bill-page-table.single-card-annual-table :deep(.el-scrollbar),
-.bill-page-table.single-card-annual-table :deep(.el-scrollbar__wrap),
-.bill-page-table.single-card-annual-table :deep(.el-scrollbar__view) {
-  height: auto !important;
-  max-height: none !important;
-}
-
-/*noinspection CssUnusedSymbol*/
-.bill-page-table.single-card-annual-table :deep(.el-table),
-.bill-page-table.single-card-annual-table :deep(.el-table__body-wrapper),
-.bill-page-table.single-card-annual-table :deep(.el-scrollbar__wrap) {
-  overflow: visible !important;
-}
-
-/*noinspection CssUnusedSymbol*/
-.bill-page-table.single-card-annual-table :deep(.el-table th.el-table__cell) {
-  padding: 3px 2px;
-}
-
-/*noinspection CssUnusedSymbol*/
-.bill-page-table.single-card-annual-table :deep(.el-table td.el-table__cell) {
-  padding: 2px 2px;
-}
-
-.bill-page-table.single-card-annual-table .table-stack {
-  gap: 1px;
-  line-height: 1.1;
-}
-
-.bill-page-table.single-card-annual-table .table-stack-line {
-  line-height: 1.1;
-}
-
-/*noinspection CssUnusedSymbol*/
-.bill-page-table.single-card-annual-table :deep(.el-tag) {
-  min-height: 14px;
-  padding: 0 4px;
-  line-height: 14px;
 }
 
 /*noinspection CssUnusedSymbol*/
@@ -2244,16 +2182,30 @@ watch(
   height: 22px;
 }
 
-/*noinspection CssUnusedSymbol*/
-.bill-page-table :deep(.el-table__header colgroup col:nth-child(2)),
-.bill-page-table :deep(.el-table__body colgroup col:nth-child(2)) {
-  width: 104px !important;
+.bill-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding-top: 3px;
+  flex-shrink: 0;
+}
+
+.pagination-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: #667085;
+  white-space: nowrap;
 }
 
 /*noinspection CssUnusedSymbol*/
-.bill-page-table :deep(.el-table__header colgroup col:nth-child(11)),
-.bill-page-table :deep(.el-table__body colgroup col:nth-child(11)) {
-  width: 64px !important;
+.bill-pagination :deep(.el-pagination) {
+  --el-pagination-button-height: 20px;
+  --el-pagination-button-width: 20px;
+  font-size: 10px;
 }
 
 .owner-cell {
@@ -2293,10 +2245,17 @@ watch(
 
 .owner-name,
 .bank-cell,
+.bank-inline-cell,
+.bank-inline-name,
+.bank-inline-last4,
+.year-cell,
+.date-cell,
 .table-stack,
 .table-stack-line,
 .amount-value,
 .fee-rate-badge,
+.fee-paid-tag,
+.verify-tag,
 .no-data {
   font-size: var(--bill-font-size);
 }
@@ -2323,6 +2282,44 @@ watch(
   white-space: normal;
   overflow: visible;
   word-break: break-word;
+}
+
+.bank-inline-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  font-weight: 600;
+  color: #1f2a37;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.bank-inline-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bank-inline-last4 {
+  flex: 0 0 auto;
+  font-family: var(--font-mono), monospace;
+  font-weight: 700;
+  color: #475467;
+}
+
+.year-cell,
+.date-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  width: 100%;
+  font-weight: 600;
+  color: #1f2a37;
+  white-space: nowrap;
 }
 
 .bank-card-cell {
@@ -2448,6 +2445,15 @@ watch(
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.detail-verify-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #526074;
+  font-size: var(--bill-small-font-size);
+  white-space: nowrap;
 }
 
 /*noinspection CssUnusedSymbol*/
@@ -2716,27 +2722,13 @@ watch(
 
 @media (max-width: 1520px) {
   .page-header {
-    grid-template-columns: minmax(130px, 0.7fr) minmax(0, 1fr) auto;
-  }
-
-  .workspace-grid {
-    grid-template-columns: 92px minmax(0, 1fr) 110px;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 }
 
 @media (max-width: 1320px) {
-  .header-subtitle,
-  .panel-desc,
-  .inline-summary {
+  .panel-desc {
     display: none;
-  }
-
-  .workspace-grid {
-    grid-template-columns: 86px minmax(0, 1fr) 98px;
-  }
-
-  .header-stat-row {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -2751,16 +2743,13 @@ watch(
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .header-stat-row {
-    grid-column: 1 / -1;
+  .menu-list-inline {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .workspace-grid {
-    grid-template-columns: 88px minmax(0, 1fr);
-  }
-
-  .action-panel {
-    display: none;
+  .bill-pagination {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 </style>

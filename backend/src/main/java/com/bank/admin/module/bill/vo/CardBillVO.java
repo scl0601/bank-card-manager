@@ -83,6 +83,12 @@ public class CardBillVO {
     @Schema(description = "APP：cloudpay云闪付 wechat微信 alipay支付宝 other其他")
     private String repayMethod;
 
+    @Schema(description = "当月账单是否已核实")
+    private Boolean verified;
+
+    @Schema(description = "本月支出明细是否已核实")
+    private Boolean expenseVerified;
+
     @Schema(description = "创建时间")
     private LocalDateTime createTime;
 }

@@ -81,7 +81,7 @@ const menuItems = [
   { path: '/dashboard',    title: '首页看板',   icon: 'House' },
   { path: '/users',        title: '用户信息',   icon: 'UserFilled' },
   { path: '/cards',        title: '卡务管理',   icon: 'CreditCard' },
-  { path: '/bills',        title: '账单管理',   icon: 'Document' },
+  { path: '/bills',        title: '账单信息',   icon: 'Document' },
   { path: '/profits',      title: '收益统计',   icon: 'TrendCharts' },
   { path: '/transactions', title: '流水管理',   icon: 'List' },
   { path: '/books',        title: '个人记账',   icon: 'Wallet' },

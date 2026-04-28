@@ -51,7 +51,7 @@ const router = createRouter({
           path: 'bills',
           name: 'Bills',
           component: () => import('@/views/bill/BillList.vue'),
-          meta: { title: '账单管理', icon: 'Document' }
+          meta: { title: '账单信息', icon: 'Document' }
         },
         {
           path: 'profits',

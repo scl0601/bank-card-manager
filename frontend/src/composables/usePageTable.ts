@@ -86,19 +86,23 @@ export function usePageTable<T = any>(options: PageTableOptions<T>) {
   // 原因：loading.value=false 在 finally 中先执行，但 Vue 的组件重渲染在微任务队列中稍后发生，
   //       重渲染时 Element Plus 表单控件会归一化 v-model 值（undefined→null 等），触发 deep watcher
   let _renderLocked = false
+  let _loadRequestId = 0
 
   // 加载数据
   const loadData = async () => {
+    const fetchParams = { ...query }
     // 加载前回调
     if (beforeFetch) {
-      const result = beforeFetch(query)
+      const result = beforeFetch(fetchParams)
       if (result === false) return
     }
 
+    const requestId = ++_loadRequestId
     loading.value = true
     _renderLocked = true
     try {
-      const { data } = await fetchApi(query)
+      const { data } = await fetchApi(fetchParams)
+      if (requestId !== _loadRequestId) return
       list.value = data.records || []
       total.value = data.total || 0
       query.pageNum = data.current || query.pageNum
@@ -109,13 +113,16 @@ export function usePageTable<T = any>(options: PageTableOptions<T>) {
         afterFetch(list.value)
       }
     } catch (error) {
+      if (requestId !== _loadRequestId) return
       console.error('加载数据失败:', error)
       list.value = []
       total.value = 0
     } finally {
-      loading.value = false
-      // 延迟到 Vue DOM 更新完成后解除锁，防止组件重渲染时表单控件归一化值触发死循环
-      nextTick(() => { _renderLocked = false })
+      if (requestId === _loadRequestId) {
+        loading.value = false
+        // 延迟到 Vue DOM 更新完成后解除锁，防止组件重渲染时表单控件归一化值触发死循环
+        nextTick(() => { _renderLocked = false })
+      }
     }
   }
 
