@@ -504,7 +504,7 @@ const defaultForm: Record<string, any> = {
   parentId: null,
   name: '',
   phone: '',
-  feeRate: 0,
+  feeRate: 1,
   remark: '',
   status: 0
 }

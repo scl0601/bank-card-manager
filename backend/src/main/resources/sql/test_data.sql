@@ -18,22 +18,22 @@ INSERT INTO `card_user` (`id`, `name`, `phone`, `parent_id`, `fee_rate`, `remark
 (4, '赵强', '13800004444', NULL, 0.80, '一级用户', 0, 0, NOW());
 
 -- ===================== 银行卡 =====================
-INSERT INTO `bank_card` (`id`, `user_id`, `bank_name`, `card_no_last4`, `card_type`, `credit_limit`, `balance`, `bill_day`, `repay_day`, `expire_date`, `status`, `repay_method`, `verified`, `is_deleted`, `create_time`) VALUES
+INSERT INTO `bank_card` (`id`, `user_id`, `bank_name`, `card_no_last4`, `card_type`, `credit_limit`, `balance`, `bill_day`, `repay_day`, `expire_date`, `status`, `repay_method`, `is_deleted`, `create_time`) VALUES
 -- 张伟的卡
-(1, 1, '招商银行', '1234', 2, 50000.00, 0.00, 5, 25, '2028-06', 0, 'cloudpay', 1, 0, NOW()),
-(2, 1, '工商银行', '5678', 2, 30000.00, 0.00, 10, 30, '2027-12', 0, 'cloudpay', 1, 0, NOW()),
-(3, 1, '建设银行', '9012', 1, 80000.00, 56800.25, NULL, NULL, NULL, 0, 'cloudpay', 0, 0, NOW()),
+(1, 1, '招商银行', '1234', 2, 50000.00, 0.00, 5, 25, '2028-06', 0, 'cloudpay', 0, NOW()),
+(2, 1, '工商银行', '5678', 2, 30000.00, 0.00, 10, 30, '2027-12', 0, 'cloudpay', 0, NOW()),
+(3, 1, '建设银行', '9012', 1, 80000.00, 56800.25, NULL, NULL, NULL, 0, 'cloudpay', 0, NOW()),
 
 -- 李娜的卡
-(4, 2, '浦发银行', '3456', 2, 20000.00, 0.00, 15, 5, '2026-09', 0, 'cloudpay', 1, 0, NOW()),
-(5, 2, '农业银行', '7890', 1, 30000.00, 12890.50, NULL, NULL, NULL, 0, 'cloudpay', 0, 0, NOW()),
+(4, 2, '浦发银行', '3456', 2, 20000.00, 0.00, 15, 5, '2026-09', 0, 'cloudpay', 0, NOW()),
+(5, 2, '农业银行', '7890', 1, 30000.00, 12890.50, NULL, NULL, NULL, 0, 'cloudpay', 0, NOW()),
 
 -- 王芳的卡
-(6, 3, '交通银行', '2345', 2, 15000.00, 0.00, 20, 10, '2027-03', 0, 'other', 0, 0, NOW()),
+(6, 3, '交通银行', '2345', 2, 15000.00, 0.00, 20, 10, '2027-03', 0, 'other', 0, NOW()),
 
 -- 赵强的卡
-(7, 4, '中信银行', '6789', 2, 100000.00, 0.00, 1, 20, '2029-01', 0, 'cloudpay', 1, 0, NOW()),
-(8, 4, '光大银行', '0123', 2, 50000.00, 0.00, 8, 28, '2027-06', 0, 'other', 0, 0, NOW());
+(7, 4, '中信银行', '6789', 2, 100000.00, 0.00, 1, 20, '2029-01', 0, 'cloudpay', 0, NOW()),
+(8, 4, '光大银行', '0123', 2, 50000.00, 0.00, 8, 28, '2027-06', 0, 'other', 0, NOW());
 
 -- ===================== 流水记录（近30天） =====================
 INSERT INTO `card_transaction` (`card_id`, `owner_id`, `tx_type`, `amount`, `tx_date`, `description`, `counterpart`, `balance_snapshot`, `is_deleted`, `create_time`) VALUES

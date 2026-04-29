@@ -48,8 +48,10 @@ export const CARD_STATUS_TAG_TYPE: Record<number, string> = {
 // ==================== APP ====================
 export const APP_VALUE = {
   CLOUDPAY: 'cloudpay',
+  BANK_APP: 'bankapp',
   WECHAT: 'wechat',
   ALIPAY: 'alipay',
+  NONE: 'none',
   OTHER: 'other'
 } as const
 
@@ -57,20 +59,26 @@ export const APP_OPTIONS = [
   { label: '云闪付', value: APP_VALUE.CLOUDPAY },
   { label: '微信', value: APP_VALUE.WECHAT },
   { label: '支付宝', value: APP_VALUE.ALIPAY },
+  { label: '银行APP', value: APP_VALUE.BANK_APP },
+  { label: '无', value: APP_VALUE.NONE },
   { label: '其他', value: APP_VALUE.OTHER }
 ]
 
 export const APP_MAP: Record<string, string> = {
   [APP_VALUE.CLOUDPAY]: '云闪付',
+  [APP_VALUE.BANK_APP]: '银行APP',
   [APP_VALUE.WECHAT]: '微信',
   [APP_VALUE.ALIPAY]: '支付宝',
+  [APP_VALUE.NONE]: '无',
   [APP_VALUE.OTHER]: '其他'
 }
 
 export const APP_TAG_TYPE: Record<string, string> = {
   [APP_VALUE.CLOUDPAY]: 'primary',
+  [APP_VALUE.BANK_APP]: 'danger',
   [APP_VALUE.WECHAT]: 'success',
   [APP_VALUE.ALIPAY]: 'warning',
+  [APP_VALUE.NONE]: 'info',
   [APP_VALUE.OTHER]: 'info'
 }
 
@@ -102,13 +110,13 @@ export const DETAIL_TYPE_VALUE = {
 } as const
 
 export const DETAIL_TYPE_OPTIONS = [
-  { label: '支出', value: DETAIL_TYPE_VALUE.EXPENSE },
-  { label: '收入', value: DETAIL_TYPE_VALUE.INCOME }
+  { label: '转账', value: DETAIL_TYPE_VALUE.EXPENSE },
+  { label: '支出', value: DETAIL_TYPE_VALUE.INCOME }
 ]
 
 export const DETAIL_TYPE_MAP: Record<number, string> = {
-  [DETAIL_TYPE_VALUE.EXPENSE]: '支出',
-  [DETAIL_TYPE_VALUE.INCOME]: '收入'
+  [DETAIL_TYPE_VALUE.EXPENSE]: '转账',
+  [DETAIL_TYPE_VALUE.INCOME]: '支出'
 }
 
 export const DETAIL_TYPE_TAG_TYPE: Record<number, string> = {

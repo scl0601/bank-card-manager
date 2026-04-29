@@ -53,7 +53,7 @@ public class BankCardServiceImpl
 
     private static final DateTimeFormatter MONTH_FMT = DateTimeFormatter.ofPattern("yyyy-MM");
     private static final String DEFAULT_APP = "cloudpay";
-    private static final Set<String> APP_VALUES = Set.of(DEFAULT_APP, "wechat", "alipay", "other");
+    private static final Set<String> APP_VALUES = Set.of(DEFAULT_APP, "wechat", "alipay", "bankapp", "none", "other");
 
     private final CardUserMapper cardUserMapper;
     private final CardBillService cardBillService;
@@ -276,7 +276,6 @@ public class BankCardServiceImpl
         entity.setExpireDate(dto.getExpireDate());
         entity.setStatus(dto.getStatus() == null ? 0 : dto.getStatus());
         entity.setRepayMethod(normalizeApp(dto.getRepayMethod()));
-        entity.setVerified(dto.getVerified() != null ? dto.getVerified() : Boolean.FALSE);
         entity.setRemark(dto.getRemark());
     }
 
@@ -465,7 +464,7 @@ public class BankCardServiceImpl
             return "other";
         }
         if (!APP_VALUES.contains(app)) {
-            throw new BusinessException(ResultCode.PARAM_ERROR, "APP只能选择云闪付、微信、支付宝或其他");
+            throw new BusinessException(ResultCode.PARAM_ERROR, "APP只能选择云闪付、微信、支付宝、银行APP、无或其他");
         }
         return app;
     }

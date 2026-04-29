@@ -46,11 +46,8 @@ public class BankCardSaveDTO {
     @Schema(description = "状态：0正常 1冻结 2注销")
     private Integer status;
 
-    @Schema(description = "APP：cloudpay云闪付 wechat微信 alipay支付宝 other其他")
+    @Schema(description = "APP：cloudpay云闪付 wechat微信 alipay支付宝 bankapp银行APP none无 other其他")
     private String repayMethod;
-
-    @Schema(description = "是否已核实")
-    private Boolean verified;
 
     @Schema(description = "备注")
     private String remark;

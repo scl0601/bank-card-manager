@@ -48,11 +48,8 @@ public class BankCard extends BaseEntity {
      */
     private Integer status;
 
-    /** APP：cloudpay云闪付 wechat微信 alipay支付宝 other其他 */
+    /** APP：cloudpay云闪付 wechat微信 alipay支付宝 bankapp银行APP none无 other其他 */
     private String repayMethod;
-
-    /** 是否已核实 */
-    private Boolean verified;
 
     /** 备注 */
     private String remark;

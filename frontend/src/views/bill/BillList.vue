@@ -134,12 +134,12 @@
                   </el-button>
                   <el-dropdown @command="(type: number) => handleBatchUpdateType(row.id, type)">
                     <el-button size="small">
-                      批量修改收支状态 <el-icon><arrow-down /></el-icon>
+                      批量修改交易类型 <el-icon><arrow-down /></el-icon>
                     </el-button>
                     <template #dropdown>
                       <el-dropdown-menu>
-                        <el-dropdown-item :command="DETAIL_TYPE_VALUE.EXPENSE">支出</el-dropdown-item>
-                        <el-dropdown-item :command="DETAIL_TYPE_VALUE.INCOME">收入</el-dropdown-item>
+                        <el-dropdown-item :command="DETAIL_TYPE_VALUE.EXPENSE">转账</el-dropdown-item>
+                        <el-dropdown-item :command="DETAIL_TYPE_VALUE.INCOME">支出</el-dropdown-item>
                       </el-dropdown-menu>
                     </template>
                   </el-dropdown>
@@ -150,10 +150,10 @@
                     <div class="detail-pane-head">
                       <div class="detail-pane-head-main">
                         <div class="detail-pane-title">
-                          <span>收入</span>
+                          <span>支出</span>
                           <el-tag type="success" size="small" effect="light">{{ detailTypeTotalCount(row.id, DETAIL_TYPE_VALUE.INCOME) }}</el-tag>
                         </div>
-                        <span class="detail-pane-sub">左侧展示收入</span>
+                        <span class="detail-pane-sub">左侧展示支出</span>
                       </div>
                       <div class="detail-pane-total">
                         <span class="detail-pane-total-label">总额</span>
@@ -207,14 +207,14 @@
                         </div>
                       </div>
                     </div>
-                    <div v-else class="detail-empty">暂无收入明细</div>
+                    <div v-else class="detail-empty">暂无支出明细</div>
                   </div>
 
                   <div class="detail-pane">
                     <div class="detail-pane-head">
                       <div class="detail-pane-head-main">
                         <div class="detail-pane-title">
-                          <span>支出</span>
+                          <span>转账</span>
                           <el-tag type="danger" size="small" effect="light">{{ detailTypeTotalCount(row.id, DETAIL_TYPE_VALUE.EXPENSE) }}</el-tag>
                           <div class="detail-verify-switch" @click.stop>
                             <span>明细核实</span>
@@ -227,7 +227,7 @@
                             />
                           </div>
                         </div>
-                        <span class="detail-pane-sub">右侧展示支出</span>
+                        <span class="detail-pane-sub">右侧展示转账</span>
                       </div>
                       <div class="detail-pane-total">
                         <span class="detail-pane-total-label">总额</span>
@@ -281,7 +281,7 @@
                         </div>
                       </div>
                     </div>
-                    <div v-else class="detail-empty">暂无支出明细</div>
+                    <div v-else class="detail-empty">暂无转账明细</div>
                   </div>
                 </div>
               </template>
@@ -582,7 +582,7 @@
         <el-form-item label="描述" prop="description">
           <el-input v-model="detailForm.description" placeholder="如：代还服务收入" />
         </el-form-item>
-        <el-form-item label="收支状态" prop="detailType">
+        <el-form-item label="交易类型" prop="detailType">
           <el-radio-group v-model="detailForm.detailType">
             <el-radio v-for="t in DETAIL_TYPE_OPTIONS" :key="t.value" :value="t.value">{{ t.label }}</el-radio>
           </el-radio-group>
@@ -1605,7 +1605,7 @@ const detailForm = reactive({
 const detailRules = {
   detailDate: [{ required: true, message: '请选择日期', trigger: 'change' }],
   description: [{ required: true, message: '请输入描述', trigger: 'blur' }],
-  detailType: [{ required: true, message: '请选择收支状态', trigger: 'change' }]
+  detailType: [{ required: true, message: '请选择交易类型', trigger: 'change' }]
 }
 
 function openAddDetail(row: BillRow) {
@@ -1697,7 +1697,7 @@ async function handleBatchUpdateType(billId: number, detailType: number) {
     await loadDetails(billId, { force: true })
     await refreshBillDataAfterDetailChange()
   } catch (error) {
-    handleError(error, '批量修改收支状态')
+    handleError(error, '批量修改交易类型')
   }
 }
 

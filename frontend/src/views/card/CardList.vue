@@ -152,7 +152,7 @@
                       <div class="li-main">
                         <div class="li-title">{{ u.userName || uiText.unnamed }}</div>
                         <div class="li-sub">
-                          <span>{{ u.phone ? maskPhone(u.phone) : uiText.unfilled }}</span>
+                          <span>{{ u.phone || uiText.unfilled }}</span>
                         </div>
                       </div>
                     </div>
@@ -287,10 +287,10 @@
                         <span class="cig-type">{{ CARD_TYPE_MAP[c.cardType] || '—' }}</span>
                         <span class="cig-sep-dot"></span>
                         <span class="cig-label">账单日</span>
-                        <span :class="['cig-date', { 'cig-empty': !c.billDay }]">{{ c.billDay ? `${c.billDay}日` : '—' }}</span>
+                        <span :class="['cig-date', { 'cig-empty': !c.billDay }]">{{ c.billDay ? fmtDayOfMonth(c.billDay) : '—' }}</span>
                         <span class="cig-sep-dot"></span>
                         <span class="cig-label">还款日</span>
-                        <span :class="['cig-date', { 'cig-empty': !c.repayDay }]">{{ c.repayDay ? `${c.repayDay}日` : '—' }}</span>
+                        <span :class="['cig-date', { 'cig-empty': !c.repayDay }]">{{ c.repayDay ? fmtDayOfMonth(c.repayDay) : '—' }}</span>
                         <span class="cig-sep-dot"></span>
                         <span class="cig-label">有效期</span>
                         <span :class="['cig-date', { 'cig-empty': !c.expireDate }]">{{ c.expireDate || '—' }}</span>
@@ -553,12 +553,9 @@
           </el-select>
         </el-form-item>
         <el-form-item label="APP" prop="repayMethod">
-          <el-radio-group v-model="form.repayMethod">
+          <el-radio-group v-model="form.repayMethod" class="app-radio-group">
             <el-radio v-for="item in APP_OPTIONS" :key="item.value" :value="item.value">{{ item.label }}</el-radio>
           </el-radio-group>
-        </el-form-item>
-        <el-form-item label="是否已核实">
-          <el-switch v-model="form.verified" active-text="已核实" inactive-text="未核实" />
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="form.remark" type="textarea" rows="2" maxlength="500" show-word-limit placeholder="最多输入500字" />
@@ -583,7 +580,7 @@ import {
   getUserTreeApi
 } from '@/api/card'
 import { getBillPageApi, updateBillApi } from '@/api/bill'
-import { formatMoney, formatRate, maskPhone } from '@/utils/formatters'
+import { formatMoney, formatRate } from '@/utils/formatters'
 import {
   BILL_STATUS_MAP,
   BILL_STATUS_TAG_TYPE,
@@ -790,7 +787,12 @@ const activeUser = computed<UserGroup | undefined>(() => {
 const activeUserCards = computed<any[]>(() => ((activeUser.value?.cards || []) as any[]))
 
 const activeCards = computed<any[]>(() => {
-  return activeUserCards.value
+  const cards = [...(activeUserCards.value || [])]
+  return cards.sort((a, b) => {
+    const dayA = Number(a.repayDay ?? 999)
+    const dayB = Number(b.repayDay ?? 999)
+    return dayA - dayB
+  })
 })
 
 const activeCard = computed<any | undefined>(() => {
@@ -1279,6 +1281,16 @@ function billMonthOrder(row: BillRow) {
   return Number(match[1]) * 100 + Number(match[2])
 }
 
+function billRepayDayOrder(row: BillRow) {
+  const repayDay = Number(row?.repayDay)
+  if (Number.isFinite(repayDay) && repayDay > 0) {
+    return Math.trunc(repayDay)
+  }
+  const match = String(row?.repayDate || '').match(/^\d{4}-\d{2}-(\d{2})$/)
+  if (!match) return 999
+  return Number(match[1])
+}
+
 async function fetchBillScopeData(options: { silent?: boolean } = {}) {
   const cardIds = scopedCardIds.value
   const requestSeq = ++billScopeRequestSeq
@@ -1305,8 +1317,10 @@ async function fetchBillScopeData(options: { silent?: boolean } = {}) {
     })
     if (requestSeq !== billScopeRequestSeq) return
     const records = ((res.data?.records || []) as BillRow[]).sort((a, b) => {
-      const monthDelta = billMonthOrder(a) - billMonthOrder(b)
-      if (monthDelta !== 0) return monthDelta
+      const repayDayOrder = billRepayDayOrder(a) - billRepayDayOrder(b)
+      if (repayDayOrder !== 0) return repayDayOrder
+      const monthOrder = billMonthOrder(a) - billMonthOrder(b)
+      if (monthOrder !== 0) return monthOrder
       const aCard = `${a.bankName || ''}${a.cardNoLast4 || ''}`
       const bCard = `${b.bankName || ''}${b.cardNoLast4 || ''}`
       return aCard.localeCompare(bCard)
@@ -1326,7 +1340,13 @@ async function fetchBillScopeData(options: { silent?: boolean } = {}) {
 
 function fmtRepayDay(date: string | null | undefined) {
   const match = String(date || '').match(/(\d{4})-(\d{2})-(\d{2})/)
-  return match ? `${Number(match[3])}日` : '—'
+  return match ? fmtDayOfMonth(match[3]) : '—'
+}
+
+function fmtDayOfMonth(day: string | number | null | undefined) {
+  const num = Number(day)
+  if (!Number.isFinite(num) || num <= 0) return '—'
+  return `${String(Math.trunc(num)).padStart(2, '0')}日`
 }
 
 function displayBankName(name: string | null | undefined) {
@@ -1673,8 +1693,7 @@ const defaultForm = {
   expireDate: '',
   status: 0,
   remark: '',
-  repayMethod: 'cloudpay',
-  verified: false
+  repayMethod: 'cloudpay'
 }
 
 const formData = reactive({ ...defaultForm })
@@ -1768,8 +1787,7 @@ async function openEditCard(row: any) {
   isEdit.value = true
   Object.assign(formData, row, {
     userId: Number(row?.userId || 0) || null,
-    repayMethod: row?.repayMethod === 'invoice' ? 'other' : (row?.repayMethod || 'cloudpay'),
-    verified: Boolean(row?.verified)
+    repayMethod: row?.repayMethod === 'invoice' ? 'other' : (row?.repayMethod || 'cloudpay')
   })
   await syncUserOptions()
   dialogVisible.value = true
@@ -3425,6 +3443,22 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   align-items: center;
   justify-content: space-between;
   width: 100%;
+}
+
+.app-radio-group {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 10px;
+  width: 100%;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding-bottom: 2px;
+}
+
+.app-radio-group :deep(.el-radio) {
+  margin-right: 0;
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 @media (max-width: 1440px) {

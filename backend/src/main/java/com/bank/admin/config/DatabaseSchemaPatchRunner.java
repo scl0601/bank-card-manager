@@ -210,17 +210,12 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
         ensureColumnExists(
                 "bank_card",
                 "repay_method",
-                "ALTER TABLE `bank_card` ADD COLUMN `repay_method` VARCHAR(20) DEFAULT 'cloudpay' COMMENT 'APP：cloudpay云闪付 wechat微信 alipay支付宝 other其他' AFTER `status`"
+                "ALTER TABLE `bank_card` ADD COLUMN `repay_method` VARCHAR(20) DEFAULT 'cloudpay' COMMENT 'APP：cloudpay云闪付 wechat微信 alipay支付宝 bankapp银行APP none无 other其他' AFTER `status`"
         );
         ensureColumnExists(
                 "bank_card",
                 "balance",
                 "ALTER TABLE `bank_card` ADD COLUMN `balance` DECIMAL(18,2) DEFAULT 0.00 COMMENT '当前余额（流水模块维护）' AFTER `credit_limit`"
-        );
-        ensureColumnExists(
-                "bank_card",
-                "verified",
-                "ALTER TABLE `bank_card` ADD COLUMN `verified` TINYINT(1) DEFAULT 0 COMMENT '是否已核实' AFTER `repay_method`"
         );
         // 修复旧版 owner_id（NOT NULL 无默认值）导致 INSERT 失败的问题
         fixBankCardOwnerIdDefault();
@@ -243,17 +238,14 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
             jdbcTemplate.update("""
                     UPDATE `bank_card`
                     SET `repay_method` = 'other'
-                    WHERE `repay_method` NOT IN ('cloudpay', 'wechat', 'alipay', 'other')
+                    WHERE `repay_method` NOT IN ('cloudpay', 'wechat', 'alipay', 'bankapp', 'none', 'other')
                     """);
-            jdbcTemplate.execute("ALTER TABLE `bank_card` MODIFY COLUMN `repay_method` VARCHAR(20) DEFAULT 'cloudpay' COMMENT 'APP：cloudpay云闪付 wechat微信 alipay支付宝 other其他' AFTER `status`");
-        }
-        if (columnExists("bank_card", "verified")) {
-            jdbcTemplate.update("UPDATE `bank_card` SET `verified` = 0 WHERE `verified` IS NULL");
-            jdbcTemplate.execute("ALTER TABLE `bank_card` MODIFY COLUMN `verified` TINYINT(1) DEFAULT 0 COMMENT '是否已核实' AFTER `repay_method`");
+            jdbcTemplate.execute("ALTER TABLE `bank_card` MODIFY COLUMN `repay_method` VARCHAR(20) DEFAULT 'cloudpay' COMMENT 'APP：cloudpay云闪付 wechat微信 alipay支付宝 bankapp银行APP none无 other其他' AFTER `status`");
         }
         if (columnExists("bank_card", "remark")) {
-            jdbcTemplate.execute("ALTER TABLE `bank_card` MODIFY COLUMN `remark` VARCHAR(500) DEFAULT NULL AFTER `verified`");
+            jdbcTemplate.execute("ALTER TABLE `bank_card` MODIFY COLUMN `remark` VARCHAR(500) DEFAULT NULL AFTER `repay_method`");
         }
+        dropColumnIfExists("bank_card", "verified");
         dropColumnIfExists("bank_card", "owner_name");
         dropColumnIfExists("bank_card", "owner_relation");
         dropColumnIfExists("bank_card", "total_limit");

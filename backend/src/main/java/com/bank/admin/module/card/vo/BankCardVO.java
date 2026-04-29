@@ -55,11 +55,8 @@ public class BankCardVO {
     @Schema(description = "状态描述")
     private String statusDesc;
 
-    @Schema(description = "APP：cloudpay云闪付 wechat微信 alipay支付宝 other其他")
+    @Schema(description = "APP：cloudpay云闪付 wechat微信 alipay支付宝 bankapp银行APP none无 other其他")
     private String repayMethod;
-
-    @Schema(description = "是否已核实")
-    private Boolean verified;
 
     @Schema(description = "备注")
     private String remark;
