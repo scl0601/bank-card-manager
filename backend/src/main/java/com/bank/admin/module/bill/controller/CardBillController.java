@@ -89,16 +89,26 @@ public class CardBillController {
         return Result.success();
     }
 
-    @Operation(summary = "为信用卡自动生成当年 1-12 月账单")
+    @Operation(summary = "批量删除账单")
+    @Log(module = "账单管理", type = ActionTypeEnum.DELETE, description = "批量删除账单")
+    @DeleteMapping("/batch")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Result<Void> batchDelete(@RequestBody List<Long> ids) {
+        cardBillService.batchDelete(ids);
+        return Result.success();
+    }
+
+    @Operation(summary = "为信用卡自动生成指定年份 1-12 月账单")
     @PostMapping("/generate-annual/{cardId}")
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     public Result<Void> generateAnnual(
             @PathVariable Long cardId,
-            @RequestParam Long ownerId,
+            @RequestParam(required = false) Long ownerId,
+            @RequestParam(required = false) Integer year,
             @RequestParam Integer billDay,
             @RequestParam Integer repayDay,
             @RequestParam(required = false) BigDecimal feeRate) {
-        cardBillService.generateAnnualBills(cardId, ownerId, billDay, repayDay, feeRate);
+        cardBillService.generateAnnualBills(cardId, ownerId, billDay, repayDay, feeRate, year);
         return Result.success();
     }
 

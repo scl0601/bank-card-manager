@@ -210,12 +210,19 @@ public class CardBillServiceImpl
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void delete(Long id) {
-        if (getById(id) == null) {
-            throw new BusinessException(ResultCode.DATA_NOT_FOUND, "账单不存在");
+        deleteSingleBill(id);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void batchDelete(List<Long> ids) {
+        if (CollectionUtils.isEmpty(ids)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "请选择需要删除的账单");
         }
-        billDetailMapper.delete(new LambdaQueryWrapper<BillDetail>().eq(BillDetail::getBillId, id));
-        reminderTaskService.removeTasksByBillId(id);
-        removeById(id);
+        ids.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .forEach(this::deleteSingleBill);
     }
 
     @Override
@@ -235,14 +242,21 @@ public class CardBillServiceImpl
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void generateAnnualBills(Long cardId, Long ownerId, Integer billDay, Integer repayDay, BigDecimal feeRate) {
+        generateAnnualBills(cardId, ownerId, billDay, repayDay, feeRate, YearMonth.now().getYear());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void generateAnnualBills(Long cardId, Long ownerId, Integer billDay, Integer repayDay, BigDecimal feeRate, Integer year) {
         BankCard card = requireCard(cardId);
         validateCreditCard(card);
         validateCardWritable(card, "生成账单");
         validateDayRange(billDay, "账单日");
         validateDayRange(repayDay, "还款日");
-        YearMonth current = YearMonth.now();
-        YearMonth start = YearMonth.of(current.getYear(), 1);
-        YearMonth end = YearMonth.of(current.getYear(), 12);
+        int targetYear = validateBillYear(year);
+        YearMonth start = YearMonth.of(targetYear, 1);
+        YearMonth end = YearMonth.of(targetYear, 12);
+        ensureNoBillsInYear(cardId, targetYear, start, end);
         upsertBillsForRange(cardId, ownerId != null ? ownerId : card.getUserId(), billDay, repayDay, feeRate, start, end);
     }
 
@@ -455,6 +469,25 @@ public class CardBillServiceImpl
         }
     }
 
+    private void deleteSingleBill(Long id) {
+        if (getById(id) == null) {
+            throw new BusinessException(ResultCode.DATA_NOT_FOUND, "账单不存在");
+        }
+        billDetailMapper.delete(new LambdaQueryWrapper<BillDetail>().eq(BillDetail::getBillId, id));
+        reminderTaskService.removeTasksByBillId(id);
+        removeById(id);
+    }
+
+    private void ensureNoBillsInYear(Long cardId, int year, YearMonth start, YearMonth end) {
+        long count = super.count(new LambdaQueryWrapper<CardBill>()
+                .eq(CardBill::getCardId, cardId)
+                .ge(CardBill::getBillMonth, start.format(MONTH_FMT))
+                .le(CardBill::getBillMonth, end.format(MONTH_FMT)));
+        if (count > 0) {
+            throw new BusinessException(ResultCode.DATA_ALREADY_EXISTS, year + "年账单已存在，不能重复生成");
+        }
+    }
+
     private BankCard requireCard(Long cardId) {
         BankCard card = bankCardMapper.selectById(cardId);
         if (card == null) {
@@ -576,6 +609,16 @@ public class CardBillServiceImpl
         if (day == null || day < 1 || day > 31) {
             throw new BusinessException(ResultCode.PARAM_ERROR, fieldName + "必须在1-31之间");
         }
+    }
+
+    private int validateBillYear(Integer year) {
+        if (year == null) {
+            return YearMonth.now().getYear();
+        }
+        if (year < 2000 || year > 2100) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "账单年份必须在2000-2100之间");
+        }
+        return year;
     }
 
     private LocalDate calcRepayDate(YearMonth ym, Integer repayDay) {

@@ -28,6 +28,8 @@ public interface CardBillService {
 
     void delete(Long id);
 
+    void batchDelete(List<Long> ids);
+
     void markRepaid(Long id, BigDecimal actualPayAmount, LocalDate actualPayDate);
 
     void exportExcel(CardBillQueryDTO query, OutputStream out);
@@ -36,6 +38,11 @@ public interface CardBillService {
      * 为新信用卡自动生成当年 1-12 月账单记录
      */
     void generateAnnualBills(Long cardId, Long ownerId, Integer billDay, Integer repayDay, BigDecimal feeRate);
+
+    /**
+     * 为信用卡生成指定年份 1-12 月账单记录
+     */
+    void generateAnnualBills(Long cardId, Long ownerId, Integer billDay, Integer repayDay, BigDecimal feeRate, Integer year);
 
     /**
      * 联动更新当前月份到当年 12 月的账单日、还款日、费率等信息

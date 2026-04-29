@@ -179,9 +179,20 @@
         </section>
 
         <!-- 银行卡信息 -->
-        <section class="panel">
+        <section class="panel is-card-info">
           <div class="panel-head">
-            <div class="panel-title"><span class="panel-dot is-primary"></span>{{ uiText.bankCardInfo }}</div>
+            <div class="card-title-with-stats">
+              <div class="panel-title"><span class="panel-dot is-primary"></span>{{ uiText.bankCardInfo }}</div>
+              <div class="card-type-stats" v-if="activeUser && activeCards.length">
+                <span class="cts-item cts-credit">
+                  <i class="cts-dot credit"></i>信用卡 <b>{{ activeCardTypeStats.creditCount }}</b>
+                </span>
+                <span class="cts-divider"></span>
+                <span class="cts-item cts-debit">
+                  <i class="cts-dot debit"></i>借记卡 <b>{{ activeCardTypeStats.debitCount }}</b>
+                </span>
+              </div>
+            </div>
             <div class="panel-actions">
               <div class="card-filters">
                 <div class="panel-search" :class="{ focused: searchFocused }">
@@ -790,6 +801,13 @@ const activeCard = computed<any | undefined>(() => {
 
 
 const activeCardsTotalQuota = computed(() => sumCardQuota(activeCards.value))
+
+const activeCardTypeStats = computed(() => {
+  const cards = activeCards.value || []
+  const creditCount = cards.filter((c: any) => Number(c?.cardType) === CARD_TYPE_VALUE.CREDIT).length
+  const debitCount = cards.filter((c: any) => Number(c?.cardType) === CARD_TYPE_VALUE.DEBIT).length
+  return { creditCount, debitCount }
+})
 
 // ====== 持卡人搜索（仅影响左侧列表展示，不请求后端） ======
 const userKeyword = ref('')
@@ -2081,10 +2099,11 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 }
 
 .card-filters {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .icon-btn {
@@ -2291,6 +2310,102 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 
 .card-filter {
   width: 102px;
+}
+
+.panel.is-card-info {
+  .card-title-with-stats {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    min-width: 0;
+  }
+
+  .panel-title {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .panel-actions {
+    flex: 1;
+    min-width: 0;
+    flex-wrap: nowrap;
+  }
+
+  .card-filters {
+    flex: 1;
+    min-width: 0;
+    justify-content: flex-end;
+  }
+
+  .panel-search {
+    flex: 1 1 190px;
+    width: clamp(190px, 22vw, 320px);
+    max-width: 320px;
+  }
+
+  .card-filter {
+    width: 92px;
+    flex-shrink: 0;
+  }
+}
+
+.card-type-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(219, 226, 234, 0.85);
+  border-radius: 999px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.cts-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: $sub;
+  white-space: nowrap;
+
+  b {
+    font-weight: 800;
+    color: $ink;
+  }
+
+  &.cts-credit b {
+    color: #3b82f6;
+  }
+
+  &.cts-debit b {
+    color: #10b981;
+  }
+}
+
+.cts-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+
+  &.credit {
+    background: #3b82f6;
+  }
+
+  &.debit {
+    background: #10b981;
+  }
+}
+
+.cts-divider {
+  width: 1px;
+  height: 12px;
+  background: rgba(219, 226, 234, 1);
+  flex-shrink: 0;
 }
 
 .year-filter {

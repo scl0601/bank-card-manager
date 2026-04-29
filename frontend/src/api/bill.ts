@@ -6,6 +6,7 @@ export const getBillDetailApi = (id: number) => request.get(`/bills/${id}`)
 export const saveBillApi = (data: any) => request.post('/bills', data)
 export const updateBillApi = (data: any) => request.put('/bills', data)
 export const deleteBillApi = (id: number) => request.delete(`/bills/${id}`)
+export const batchDeleteBillsApi = (ids: number[]) => request.delete('/bills/batch', { data: ids })
 export const repayBillApi = (id: number, actualPayAmount: number, actualPayDate: string) =>
   request.patch(`/bills/${id}/repay`, null, { params: { actualPayAmount, actualPayDate } })
 export const exportBillApi = (params: any) => request.get('/bills/export', { params, responseType: 'blob' })

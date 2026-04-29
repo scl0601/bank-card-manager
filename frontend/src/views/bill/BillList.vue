@@ -9,6 +9,7 @@
       </div>
 
       <div class="header-actions">
+        <el-button type="primary" class="action-btn" :icon="Plus" @click="openCreateBillDialog">新增账单</el-button>
         <el-button class="action-btn" :icon="RefreshRight" @click="refresh">刷新</el-button>
         <ExportButton class="export-btn" :loading="exporting" @click="handleExport" />
       </div>
@@ -79,6 +80,11 @@
           <div>
             <div class="panel-title">账单数据区</div>
           </div>
+          <div v-if="isAdmin && selectedBillRows.length > 0" class="table-batch-actions">
+            <el-button type="danger" size="small" @click="handleBatchDeleteBills">
+              批量删除账单 ({{ selectedBillRows.length }})
+            </el-button>
+          </div>
         </div>
 
         <PageTable
@@ -105,7 +111,9 @@
           @update:page-size="val => query.pageSize = val"
           @current-change="handleCurrentChange"
           @size-change="handleSizeChange"
+          @selection-change="handleBillSelectionChange"
         >
+      <el-table-column v-if="isAdmin" type="selection" width="42" align="center" reserve-selection />
       <el-table-column type="expand" width="1" class-name="expand-toggle-col" label-class-name="expand-toggle-col">
         <template #default="{ row }">
           <div class="expand-bill-content">
@@ -415,6 +423,79 @@
       </section>
     </div>
 
+    <el-dialog v-model="createBillDialogVisible" title="新增账单" width="520px" destroy-on-close>
+      <el-form ref="createBillFormRef" :model="createBillForm" :rules="createBillRules" label-width="96px">
+        <el-form-item label="新增方式" prop="mode">
+          <el-radio-group v-model="createBillForm.mode" @change="handleCreateModeChange">
+            <el-radio-button value="month">新增单月</el-radio-button>
+            <el-radio-button value="year">生成整年</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="银行卡" prop="cardId">
+          <el-select
+            v-model="createBillForm.cardId"
+            placeholder="请选择信用卡"
+            filterable
+            clearable
+            :loading="cardOptionsLoading"
+            style="width: 100%"
+            @change="handleCreateCardChange"
+          >
+            <el-option
+              v-for="card in creditCardOptions"
+              :key="card.id"
+              :label="createBillCardLabel(card)"
+              :value="card.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="createBillForm.mode === 'month'" label="账单月份" prop="billMonth">
+          <el-date-picker
+            v-model="createBillForm.billMonth"
+            type="month"
+            value-format="YYYY-MM"
+            placeholder="请选择账单月份"
+            style="width: 100%"
+            :editable="false"
+          />
+        </el-form-item>
+        <el-form-item v-else label="账单年份" prop="year">
+          <el-date-picker
+            v-model="createBillForm.year"
+            type="year"
+            value-format="YYYY"
+            placeholder="请选择账单年份"
+            style="width: 100%"
+            :editable="false"
+          />
+        </el-form-item>
+        <el-form-item label="账单日" prop="billDay">
+          <el-input-number v-model="createBillForm.billDay" :min="1" :max="31" controls-position="right" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="还款日" prop="repayDay">
+          <el-input-number v-model="createBillForm.repayDay" :min="1" :max="31" controls-position="right" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="手续费率" prop="feeRate">
+          <el-input-number v-model="createBillForm.feeRate" :min="0" :max="100" :precision="2" controls-position="right" style="width: 100%" />
+        </el-form-item>
+        <template v-if="createBillForm.mode === 'month'">
+          <el-form-item label="账单金额" prop="billAmount">
+            <el-input-number v-model="createBillForm.billAmount" :min="0" :precision="2" controls-position="right" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="POS成本">
+            <el-input-number v-model="createBillForm.posCostAmount" :min="0" :precision="2" controls-position="right" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="备注">
+            <el-input v-model="createBillForm.remark" type="textarea" rows="2" maxlength="500" show-word-limit />
+          </el-form-item>
+        </template>
+      </el-form>
+      <template #footer>
+        <el-button @click="createBillDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="createBillSaving" @click="handleCreateBill">保存</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="billEditDialogVisible" title="编辑账单" width="480px" destroy-on-close>
       <template v-if="billEditRow">
         <el-form label-width="92px">
@@ -527,7 +608,7 @@ defineOptions({ name: 'Bills' })
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, ArrowRight, UserFilled, CreditCard, Delete, RefreshRight, Edit } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowRight, UserFilled, CreditCard, Delete, RefreshRight, Edit, Plus } from '@element-plus/icons-vue'
 import PageTable from '@/components/PageTable/index.vue'
 import StatusTag from '@/components/StatusTag/index.vue'
 import ExportButton from '@/components/ExportButton/index.vue'
@@ -538,9 +619,12 @@ import { handleError } from '@/utils/errorHandler'
 import {
   getBillPageApi,
   getBillOverviewApi,
+  saveBillApi,
   updateBillApi,
   deleteBillApi,
+  batchDeleteBillsApi,
   exportBillApi,
+  generateAnnualBillsApi,
   getDetailListApi as fetchDetailListApi,
   saveDetailApi,
   updateDetailApi,
@@ -548,6 +632,8 @@ import {
   batchDeleteDetailsApi,
   batchUpdateTypeApi
 } from '@/api/bill'
+import { getCardListApi } from '@/api/card'
+import { useAuthStore } from '@/store/modules/auth'
 import { formatMoney, formatRate, toNumber } from '@/utils/formatters'
 import {
   BILL_STATUS_OPTIONS,
@@ -617,8 +703,24 @@ interface BillDetailBucket {
   expenseRows: BillDetailRow[]
 }
 
+interface BankCardOption {
+  id: number
+  userId: number
+  userName?: string
+  bankName?: string
+  cardNoLast4?: string
+  cardType?: number
+  status?: number
+  billDay?: number | null
+  repayDay?: number | null
+  effectiveFeeRate?: number | string | null
+}
+
+type CreateBillMode = 'month' | 'year'
+
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 const now = new Date()
 const currentYear = now.getFullYear()
 const currentMonthNumber = now.getMonth() + 1
@@ -708,6 +810,25 @@ const billOverview = ref<BillOverview>({
   totalNetProfit: 0
 })
 
+const createBillDialogVisible = ref(false)
+const createBillSaving = ref(false)
+const createBillFormRef = ref<any>()
+const cardOptions = ref<BankCardOption[]>([])
+const cardOptionsLoading = ref(false)
+let cardOptionsLoaded = false
+const createBillForm = reactive({
+  mode: 'month' as CreateBillMode,
+  cardId: undefined as number | undefined,
+  billMonth: currentMonth,
+  year: String(currentYear + 1),
+  billDay: null as number | null,
+  repayDay: null as number | null,
+  feeRate: 0 as number | null,
+  billAmount: 0,
+  posCostAmount: 0,
+  remark: ''
+})
+
 const billScopeLabel = computed(() => formatBillRangeLabel(query.startBillMonth, query.endBillMonth))
 const singleCardAnnualMode = computed(() => isSingleCardAnnualScope(query))
 const safeBillPageSize = computed(() => Number(query.pageSize || 0) || DEFAULT_BILL_PAGE_SIZE)
@@ -715,10 +836,29 @@ const isBillTableScrollable = computed(() => safeBillPageSize.value > defaultPag
 const billTableHeight = computed(() => '100%')
 const showBillPagination = computed(() => true)
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / safeBillPageSize.value)))
+const isAdmin = computed(() => authStore.role === 'ADMIN')
 const billPageSizeOptions = computed(() => {
   return Array.from(new Set([SINGLE_CARD_ANNUAL_PAGE_SIZE, 15, DEFAULT_BILL_PAGE_SIZE, 20, 30, safeBillPageSize.value].filter((size) => Number(size) > 0)))
     .sort((a, b) => Number(a) - Number(b))
 })
+const creditCardOptions = computed(() => {
+  return cardOptions.value.filter(card => Number(card.cardType) === 2 && Number(card.status ?? 0) === 0)
+})
+const createBillRules = computed(() => ({
+  mode: [{ required: true, message: '请选择新增方式', trigger: 'change' }],
+  cardId: [{ required: true, message: '请选择信用卡', trigger: 'change' }],
+  billDay: [{ required: true, message: '请输入账单日', trigger: 'change' }],
+  repayDay: [{ required: true, message: '请输入还款日', trigger: 'change' }],
+  feeRate: [{ required: true, message: '请输入手续费率', trigger: 'change' }],
+  ...(createBillForm.mode === 'month'
+    ? {
+        billMonth: [{ required: true, message: '请选择账单月份', trigger: 'change' }],
+        billAmount: [{ required: true, message: '请输入账单金额', trigger: 'change' }]
+      }
+    : {
+        year: [{ required: true, message: '请选择账单年份', trigger: 'change' }]
+      })
+}))
 const triggerBillSearch = createDebouncedTask(() => {
   submitBillSearch()
 }, 300)
@@ -858,6 +998,7 @@ function resetBillTableTransientState() {
   expandRequestToken += 1
   pendingExpandBillId.value = null
   currentExpandedRow.value = null
+  clearBillSelection()
   nextTick(scheduleBillTableLayout)
 }
 
@@ -997,8 +1138,191 @@ async function handleResetAll() {
   syncingBillFilters = false
 }
 
+async function ensureCardOptions(force = false) {
+  if (!force && cardOptionsLoaded) return
+  cardOptionsLoading.value = true
+  try {
+    const res: any = await getCardListApi()
+    cardOptions.value = (res.data || []).map((card: any) => ({
+      id: Number(card.id),
+      userId: Number(card.userId),
+      userName: card.userName,
+      bankName: card.bankName,
+      cardNoLast4: card.cardNoLast4,
+      cardType: Number(card.cardType),
+      status: Number(card.status ?? 0),
+      billDay: card.billDay == null ? null : Number(card.billDay),
+      repayDay: card.repayDay == null ? null : Number(card.repayDay),
+      effectiveFeeRate: card.effectiveFeeRate
+    }))
+    cardOptionsLoaded = true
+  } catch (error) {
+    handleError(error, '加载信用卡列表')
+  } finally {
+    cardOptionsLoading.value = false
+  }
+}
+
+function createBillCardLabel(card: BankCardOption) {
+  const owner = card.userName || '未分配'
+  return `${owner} / ${displayBankName(card.bankName)} 尾号${card.cardNoLast4 || '-'}`
+}
+
+function findCreateBillCard(cardId: number | string | null | undefined) {
+  const targetId = Number(cardId || 0)
+  return creditCardOptions.value.find(card => Number(card.id) === targetId) || null
+}
+
+function resetCreateBillForm() {
+  Object.assign(createBillForm, {
+    mode: 'month' as CreateBillMode,
+    cardId: undefined,
+    billMonth: currentMonth,
+    year: String(currentYear + 1),
+    billDay: null,
+    repayDay: null,
+    feeRate: 0,
+    billAmount: 0,
+    posCostAmount: 0,
+    remark: ''
+  })
+  nextTick(() => createBillFormRef.value?.clearValidate?.())
+}
+
+function applyCreateCardDefaults(card: BankCardOption | null) {
+  createBillForm.billDay = card?.billDay ?? null
+  createBillForm.repayDay = card?.repayDay ?? null
+  createBillForm.feeRate = toNumber(card?.effectiveFeeRate)
+}
+
+async function openCreateBillDialog() {
+  resetCreateBillForm()
+  createBillDialogVisible.value = true
+  await ensureCardOptions()
+
+  const routeCard = findCreateBillCard(query.cardId || toRouteNumber(route.query.cardId))
+  const defaultCard = routeCard || (creditCardOptions.value.length === 1 ? creditCardOptions.value[0] : null)
+  if (defaultCard) {
+    createBillForm.cardId = defaultCard.id
+    applyCreateCardDefaults(defaultCard)
+  }
+}
+
+function handleCreateModeChange() {
+  nextTick(() => createBillFormRef.value?.clearValidate?.())
+}
+
+function handleCreateCardChange(cardId: number) {
+  applyCreateCardDefaults(findCreateBillCard(cardId))
+}
+
+function normalizeCreateYear() {
+  const year = Number(createBillForm.year)
+  return Number.isFinite(year) && year >= 2000 && year <= 2100 ? year : 0
+}
+
+function buildCreateBillBasePayload(card: BankCardOption) {
+  return {
+    cardId: card.id,
+    billDay: createBillForm.billDay,
+    repayDay: createBillForm.repayDay,
+    feeRate: createBillForm.feeRate == null ? undefined : toNumber(createBillForm.feeRate)
+  }
+}
+
+function focusCreatedBills(cardId: number, startBillMonth: string, endBillMonth: string) {
+  triggerBillSearch.cancel()
+  const nextRouteQuery: Record<string, any> = {
+    ...route.query,
+    cardId: String(cardId),
+    startBillMonth,
+    endBillMonth
+  }
+  delete nextRouteQuery.ownerId
+  delete nextRouteQuery.status
+  delete nextRouteQuery.year
+  delete nextRouteQuery.billMonth
+  void router.replace({ path: route.path, query: nextRouteQuery }).catch(() => {})
+  syncingBillFilters = true
+  query.cardId = cardId as any
+  query.ownerId = undefined as any
+  query.ownerName = ''
+  query.cardName = ''
+  query.status = undefined as any
+  query.feePaid = undefined as any
+  applyBillMonthRange(startBillMonth, endBillMonth)
+  query.pageSize = defaultPageSizeForScope(query)
+  currentExpandedRow.value = null
+  syncingBillFilters = false
+  refreshFirstPage()
+}
+
+async function handleCreateBill() {
+  try {
+    await createBillFormRef.value?.validate()
+  } catch {
+    return
+  }
+
+  const card = findCreateBillCard(createBillForm.cardId)
+  if (!card) {
+    ElMessage.warning('请选择可用信用卡')
+    return
+  }
+
+  if (createBillForm.mode === 'year' && !normalizeCreateYear()) {
+    ElMessage.warning('账单年份必须在2000-2100之间')
+    return
+  }
+
+  createBillSaving.value = true
+  try {
+    if (createBillForm.mode === 'year') {
+      const year = normalizeCreateYear()
+      await generateAnnualBillsApi(card.id, {
+        ...buildCreateBillBasePayload(card),
+        ownerId: card.userId,
+        year
+      })
+      ElMessage.success(`${year}年账单生成成功`)
+      createBillDialogVisible.value = false
+      focusCreatedBills(card.id, `${year}-01`, `${year}-12`)
+      return
+    }
+
+    await saveBillApi({
+      ...buildCreateBillBasePayload(card),
+      billMonth: createBillForm.billMonth,
+      billAmount: toNumber(createBillForm.billAmount),
+      minPayAmount: 0,
+      feePaid: false,
+      verified: false,
+      expenseVerified: false,
+      posCostAmount: toNumber(createBillForm.posCostAmount),
+      remark: createBillForm.remark || ''
+    })
+    ElMessage.success('账单新增成功')
+    createBillDialogVisible.value = false
+    focusCreatedBills(card.id, createBillForm.billMonth, createBillForm.billMonth)
+  } catch (error) {
+    handleError(error, '新增账单')
+  } finally {
+    createBillSaving.value = false
+  }
+}
+
 const editFormMap = ref<Record<number, EditFormItem>>({})
 const savingId = ref<number | null>(null)
+const selectedBillRows = ref<BillRow[]>([])
+
+function handleBillSelectionChange(selection: BillRow[]) {
+  selectedBillRows.value = selection || []
+}
+
+function clearBillSelection() {
+  selectedBillRows.value = []
+  billTableRef.value?.clearSelection?.()
+}
 
 function ensureEditForm(row: BillRow) {
   if (!editFormMap.value[row.id]) {
@@ -1379,6 +1703,7 @@ async function handleBatchUpdateType(billId: number, detailType: number) {
 
 async function refreshBillDataAfterDetailChange() {
   await loadData()
+  clearBillSelection()
   if (currentExpandedRow.value?.id) {
     currentExpandedRow.value = sortedList.value.find(item => Number(item.id) === Number(currentExpandedRow.value?.id)) || currentExpandedRow.value
   }
@@ -1388,9 +1713,29 @@ async function handleDelete(id: number) {
   try {
     await deleteBillApi(id)
     ElMessage.success('删除成功')
+    clearBillSelection()
     handleSearch()
   } catch (error) {
     handleError(error, '删除账单')
+  }
+}
+
+async function handleBatchDeleteBills() {
+  const ids = selectedBillRows.value.map(row => Number(row.id)).filter(id => id > 0)
+  if (!ids.length) return
+
+  try {
+    await ElMessageBox.confirm(`确认删除选中的 ${ids.length} 条账单？`, '批量删除账单', {
+      type: 'warning'
+    })
+    await batchDeleteBillsApi(ids)
+    ElMessage.success('批量删除成功')
+    clearBillSelection()
+    handleSearch()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      handleError(error, '批量删除账单')
+    }
   }
 }
 
@@ -1536,6 +1881,7 @@ function handleKeydown(e: KeyboardEvent) {
   }
 
   if (e.key === 'Escape') {
+    createBillDialogVisible.value = false
     billEditDialogVisible.value = false
     detailDialogVisible.value = false
   }
@@ -1612,6 +1958,7 @@ watch(
   (isLoading) => {
     if (isLoading) {
       cancelDetailPrefetch()
+      clearBillSelection()
     }
   }
 )
@@ -1885,6 +2232,12 @@ watch(
   gap: 5px;
   margin-bottom: 6px;
   flex-shrink: 0;
+}
+
+.table-batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .panel-title {
