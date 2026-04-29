@@ -33,7 +33,7 @@
 
 | 服务 | 访问地址 | 状态 |
 |------|----------|------|
-| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604290023](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604290023) | ✅ 已上线 |
+| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604290959](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604290959) | ✅ 已上线 |
 | **后端 API** | `https://bank-admin-backend-239413-10-1411764939.sh.run.tcloudbase.com` | ✅ 运行中 |
 
 ---
@@ -142,6 +142,14 @@ npm run dev
 ---
 
 ## 更新日志
+
+### 2026-04-29 (09:59 更新)
+- **部署最新代码**: 银行卡管理 + 账单模块优化 (5ace8ea)
+- 本次无数据库变更（纯业务代码更新）
+- 涉及文件：CardBillController/Service/ServiceImpl、前端 BillList/CardList/bill API
+- 前端重新构建并上传到静态托管（44个文件）
+- 后端云托管 `bank-admin-backend` v026 已发布
+- 更新前端缓存刷新参数为 `?v=202604290959`
 
 ### 2026-04-29 (00:23 更新)
 - **部署最新代码**: 银行卡管理页面 + 账单模块优化 (44dba83)
