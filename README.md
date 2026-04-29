@@ -33,7 +33,7 @@
 
 | 服务 | 访问地址 | 状态 |
 |------|----------|------|
-| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604290959](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604290959) | ✅ 已上线 |
+| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604291440](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202604291440) | ✅ 已上线 |
 | **后端 API** | `https://bank-admin-backend-239413-10-1411764939.sh.run.tcloudbase.com` | ✅ 运行中 |
 
 ---
@@ -47,7 +47,7 @@
 
 ### 云托管服务配置
 - **服务名称**: bank-admin-backend
-- **当前线上版本**: bank-admin-backend-025 (部署中...)
+- **当前线上版本**: bank-admin-backend-027 (已发布)
 - **服务类型**: 容器型 (Container)
 - **CPU**: 1 核
 - **内存**: 2 GB
@@ -142,6 +142,15 @@ npm run dev
 ---
 
 ## 更新日志
+
+### 2026-04-29 (14:40 更新)
+- **部署最新代码**: 银行卡管理页面优化 (55db456)
+- **数据库补丁**:
+  - `bank_card.repay_method` 注释更新，新增 `bankapp银行APP` 和 `none无` 选项
+  - `bank_card.verified` 字段已移除（不再使用该字段）
+- 前端重新构建并上传到静态托管（44个文件）
+- 后端云托管 `bank-admin-backend` v027 已发布
+- 更新前端缓存刷新参数为 `?v=202604291440`
 
 ### 2026-04-29 (09:59 更新)
 - **部署最新代码**: 银行卡管理 + 账单模块优化 (5ace8ea)
