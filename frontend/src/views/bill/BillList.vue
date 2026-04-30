@@ -78,7 +78,10 @@
       <section class="data-panel card-shell">
         <div class="panel-head data-head">
           <div>
-            <div class="panel-title">账单数据区</div>
+            <div class="panel-title">
+              账单数据区
+              <el-button class="back-btn-inline" :icon="Back" @click="router.push('/cards')">返回</el-button>
+            </div>
           </div>
           <div v-if="isAdmin && selectedBillRows.length > 0" class="table-batch-actions">
             <el-button type="danger" size="small" @click="handleBatchDeleteBills">
@@ -608,7 +611,7 @@ defineOptions({ name: 'Bills' })
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, ArrowRight, UserFilled, CreditCard, Delete, RefreshRight, Edit, Plus } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowRight, UserFilled, CreditCard, Delete, RefreshRight, Edit, Plus, Back } from '@element-plus/icons-vue'
 import PageTable from '@/components/PageTable/index.vue'
 import StatusTag from '@/components/StatusTag/index.vue'
 import ExportButton from '@/components/ExportButton/index.vue'
@@ -2245,6 +2248,16 @@ watch(
   font-weight: 700;
   color: #1f2a37;
   line-height: 1.15;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.back-btn-inline {
+  font-size: 12px;
+  padding: 0 8px;
+  height: 24px;
+  border-radius: 6px;
 }
 
 .panel-desc {

@@ -345,7 +345,7 @@
         </section>
 
         <!-- 账单明细 -->
-        <section class="panel">
+        <section class="panel is-bills">
           <div class="panel-head">
             <div class="panel-title"><span class="panel-dot is-warning"></span>账单明细</div>
             <div class="panel-actions">
@@ -417,6 +417,7 @@
                     >
                       保存
                     </el-button>
+                    <el-button type="primary" link size="small" class="bill-repay-btn" @click="goRepayment(b)">还款</el-button>
                   </div>
                   <div class="bill-status">
                     <StatusTag :value="b.status" :label-map="BILL_STATUS_MAP" :type-map="BILL_STATUS_TAG_TYPE" size="small" effect="light" />
@@ -1435,6 +1436,14 @@ function openFilteredBillsPage() {
     routeQuery.ownerId = String(billScopeOwnerId.value)
   }
   router.push({ path: '/bills', query: routeQuery })
+}
+
+function goRepayment(b: BillRow) {
+  const year = b.billMonth ? b.billMonth.substring(0, 4) : String(currentYear)
+  router.push({
+    path: '/bills',
+    query: { cardId: String(b.cardId), year, billMonth: b.billMonth }
+  })
 }
 
 function openCardBillsPage(card: any) {
@@ -2631,12 +2640,12 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   position: absolute;
   top: 7px;
   right: 7px;
-  padding: 1px 5px;
+  padding: 7px 5px;
   border-radius: 5px;
   background: rgba(148, 163, 184, 0.09);
   border: 1px solid rgba(219, 226, 234, 0.75);
   color: $faint;
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
   line-height: 1.65;
@@ -3175,7 +3184,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 
 .bill-item {
   display: grid;
-  grid-template-columns: minmax(86px, 1fr) minmax(86px, .9fr) 66px 82px minmax(152px, 1.2fr) 74px;
+  grid-template-columns: minmax(86px, 1fr) minmax(86px, .9fr) 66px 82px minmax(200px, 1.2fr) 74px;
   gap: 8px;
   align-items: center;
   padding: 8px 10px;
@@ -3257,6 +3266,17 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   min-width: 34px;
   padding: 0;
   font-weight: 900;
+}
+
+.bill-repay-btn {
+  min-width: 34px;
+  padding: 0 2px;
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.is-bills .panel-body {
+  gap: 4px;
 }
 
 .bill-status {
@@ -3473,7 +3493,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   .metrics-grid { min-width: 160px; }
   .metric-box { padding: 6px 7px; }
   .bill-item {
-    grid-template-columns: minmax(80px, 1fr) minmax(76px, .9fr) 60px 70px minmax(130px, 1fr) 64px;
+    grid-template-columns: minmax(80px, 1fr) minmax(76px, .9fr) 60px 70px minmax(170px, 1fr) 64px;
     gap: 6px;
     padding: 8px;
   }

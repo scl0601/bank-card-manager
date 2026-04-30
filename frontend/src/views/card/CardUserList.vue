@@ -91,18 +91,26 @@
             @expand-change="onExpandChange"
           >
             <el-table-column prop="name" label="姓名/角色">
+              <template #header>
+                <div class="sortable-header" @click="toggleNameSort">
+                  <span>姓名/角色</span>
+                  <span class="sort-indicator">
+                    <span class="sort-arrow up" :class="{ active: nameSortOrder === 'asc' }">▲</span>
+                    <span class="sort-arrow down" :class="{ active: nameSortOrder === 'desc' }">▼</span>
+                  </span>
+                </div>
+              </template>
               <template #default="{ row }">
                 <div class="user-cell">
+                  <el-tag v-if="!row.parentId" type="warning" size="small" effect="light" class="role-tag">洽谈人</el-tag>
+                  <el-tag v-else type="info" size="small" effect="plain" class="role-tag">名下持卡人</el-tag>
                   <div class="avatar-wrap" :class="{ 'avatar-child': !!row.parentId }">
                     <el-icon v-if="!row.parentId" :size="16"><UserFilled /></el-icon>
                     <el-icon v-else :size="15"><User /></el-icon>
                   </div>
-
                   <div class="user-info">
                     <div class="name-row">
                       <span class="name-text">{{ row.name }}</span>
-                      <el-tag v-if="!row.parentId" type="warning" size="small" effect="light">洽谈人</el-tag>
-                      <el-tag v-else type="info" size="small" effect="plain">名下持卡人</el-tag>
                     </div>
                   </div>
                 </div>
@@ -463,6 +471,7 @@ const tableRef = ref()
 const tableWrapRef = ref<HTMLElement | null>(null)
 const tableWrapHeight = ref(0)
 const expandAll = ref(false)
+const nameSortOrder = ref<'asc' | 'desc' | ''>('')
 const activeCategory = ref<QuickMenuKey>('all')
 const expandedRowIds = ref<number[]>([])
 const dataReady = ref(!!initialCache)
@@ -656,17 +665,31 @@ function syncLocalFeeRate(userId: number, feeRate: number) {
   applyFilter()
 }
 
+function toggleNameSort() {
+  if (nameSortOrder.value === '') nameSortOrder.value = 'asc'
+  else if (nameSortOrder.value === 'asc') nameSortOrder.value = 'desc'
+  else nameSortOrder.value = ''
+  applyFilter()
+}
+
 function normalizeTree(list: UserData[]): UserData[] {
-  return [...list]
-    .sort(compareUsersByCreateTimeDesc)
-    .map((item) => {
-      const children = item.children?.length ? normalizeTree(item.children) : undefined
-      return {
-        ...item,
-        children,
-        hasChildren: !!children?.length
-      }
-    })
+  const activeUsers = list.filter((u) => u.status === 0)
+  const disabledUsers = list.filter((u) => u.status === 1)
+
+  const sortFn = nameSortOrder.value === 'asc'
+    ? (a: UserData, b: UserData) => a.name.localeCompare(b.name, 'zh-CN')
+    : nameSortOrder.value === 'desc'
+      ? (a: UserData, b: UserData) => b.name.localeCompare(a.name, 'zh-CN')
+      : compareUsersByCreateTimeDesc
+
+  const sortGroup = (group: UserData[]): UserData[] =>
+    [...group].sort(sortFn).map((item) => ({
+      ...item,
+      children: item.children?.length ? sortGroup(item.children) : undefined,
+      hasChildren: !!item.children?.length
+    }))
+
+  return [...sortGroup(activeUsers), ...sortGroup(disabledUsers)]
 }
 
 function compareUsersByCreateTimeDesc(a: UserData, b: UserData) {
@@ -1522,7 +1545,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 
 /*noinspection CssUnusedSymbol*/
 :deep(.el-table__indent) {
-  padding-left: 6px !important;
+  padding-left: 24px !important;
 }
 
 /*noinspection CssUnusedSymbol*/
@@ -1553,11 +1576,46 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 .user-cell {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 3px;
   width: 100%;
   min-width: 0;
   overflow: visible;
+}
+
+.sortable-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sort-indicator {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  gap: 0;
+}
+
+.sort-arrow {
+  font-size: 8px;
+  line-height: 1;
+  color: #c0c7d6;
+  transition: color 0.15s;
+}
+
+.sort-arrow.active {
+  color: #0958d9;
+}
+
+.sortable-header:hover .sort-arrow {
+  color: #8c95a8;
+}
+
+.sortable-header:hover .sort-arrow.active {
+  color: #0958d9;
 }
 
 .avatar-wrap {
@@ -1587,12 +1645,9 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   overflow: visible;
 }
 
-/*noinspection CssUnusedSymbol*/
-.name-row :deep(.el-tag) {
-  height: 20px;
-  padding: 0 3px;
-  font-size: 10px;
-  line-height: 18px;
+.role-tag {
+  flex-shrink: 0;
+  margin-right: 4px;
 }
 
 .name-text {
