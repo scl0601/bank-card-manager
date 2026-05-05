@@ -26,6 +26,8 @@ public interface CardBillService {
 
     void update(CardBillSaveDTO dto);
 
+    void updateVerification(Long id, Boolean verified, Boolean expenseVerified);
+
     void delete(Long id);
 
     void batchDelete(List<Long> ids);

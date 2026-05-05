@@ -29,6 +29,13 @@ public class CardBillSqlProvider {
                     cb.repay_date,
                     DAY(cb.repay_date) AS repay_day,
                     cb.actual_pay_amount,
+                    COALESCE((
+                        SELECT SUM(ABS(bd.amount))
+                        FROM bill_detail bd
+                        WHERE bd.bill_id = cb.id
+                          AND bd.detail_type = 0
+                          AND bd.is_deleted = 0
+                    ), 0) AS consume_amount,
                     cb.actual_pay_date,
                     cb.status,
                     cb.remark,
@@ -36,6 +43,7 @@ public class CardBillSqlProvider {
                     cb.fee_amount,
                     cb.fee_paid,
                     cb.pos_cost_amount,
+                    cb.other_fee_amount,
                     cb.net_profit,
                     bc.repay_method,
                     cb.verified,
@@ -81,6 +89,7 @@ public class CardBillSqlProvider {
                     IFNULL(SUM(cb.bill_amount), 0) AS totalBillAmount,
                     IFNULL(SUM(cb.fee_amount), 0) AS totalFeeAmount,
                     IFNULL(SUM(cb.pos_cost_amount), 0) AS totalPosCostAmount,
+                    IFNULL(SUM(cb.other_fee_amount), 0) AS totalOtherFeeAmount,
                     IFNULL(SUM(cb.net_profit), 0) AS totalNetProfit
                 FROM card_bill cb
                 LEFT JOIN bank_card bc ON bc.id = cb.card_id AND bc.is_deleted = 0

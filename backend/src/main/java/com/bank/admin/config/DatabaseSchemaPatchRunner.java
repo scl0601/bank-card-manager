@@ -315,8 +315,13 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
         );
         ensureColumnExists(
                 "card_bill",
+                "other_fee_amount",
+                "ALTER TABLE `card_bill` ADD COLUMN `other_fee_amount` DECIMAL(18,2) DEFAULT 0.00 COMMENT '其他费用' AFTER `pos_cost_amount`"
+        );
+        ensureColumnExists(
+                "card_bill",
                 "net_profit",
-                "ALTER TABLE `card_bill` ADD COLUMN `net_profit` DECIMAL(18,2) DEFAULT 0.00 COMMENT '本期净利润' AFTER `pos_cost_amount`"
+                "ALTER TABLE `card_bill` ADD COLUMN `net_profit` DECIMAL(18,2) DEFAULT 0.00 COMMENT '本期净利润' AFTER `other_fee_amount`"
         );
     }
 
@@ -351,7 +356,7 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
             int refreshedRows = jdbcTemplate.update(
                     "UPDATE `card_bill` " +
                             "SET `fee_amount` = ROUND(IFNULL(`bill_amount`, 0) * IFNULL(`fee_rate`, 0) / 100, 2), " +
-                            "    `net_profit` = ROUND(ROUND(IFNULL(`bill_amount`, 0) * IFNULL(`fee_rate`, 0) / 100, 2) - IFNULL(`pos_cost_amount`, 0), 2) " +
+                            "    `net_profit` = ROUND(ROUND(IFNULL(`bill_amount`, 0) * IFNULL(`fee_rate`, 0) / 100, 2) - IFNULL(`pos_cost_amount`, 0) - IFNULL(`other_fee_amount`, 0), 2) " +
                             "WHERE `is_deleted` = 0"
             );
             log.info("手续费率口径迁移后，已重算 card_bill 收益字段 {} 条", refreshedRows);

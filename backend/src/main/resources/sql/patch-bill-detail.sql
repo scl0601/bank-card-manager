@@ -22,3 +22,6 @@ ALTER TABLE `card_bill`
     ADD COLUMN `fee_rate`   DECIMAL(8,2) DEFAULT 0.00 COMMENT '约定费率%（如1表示1%）' AFTER `remark`,
     ADD COLUMN `fee_amount` DECIMAL(18,2) DEFAULT 0.00 COMMENT '本期应收手续费（=billAmount×feeRate/100）' AFTER `fee_rate`,
     ADD COLUMN `fee_paid`   TINYINT(1) NOT NULL DEFAULT 0 COMMENT '手续费是否已支付' AFTER `fee_amount`;
+
+ALTER TABLE `card_bill`
+    ADD COLUMN `other_fee_amount` DECIMAL(18,2) DEFAULT 0.00 COMMENT '其他费用' AFTER `fee_paid`;

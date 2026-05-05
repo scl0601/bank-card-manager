@@ -63,12 +63,16 @@ public class CardBill extends BaseEntity {
     /** 手续费是否已支付 */
     private Boolean feePaid;
 
-    /** 当月账单是否已核实 */
+    /** 本月还款明细是否已核实 */
     private Boolean verified;
+    /** 本月消费明细是否已核实 */
     private Boolean expenseVerified;
 
     /** POS机使用成本 */
     private BigDecimal posCostAmount;
+
+    /** 其他费用 */
+    private BigDecimal otherFeeAmount;
 
     /** 本期净利润 */
     private BigDecimal netProfit;

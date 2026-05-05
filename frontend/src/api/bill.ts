@@ -5,6 +5,8 @@ export const getBillOverviewApi = (params: any) => request.get('/bills/overview'
 export const getBillDetailApi = (id: number) => request.get(`/bills/${id}`)
 export const saveBillApi = (data: any) => request.post('/bills', data)
 export const updateBillApi = (data: any) => request.put('/bills', data)
+export const updateBillVerificationApi = (id: number, data: { verified?: boolean; expenseVerified?: boolean }) =>
+  request.patch(`/bills/${id}/verification`, null, { params: data })
 export const deleteBillApi = (id: number) => request.delete(`/bills/${id}`)
 export const batchDeleteBillsApi = (ids: number[]) => request.delete('/bills/batch', { data: ids })
 export const repayBillApi = (id: number, actualPayAmount: number, actualPayDate: string) =>

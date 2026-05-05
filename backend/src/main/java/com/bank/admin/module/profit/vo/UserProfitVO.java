@@ -21,17 +21,32 @@ public class UserProfitVO {
     @Schema(description = "银行卡数量")
     private Long cardCount;
 
+    @Schema(description = "账单数量")
+    private Long billCount;
+
     @Schema(description = "账单月份数量")
     private Long billMonthCount;
 
     @Schema(description = "代还总金额")
     private BigDecimal totalBillAmount;
 
+    @Schema(description = "平均手续费率")
+    private BigDecimal avgFeeRate;
+
     @Schema(description = "手续费总收入")
     private BigDecimal totalFeeAmount;
 
+    @Schema(description = "手续费已支付账单数")
+    private Long feePaidCount;
+
+    @Schema(description = "手续费未支付账单数")
+    private Long feeUnpaidCount;
+
     @Schema(description = "POS总成本")
     private BigDecimal totalPosCostAmount;
+
+    @Schema(description = "其他费用总额")
+    private BigDecimal totalOtherFeeAmount;
 
     @Schema(description = "净利润总额")
     private BigDecimal totalNetProfit;

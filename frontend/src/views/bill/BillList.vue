@@ -33,13 +33,11 @@
           maxlength="30"
         />
         <el-date-picker
-          v-model="billMonthRange"
-          class="app-search-item app-search-item-range"
-          type="monthrange"
+          v-model="billMonthFilter"
+          class="app-search-item app-search-item-sm"
+          type="month"
           value-format="YYYY-MM"
-          range-separator="至"
-          start-placeholder="请选择账单开始月份"
-          end-placeholder="请选择账单结束月份"
+          placeholder="筛选账单月份"
           :editable="false"
           clearable
         />
@@ -141,8 +139,8 @@
                     </el-button>
                     <template #dropdown>
                       <el-dropdown-menu>
-                        <el-dropdown-item :command="DETAIL_TYPE_VALUE.EXPENSE">转账</el-dropdown-item>
-                        <el-dropdown-item :command="DETAIL_TYPE_VALUE.INCOME">支出</el-dropdown-item>
+                        <el-dropdown-item :command="DETAIL_TYPE_VALUE.INCOME">还款</el-dropdown-item>
+                        <el-dropdown-item :command="DETAIL_TYPE_VALUE.EXPENSE">消费</el-dropdown-item>
                       </el-dropdown-menu>
                     </template>
                   </el-dropdown>
@@ -153,10 +151,19 @@
                     <div class="detail-pane-head">
                       <div class="detail-pane-head-main">
                         <div class="detail-pane-title">
-                          <span>支出</span>
+                          <span>还款</span>
                           <el-tag type="success" size="small" effect="light">{{ detailTypeTotalCount(row.id, DETAIL_TYPE_VALUE.INCOME) }}</el-tag>
+                          <div class="detail-verify-switch" @click.stop>
+                            <span>还款核实</span>
+                            <el-switch
+                              :model-value="Boolean(row.verified)"
+                              active-text="已核实"
+                              inactive-text="未核实"
+                              @change="(val: any) => handleRepayVerifiedChange(row, Boolean(val))"
+                            />
+                          </div>
                         </div>
-                        <span class="detail-pane-sub">左侧展示支出</span>
+                        <span class="detail-pane-sub">左侧展示还款</span>
                       </div>
                       <div class="detail-pane-total">
                         <span class="detail-pane-total-label">总额</span>
@@ -210,27 +217,26 @@
                         </div>
                       </div>
                     </div>
-                    <div v-else class="detail-empty">暂无支出明细</div>
+                    <div v-else class="detail-empty">暂无还款明细</div>
                   </div>
 
                   <div class="detail-pane">
                     <div class="detail-pane-head">
                       <div class="detail-pane-head-main">
                         <div class="detail-pane-title">
-                          <span>转账</span>
+                          <span>消费</span>
                           <el-tag type="danger" size="small" effect="light">{{ detailTypeTotalCount(row.id, DETAIL_TYPE_VALUE.EXPENSE) }}</el-tag>
                           <div class="detail-verify-switch" @click.stop>
-                            <span>明细核实</span>
+                            <span>消费核实</span>
                             <el-switch
                               :model-value="Boolean(row.expenseVerified)"
-                              :loading="savingId === row.id"
                               active-text="已核实"
                               inactive-text="未核实"
                               @change="(val: any) => handleExpenseVerifiedChange(row, Boolean(val))"
                             />
                           </div>
                         </div>
-                        <span class="detail-pane-sub">右侧展示转账</span>
+                        <span class="detail-pane-sub">右侧展示消费</span>
                       </div>
                       <div class="detail-pane-total">
                         <span class="detail-pane-total-label">总额</span>
@@ -284,7 +290,7 @@
                         </div>
                       </div>
                     </div>
-                    <div v-else class="detail-empty">暂无转账明细</div>
+                    <div v-else class="detail-empty">暂无消费明细</div>
                   </div>
                 </div>
               </template>
@@ -348,31 +354,43 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="费率" width="54" align="center">
+      <el-table-column label="实际还款" width="88" align="center" header-align="center">
         <template #default="{ row }">
-          <span class="fee-rate-badge">{{ formatRate(row.feeRate) }}%</span>
+          <span class="amount-value amt-pos">{{ formatMoney(row.actualPayAmount) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="手续费" width="88" align="center" header-align="center">
+      <el-table-column label="消费总额" width="88" align="center" header-align="center">
         <template #default="{ row }">
-          <span class="amount-value amt-pos">{{ formatMoney(row.feeAmount) }}</span>
+          <span class="amount-value amt-neg">{{ formatMoney(row.consumeAmount) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="手续费支付" width="86" align="center" header-align="center">
+      <el-table-column label="差额" width="86" align="center" header-align="center">
         <template #default="{ row }">
-          <el-tag v-if="row.feePaid" class="fee-paid-tag" type="success" size="small" effect="light">已支付</el-tag>
-          <el-tag v-else class="fee-paid-tag" type="warning" size="small" effect="plain">未支付</el-tag>
+          <span class="amount-value" :class="billBalanceDiff(row) >= 0 ? 'amt-pos' : 'amt-neg'">
+            {{ billBalanceDiff(row) < 0 ? '-' : '' }}{{ formatMoney(Math.abs(billBalanceDiff(row))) }}
+          </span>
         </template>
       </el-table-column>
-      <el-table-column label="是否核实" width="78" align="center" header-align="center">
+      <el-table-column label="还款核实" width="78" align="center" header-align="center">
         <template #default="{ row }">
-          <el-tag v-if="row.verified" class="verify-tag" type="success" size="small" effect="light">已核实</el-tag>
-          <el-tag v-else class="verify-tag" type="warning" size="small" effect="plain">未核实</el-tag>
+          <StatusTag class="verify-tag" :value="row.verified ? 1 : 0" :label-map="VERIFY_STATUS_MAP" :type-map="VERIFY_STATUS_TAG_TYPE" size="small" />
+        </template>
+      </el-table-column>
+      <el-table-column label="消费核实" width="78" align="center" header-align="center">
+        <template #default="{ row }">
+          <StatusTag class="verify-tag" :value="row.expenseVerified ? 1 : 0" :label-map="VERIFY_STATUS_MAP" :type-map="VERIFY_STATUS_TAG_TYPE" size="small" />
         </template>
       </el-table-column>
       <el-table-column label="状态" width="78" align="center" header-align="center">
         <template #default="{ row }">
-          <StatusTag :value="row.status" :label-map="BILL_LIST_STATUS_MAP" :type-map="BILL_STATUS_TAG_TYPE" size="small" />
+          <span class="bill-status-cell">
+            <StatusTag :value="row.status" :label-map="BILL_LIST_STATUS_MAP" :type-map="BILL_STATUS_TAG_TYPE" size="small" />
+          </span>
+        </template>
+      </el-table-column>
+      <el-table-column label="备注" width="82" align="center" header-align="center" show-overflow-tooltip>
+        <template #default="{ row }">
+          <span class="bill-remark-cell">{{ row.remark || '-' }}</span>
         </template>
       </el-table-column>
       <el-table-column label="操作" width="92" align="center">
@@ -542,32 +560,15 @@
               @update:model-value="(val:any) => updateEditField(billEditRowId, 'posCostAmount', val)"
             />
           </el-form-item>
-          <el-form-item label="手续费支付">
-            <el-switch
-              :model-value="editFormMap[billEditRowId]?.feePaid"
-              active-text="已付"
-              inactive-text="未付"
-              @update:model-value="(val:any) => updateEditField(billEditRowId, 'feePaid', val)"
+          <el-form-item label="备注">
+            <el-input
+              :model-value="editFormMap[billEditRowId]?.remark"
+              type="textarea"
+              rows="2"
+              maxlength="500"
+              show-word-limit
+              @update:model-value="(val:any) => updateEditField(billEditRowId, 'remark', val)"
             />
-          </el-form-item>
-          <el-form-item label="是否核实">
-            <el-switch
-              :model-value="editFormMap[billEditRowId]?.verified"
-              active-text="已核实"
-              inactive-text="未核实"
-              @update:model-value="(val:any) => updateEditField(billEditRowId, 'verified', val)"
-            />
-          </el-form-item>
-          <el-form-item label="手续费率">
-            <span class="bill-edit-static">{{ formatRate(billEditRow.feeRate) }}%</span>
-          </el-form-item>
-          <el-form-item label="手续费收入">
-            <span class="bill-edit-static amt-pos">¥{{ formatMoney(editFormMap[billEditRowId]?.feeAmount) }}</span>
-          </el-form-item>
-          <el-form-item label="净利润">
-            <span class="bill-edit-static" :class="Number(editFormMap[billEditRowId]?.netProfit ?? 0) >= 0 ? 'amt-pos' : 'amt-neg'">
-              ¥{{ formatMoney(editFormMap[billEditRowId]?.netProfit) }}
-            </span>
           </el-form-item>
         </el-form>
       </template>
@@ -583,7 +584,7 @@
           <el-date-picker v-model="detailForm.detailDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
         </el-form-item>
         <el-form-item label="描述" prop="description">
-          <el-input v-model="detailForm.description" placeholder="如：代还服务收入" />
+          <el-input v-model="detailForm.description" placeholder="如：还款入账" />
         </el-form-item>
         <el-form-item label="交易类型" prop="detailType">
           <el-radio-group v-model="detailForm.detailType">
@@ -624,6 +625,7 @@ import {
   getBillOverviewApi,
   saveBillApi,
   updateBillApi,
+  updateBillVerificationApi,
   deleteBillApi,
   batchDeleteBillsApi,
   exportBillApi,
@@ -655,10 +657,14 @@ interface BillRow {
   billDay: number | null
   repayDate: string | null
   billAmount: number | null
+  actualPayAmount?: number | null
+  consumeAmount?: number | null
+  actualPayDate?: string | null
   feeRate: number | null
   feeAmount: number | null
   feePaid: boolean
   posCostAmount: number | null
+  otherFeeAmount: number | null
   netProfit: number | null
   status: number
   verified?: boolean | null
@@ -672,10 +678,10 @@ interface EditFormItem {
   billDay: number | null
   posCostAmount: number
   repayDay: number | null
-  feePaid: boolean
   verified: boolean
   feeAmount: string
   netProfit: string
+  remark: string
 }
 
 interface BillOverview {
@@ -688,6 +694,7 @@ interface BillOverview {
   totalBillAmount: number
   totalFeeAmount: number
   totalPosCostAmount: number
+  totalOtherFeeAmount: number
   totalNetProfit: number
 }
 
@@ -735,9 +742,17 @@ const DETAIL_PREFETCH_CONCURRENCY = 2
 const DETAIL_PREFETCH_ANNUAL_LIMIT = 20
 const BILL_LIST_STATUS_MAP: Record<number, string> = {
   0: '未还',
-  1: '已还款',
+  1: '已还清',
   2: '部分',
   3: '逾期'
+}
+const VERIFY_STATUS_MAP: Record<number, string> = {
+  0: '未核实',
+  1: '已核实'
+}
+const VERIFY_STATUS_TAG_TYPE: Record<number, string> = {
+  0: 'warning',
+  1: 'success'
 }
 
 function createDebouncedTask(fn: () => void, delay = 300) {
@@ -758,7 +773,7 @@ function createDebouncedTask(fn: () => void, delay = 300) {
   return run
 }
 
-const billMonthRange = ref<string[]>([])
+const billMonthFilter = ref<string | null>('')
 
 const {
   loading,
@@ -810,6 +825,7 @@ const billOverview = ref<BillOverview>({
   totalBillAmount: 0,
   totalFeeAmount: 0,
   totalPosCostAmount: 0,
+  totalOtherFeeAmount: 0,
   totalNetProfit: 0
 })
 
@@ -944,15 +960,15 @@ function resolveBillPageSize(params: any) {
 }
 
 function syncBillMonthQuery() {
-  const [startBillMonth = '', endBillMonth = ''] = billMonthRange.value || []
-  query.startBillMonth = startBillMonth
-  query.endBillMonth = endBillMonth
+  const billMonth = String(billMonthFilter.value || '').trim()
+  query.startBillMonth = billMonth
+  query.endBillMonth = billMonth
 }
 
 function applyBillMonthRange(startBillMonth?: string | null, endBillMonth?: string | null) {
   const start = String(startBillMonth || '').trim()
   const end = String(endBillMonth || '').trim()
-  billMonthRange.value = start && end ? [start, end] : []
+  billMonthFilter.value = start && end && start === end ? start : ''
   query.startBillMonth = start
   query.endBillMonth = end
 }
@@ -1060,6 +1076,7 @@ async function fetchBillOverview() {
       totalBillAmount: Number(res.data?.totalBillAmount ?? 0),
       totalFeeAmount: Number(res.data?.totalFeeAmount ?? 0),
       totalPosCostAmount: Number(res.data?.totalPosCostAmount ?? 0),
+      totalOtherFeeAmount: Number(res.data?.totalOtherFeeAmount ?? 0),
       totalNetProfit: Number(res.data?.totalNetProfit ?? 0)
     }
   } catch (error) {
@@ -1135,7 +1152,7 @@ async function handleResetAll() {
     skipRouteDrivenSearch = true
     clearRouteFilters()
   }
-  billMonthRange.value = []
+  billMonthFilter.value = ''
   currentExpandedRow.value = null
   await resetQuery()
   syncingBillFilters = false
@@ -1335,10 +1352,10 @@ function ensureEditForm(row: BillRow) {
       billDay: row.billDay ?? null,
       posCostAmount: toNumber(row.posCostAmount),
       repayDay: parseRepayDay(row.repayDate),
-      feePaid: row.feePaid ?? false,
       verified: Boolean(row.verified),
       feeAmount: '0.00',
-      netProfit: '0.00'
+      netProfit: '0.00',
+      remark: row.remark || ''
     }
     syncInlineAmounts(row.id)
   }
@@ -1351,7 +1368,7 @@ function syncInlineAmounts(billId: number) {
   if (!form || !row) return
   const feeAmount = buildFeeAmount(form.billAmount, row.feeRate)
   form.feeAmount = feeAmount.toFixed(2)
-  form.netProfit = buildNetProfit(form.billAmount, row.feeRate, form.posCostAmount).toFixed(2)
+  form.netProfit = buildNetProfit(form.billAmount, row.feeRate, form.posCostAmount, toNumber(row.otherFeeAmount)).toFixed(2)
 }
 
 const detailListMap = ref<Record<number, BillDetailRow[]>>({})
@@ -1531,6 +1548,10 @@ function detailTypeTotalAmount(billId: number, detailType: number) {
   return detailTypeRows(billId, detailType).reduce((sum, item) => sum + toNumber(item.amount), 0)
 }
 
+function billBalanceDiff(row: BillRow) {
+  return Number((toNumber(row.actualPayAmount) - toNumber(row.consumeAmount)).toFixed(2))
+}
+
 function syncSelectedDetails(billId: number) {
   const incomeList = selectedIncomeDetailsMap.value[billId] || []
   const expenseList = selectedExpenseDetailsMap.value[billId] || []
@@ -1602,7 +1623,7 @@ const detailForm = reactive({
   detailDate: currentDateString(),
   description: '',
   amount: 0,
-  detailType: DETAIL_TYPE_VALUE.EXPENSE,
+  detailType: DETAIL_TYPE_VALUE.INCOME,
   remark: ''
 })
 const detailRules = {
@@ -1613,7 +1634,7 @@ const detailRules = {
 
 function openAddDetail(row: BillRow) {
   currentBillRow.value = row
-  Object.assign(detailForm, { id: undefined, billId: row.id, detailDate: currentDateString(), description: '', amount: 0, detailType: DETAIL_TYPE_VALUE.EXPENSE, remark: '' })
+  Object.assign(detailForm, { id: undefined, billId: row.id, detailDate: currentDateString(), description: '', amount: 0, detailType: DETAIL_TYPE_VALUE.INCOME, remark: '' })
   detailDialogTitle.value = '新增明细'
   detailDialogVisible.value = true
 }
@@ -1766,30 +1787,80 @@ function buildBillUpdatePayload(row: BillRow, form: EditFormItem, overrides: Rec
     actualPayAmount: toNumber(rowData.actualPayAmount),
     actualPayDate: rowData.actualPayDate,
     feeRate: row.feeRate,
-    feePaid: form.feePaid,
+    feePaid: Boolean(row.feePaid),
     verified: form.verified,
     expenseVerified: Boolean(row.expenseVerified),
     posCostAmount: toNumber(form.posCostAmount),
+    otherFeeAmount: toNumber(row.otherFeeAmount),
     status: row.status,
-    remark: row.remark || '',
+    remark: form.remark || '',
     ...overrides
   }
 }
 
-async function handleExpenseVerifiedChange(row: BillRow, expenseVerified: boolean) {
+function resolveLocalBillStatus(row: BillRow) {
+  if (Boolean(row.verified) && Boolean(row.expenseVerified)) {
+    return 1
+  }
+  const billAmount = toNumber(row.billAmount)
+  const actualPayAmount = toNumber(row.actualPayAmount)
+  if (actualPayAmount > 0) {
+    if (billAmount <= 0 || actualPayAmount >= billAmount) {
+      return 1
+    }
+    if (isRepayDateOverdue(row.repayDate)) {
+      return 3
+    }
+    return 2
+  }
+  return isRepayDateOverdue(row.repayDate) && billAmount > 0 ? 3 : 0
+}
+
+function isRepayDateOverdue(date: string | null | undefined) {
+  const value = String(date || '').slice(0, 10)
+  if (!value) return false
+  const repayDate = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(repayDate.getTime())) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return repayDate.getTime() < today.getTime()
+}
+
+async function handleRepayVerifiedChange(row: BillRow, verified: boolean) {
   const form = ensureEditForm(row)
-  const previous = Boolean(row.expenseVerified)
-  row.expenseVerified = expenseVerified
-  savingId.value = row.id
+  const previousVerified = Boolean(row.verified)
+  const previousFormVerified = Boolean(form.verified)
+  const previousStatus = row.status
+  row.verified = verified
+  form.verified = verified
+  row.status = resolveLocalBillStatus(row)
   try {
-    await updateBillApi(buildBillUpdatePayload(row, form, { expenseVerified }))
-    row.expenseVerified = expenseVerified
-    ElMessage.success(expenseVerified ? '支出明细已标记为已核实' : '支出明细已标记为未核实')
+    await updateBillVerificationApi(row.id, {
+      verified,
+      expenseVerified: Boolean(row.expenseVerified)
+    })
   } catch (error) {
-    row.expenseVerified = previous
-    handleError(error, '更新支出明细核实状态')
-  } finally {
-    savingId.value = null
+    row.verified = previousVerified
+    form.verified = previousFormVerified
+    row.status = previousStatus
+    handleError(error, '更新还款明细核实状态')
+  }
+}
+
+async function handleExpenseVerifiedChange(row: BillRow, expenseVerified: boolean) {
+  const previousExpenseVerified = Boolean(row.expenseVerified)
+  const previousStatus = row.status
+  row.expenseVerified = expenseVerified
+  row.status = resolveLocalBillStatus(row)
+  try {
+    await updateBillVerificationApi(row.id, {
+      verified: Boolean(row.verified),
+      expenseVerified
+    })
+  } catch (error) {
+    row.expenseVerified = previousExpenseVerified
+    row.status = previousStatus
+    handleError(error, '更新消费明细核实状态')
   }
 }
 
@@ -1915,8 +1986,8 @@ function buildFeeAmount(amount: number, feeRate: number | null | undefined) {
   return Number(((amount * toNumber(feeRate)) / 100).toFixed(2))
 }
 
-function buildNetProfit(amount: number, feeRate: number | null | undefined, posCostAmount: number) {
-  return Number((buildFeeAmount(amount, feeRate) - posCostAmount).toFixed(2))
+function buildNetProfit(amount: number, feeRate: number | null | undefined, posCostAmount: number, otherFeeAmount = 0) {
+  return Number((buildFeeAmount(amount, feeRate) - posCostAmount - otherFeeAmount).toFixed(2))
 }
 
 function parseRepayDay(repayDate: string | null | undefined) {
@@ -1985,7 +2056,7 @@ watch(
 )
 
 watch(
-  billMonthRange,
+  billMonthFilter,
   () => {
     if (syncingBillFilters) return
     syncBillMonthQuery()
@@ -2609,6 +2680,32 @@ watch(
   line-height: 16px;
 }
 
+.bill-status-cell,
+.fee-paid-tag,
+.verify-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  min-width: 52px;
+}
+
+.bill-status-cell :deep(.el-tag),
+.verify-tag,
+.fee-paid-tag {
+  justify-content: center;
+  width: 52px;
+}
+
+.bill-remark-cell {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #526074;
+}
+
 .owner-name,
 .bank-cell,
 .bank-inline-cell,
@@ -2820,6 +2917,11 @@ watch(
   color: #526074;
   font-size: var(--bill-small-font-size);
   white-space: nowrap;
+}
+
+.detail-verify-switch :deep(.el-switch) {
+  flex: 0 0 auto;
+  min-width: 74px;
 }
 
 /*noinspection CssUnusedSymbol*/

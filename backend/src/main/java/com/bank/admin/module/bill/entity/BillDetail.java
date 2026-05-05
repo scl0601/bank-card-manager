@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
- * 账单明细实体（支出/收入流水记录）
+ * 账单明细实体（消费/还款流水记录）
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -25,11 +25,11 @@ public class BillDetail extends BaseEntity {
     /** 描述 */
     private String description;
 
-    /** 金额（正=收入 负=支出） */
+    /** 金额（正=还款 负=消费） */
     private BigDecimal amount;
 
     /**
-     * 明细类型：0=支出 1=收入
+     * 明细类型：0=消费 1=还款
      */
     private Integer detailType;
 

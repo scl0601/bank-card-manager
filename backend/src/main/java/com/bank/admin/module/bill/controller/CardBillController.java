@@ -80,6 +80,18 @@ public class CardBillController {
         return Result.success();
     }
 
+    @Operation(summary = "更新账单核实状态")
+    @Log(module = "账单管理", type = ActionTypeEnum.UPDATE, description = "更新账单核实状态[id=#id]")
+    @PatchMapping("/{id}/verification")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public Result<Void> updateVerification(
+            @PathVariable Long id,
+            @RequestParam(required = false) Boolean verified,
+            @RequestParam(required = false) Boolean expenseVerified) {
+        cardBillService.updateVerification(id, verified, expenseVerified);
+        return Result.success();
+    }
+
     @Operation(summary = "删除账单")
     @Log(module = "账单管理", type = ActionTypeEnum.DELETE, description = "删除账单[id=#id]")
     @DeleteMapping("/{id}")
@@ -167,8 +179,8 @@ public class CardBillController {
         return Result.success();
     }
 
-    @Operation(summary = "批量修改明细收支状态")
-    @Log(module = "账单明细", type = ActionTypeEnum.UPDATE, description = "批量修改明细收支状态")
+    @Operation(summary = "批量修改明细类型")
+    @Log(module = "账单明细", type = ActionTypeEnum.UPDATE, description = "批量修改明细类型")
     @PatchMapping("/details/batch-type")
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     public Result<Void> batchUpdateType(@Valid @RequestBody BatchUpdateTypeDTO dto) {

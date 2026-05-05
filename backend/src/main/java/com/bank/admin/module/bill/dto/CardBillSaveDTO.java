@@ -63,14 +63,17 @@ public class CardBillSaveDTO {
     @Schema(description = "手续费是否已支付")
     private Boolean feePaid;
 
-    @Schema(description = "当月账单是否已核实")
+    @Schema(description = "本月还款明细是否已核实")
     private Boolean verified;
 
-    @Schema(description = "本月支出明细是否已核实")
+    @Schema(description = "本月消费明细是否已核实")
     private Boolean expenseVerified;
 
     @Schema(description = "POS机使用成本")
     private BigDecimal posCostAmount;
+
+    @Schema(description = "其他费用")
+    private BigDecimal otherFeeAmount;
 
     @Schema(description = "本期净利润")
     private BigDecimal netProfit;

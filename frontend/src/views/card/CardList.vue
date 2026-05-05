@@ -384,14 +384,24 @@
             <div class="bill-list" v-loading="recentBillsVisibleLoading">
               <template v-if="recentBills.length">
                 <div v-for="b in recentBills" :key="b.id" class="bill-item" :class="{ current: b.billMonth === currentBillMonth }">
-                  <div class="bill-owner" :title="b.ownerName || '未命名'">
-                    {{ b.ownerName || '未命名' }}
+                  <div class="bill-card-info">
+                    <div class="bill-info-row">
+                      <span class="bill-field-label">名称</span>
+                      <span class="bill-owner bill-field-value" :title="b.ownerName || '未命名'">
+                        {{ b.ownerName || '未命名' }}
+                      </span>
+                      <span class="bill-field-label">银行卡名称</span>
+                      <span class="bill-bank bill-field-value" :title="displayBankName(b.bankName)">
+                        {{ displayBankName(b.bankName) }}
+                      </span>
+                    </div>
+                    <div class="bill-info-row">
+                      <span class="bill-field-label">尾号</span>
+                      <span class="bill-last4 bill-field-value font-mono">{{ b.cardNoLast4 || '-' }}</span>
+                      <span class="bill-field-label">还款日</span>
+                      <span class="bill-repay bill-field-value">{{ fmtRepayDay(b.repayDate) }}</span>
+                    </div>
                   </div>
-                  <div class="bill-bank" :title="displayBankName(b.bankName)">
-                    {{ displayBankName(b.bankName) }}
-                  </div>
-                  <div class="bill-last4 font-mono">尾号{{ b.cardNoLast4 || '-' }}</div>
-                  <div class="bill-repay">还款日 {{ fmtRepayDay(b.repayDate) }}</div>
                   <div class="bill-amount-edit">
                     <span class="bill-amount-symbol">¥</span>
                     <el-input-number
@@ -455,17 +465,29 @@
                 <div class="pk-value" :class="Number(profitOverview.expectedNetProfit || 0) >= 0 ? 'pos' : 'neg'">
                   ¥{{ formatMoneySafe(profitOverview.expectedNetProfit) }}
                 </div>
-                <div class="pk-sub">应收手续费 - POS成本</div>
+                <div class="pk-sub">应收手续费 - POS成本 - 其他费用</div>
               </div>
               <div class="profit-kpi">
                 <div class="pk-label">实际{{ profitScopeLabel }}净利润</div>
                 <div class="pk-value" :class="Number(profitOverview.totalNetProfit || 0) >= 0 ? 'pos' : 'neg'">
                   ¥{{ formatMoneySafe(profitOverview.totalNetProfit) }}
                 </div>
-                <div class="pk-sub">已收手续费 - POS成本</div>
+                <div class="pk-sub">已收手续费 - POS成本 - 其他费用</div>
               </div>
             </div>
-            <div class="profit-grid">
+            <div class="profit-grid profit-grid-3">
+              <div class="profit-metric">
+                <span class="pm-label">费率</span>
+                <span class="pm-value font-mono">{{ profitRateLabel }}</span>
+              </div>
+              <div class="profit-metric">
+                <span class="pm-label">手续费</span>
+                <span class="pm-value pos font-mono">¥{{ formatMoneySafe(profitOverview.totalFeeAmount) }}</span>
+              </div>
+              <div class="profit-metric">
+                <span class="pm-label">手续费支付</span>
+                <span class="pm-value">{{ profitFeePayStatusLabel }}</span>
+              </div>
               <div class="profit-metric">
                 <span class="pm-label">已收手续费</span>
                 <span class="pm-value pos font-mono">¥{{ formatMoneySafe(profitOverview.paidFeeAmount) }}</span>
@@ -474,27 +496,10 @@
                 <span class="pm-label">POS成本</span>
                 <span class="pm-value neg font-mono">¥{{ formatMoneySafe(profitOverview.totalPosCostAmount) }}</span>
               </div>
-            </div>
-            <div class="fee-pay-card">
-              <div class="fee-pay-head">
-                <span>手续费收款明细</span>
-                <span class="fee-pay-summary">
-                  已收 {{ profitOverview.paidFeeCount }} 笔 ¥{{ formatMoneySafe(profitOverview.paidFeeAmount) }}
-                  / 待收 {{ profitOverview.unpaidFeeCount }} 笔 ¥{{ formatMoneySafe(profitOverview.unpaidFeeAmount) }}
-                </span>
+              <div class="profit-metric">
+                <span class="pm-label">其他费用</span>
+                <span class="pm-value neg font-mono">¥{{ formatMoneySafe(profitOverview.totalOtherFeeAmount) }}</span>
               </div>
-              <div v-if="feePaymentItems.length" class="fee-pay-list">
-                <div v-for="item in feePaymentItems" :key="item.key" class="fee-pay-row">
-                  <div class="fee-pay-main">
-                    <span class="fee-pay-title">{{ item.label }}</span>
-                    <span class="fee-pay-sub">{{ item.repayText }}</span>
-                  </div>
-                  <div class="fee-pay-amount" :class="item.paid ? 'pos' : 'warn'">
-                    {{ item.paid ? '用户已给' : '用户未给' }} ¥{{ formatMoneySafe(item.amount) }}
-                  </div>
-                </div>
-              </div>
-              <div v-else class="fee-pay-empty">暂无手续费记录</div>
             </div>
           </div>
         </section>
@@ -621,6 +626,7 @@ interface BillRow {
   feeAmount?: number | null
   feePaid?: boolean | null
   posCostAmount?: number | null
+  otherFeeAmount?: number | null
   netProfit?: number | null
   verified?: boolean | null
   expenseVerified?: boolean | null
@@ -643,6 +649,7 @@ interface ProfitOverview {
   totalBillAmount: number
   totalFeeAmount: number
   totalPosCostAmount: number
+  totalOtherFeeAmount: number
   expectedNetProfit: number
   totalNetProfit: number
   paidFeeAmount: number
@@ -1393,6 +1400,7 @@ function buildBillAmountUpdatePayload(row: BillRow, billAmount: number) {
     verified: row.verified,
     expenseVerified: row.expenseVerified,
     posCostAmount: row.posCostAmount,
+    otherFeeAmount: row.otherFeeAmount,
     status: row.status,
     remark: row.remark || ''
   }
@@ -1468,6 +1476,7 @@ const profitOverview = ref<ProfitOverview>({
   totalBillAmount: 0,
   totalFeeAmount: 0,
   totalPosCostAmount: 0,
+  totalOtherFeeAmount: 0,
   expectedNetProfit: 0,
   totalNetProfit: 0,
   paidFeeAmount: 0,
@@ -1479,25 +1488,12 @@ const profitVisibleLoading = computed(() => profitLoading.value && !profitReady.
 const profitScopeLabel = computed(() => profitScope.value === 'month' ? '本月' : '本年')
 let profitScopeRequestSeq = 0
 
-const feePaymentItems = computed(() => {
-  const rows = [...profitRows.value]
-    .filter(row => billFeeAmount(row) > 0)
-    .sort((a, b) => {
-      if (Boolean(a.feePaid) !== Boolean(b.feePaid)) {
-        return Boolean(a.feePaid) ? 1 : -1
-      }
-      const monthDelta = billMonthOrder(a) - billMonthOrder(b)
-      if (monthDelta !== 0) return monthDelta
-      return profitBillLabel(a).localeCompare(profitBillLabel(b))
-    })
-
-  return rows.map(row => ({
-    key: row.id,
-    label: profitBillLabel(row),
-    repayText: row.repayDate ? `还款日 ${fmtRepayDay(row.repayDate)}` : '还款日 —',
-    amount: billFeeAmount(row),
-    paid: row.feePaid === true
-  }))
+const profitRateLabel = computed(() => `${formatRate(activeUser.value?.feeRate ?? 0)}%`)
+const profitFeePayStatusLabel = computed(() => {
+  const paidCount = profitOverview.value.paidFeeCount
+  const unpaidCount = profitOverview.value.unpaidFeeCount
+  if (!paidCount && !unpaidCount) return '暂无手续费'
+  return `已收 ${paidCount} / 未收 ${unpaidCount}`
 })
 
 function emptyProfitOverview(): ProfitOverview {
@@ -1509,6 +1505,7 @@ function emptyProfitOverview(): ProfitOverview {
     totalBillAmount: 0,
     totalFeeAmount: 0,
     totalPosCostAmount: 0,
+    totalOtherFeeAmount: 0,
     expectedNetProfit: 0,
     totalNetProfit: 0,
     paidFeeAmount: 0,
@@ -1626,6 +1623,7 @@ function buildProfitOverviewFromRows(list: BillRow[]): ProfitOverview {
     acc.totalBillAmount += Number(item?.billAmount ?? 0)
     acc.totalFeeAmount += billFeeAmount(item)
     acc.totalPosCostAmount += Number(item?.posCostAmount ?? 0)
+    acc.totalOtherFeeAmount += Number(item?.otherFeeAmount ?? 0)
     return acc
   }, {
     ...emptyProfitOverview(),
@@ -1633,12 +1631,12 @@ function buildProfitOverviewFromRows(list: BillRow[]): ProfitOverview {
     cardCount: scopedCardIds.value.length
   })
 
-  overview.expectedNetProfit = overview.totalFeeAmount - overview.totalPosCostAmount
+  overview.expectedNetProfit = overview.totalFeeAmount - overview.totalPosCostAmount - overview.totalOtherFeeAmount
   overview.paidFeeAmount = paidFeeAmount
   overview.unpaidFeeAmount = unpaidFeeAmount
   overview.paidFeeCount = paidFeeCount
   overview.unpaidFeeCount = unpaidFeeCount
-  overview.totalNetProfit = overview.paidFeeAmount - overview.totalPosCostAmount
+  overview.totalNetProfit = overview.paidFeeAmount - overview.totalPosCostAmount - overview.totalOtherFeeAmount
   return overview
 }
 
@@ -1649,21 +1647,6 @@ function billFeeAmount(row: BillRow) {
     return Number(((billAmount * feeRate) / 100).toFixed(2))
   }
   return toAmount(row.feeAmount)
-}
-
-function profitBillLabel(row: BillRow) {
-  const parts = [
-    profitScope.value === 'year' ? billMonthShortLabel(row.billMonth) : '',
-    row.ownerName || '未命名',
-    displayBankName(row.bankName),
-    `尾号${row.cardNoLast4 || '-'}`
-  ].filter(Boolean)
-  return parts.join(' · ')
-}
-
-function billMonthShortLabel(billMonth: string | null | undefined) {
-  const match = String(billMonth || '').match(/^(\d{4})-(\d{2})$/)
-  return match ? `${Number(match[2])}月` : ''
 }
 
 function goProfits() {
@@ -3153,7 +3136,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 8px;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 2px;
@@ -3162,7 +3145,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 .profit-summary-block {
   overflow-y: auto;
   overflow-x: hidden;
-  gap: 5px;
+  gap: 6px;
   padding-right: 2px;
 }
 
@@ -3183,20 +3166,29 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 }
 
 .bill-item {
-  display: grid;
-  grid-template-columns: minmax(86px, 1fr) minmax(86px, .9fr) 66px 82px minmax(200px, 1.2fr) 74px;
-  gap: 8px;
+  display: flex;
+  gap: 10px;
   align-items: center;
+  justify-content: space-between;
   padding: 8px 10px;
-  border-radius: 12px;
+  border-radius: 14px;
   background: $surface;
   border: 1px solid rgba(219,226,234,.85);
+  min-height: 56px;
   min-width: 0;
+  transition: all .16s;
+}
+
+.bill-item:hover {
+  border-color: rgba($primary,.22);
+  box-shadow: 0 10px 18px rgba(15,23,42,.06);
+  transform: translateY(-1px);
 }
 
 .bill-item.current {
   border-color: rgba($warning,.55);
   background: linear-gradient(180deg, rgba(255,255,255,.99) 0%, rgba($warning,.08) 150%);
+  box-shadow: inset 0 0 0 2px rgba($warning,.20);
 }
 
 .bill-owner,
@@ -3208,12 +3200,43 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   min-width: 0;
 }
 
+.bill-card-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.bill-info-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, .82fr) 66px minmax(0, 1fr);
+  column-gap: 6px;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  line-height: 1.5;
+}
+
+.bill-field-label {
+  color: $sub;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.bill-field-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .bill-owner,
 .bill-bank {
   overflow: hidden;
   color: $ink;
-  font-size: 12.5px;
-  font-weight: 900;
+  font-size: 13px;
+  font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -3225,18 +3248,31 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 .bill-last4,
 .bill-repay {
   overflow: hidden;
-  color: $sub;
+  color: $ink2;
   font-size: 11.5px;
-  font-weight: 800;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.bill-owner {
+  color: $ink;
+}
+
+.bill-last4,
+.bill-repay {
+  flex: 0 0 auto;
+}
+
 .bill-amount-edit {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 4px;
+}
+
+.bill-amount-edit :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 .bill-amount-symbol {
@@ -3281,6 +3317,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 
 .bill-status {
   display: flex;
+  margin-left: auto;
   justify-content: flex-end;
 }
 
@@ -3320,138 +3357,95 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 }
 
 .profit-kpi {
-  padding: 5px 8px;
-  border-radius: 10px;
+  min-height: 58px;
+  padding: 7px 9px;
+  border-radius: 8px;
   border: 1px solid rgba(219,226,234,.85);
   background: linear-gradient(180deg, rgba(255,255,255,.99) 0%, rgba($primary,.03) 180%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
-.pk-label { font-size: 10.5px; color: $sub; font-weight: 800; }
-.pk-value { margin-top: 2px; font-size: 18px; font-weight: 900; letter-spacing: 0; line-height: 1.05; }
+.pk-label {
+  overflow: hidden;
+  color: $sub;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pk-value {
+  margin-top: 3px;
+  overflow: hidden;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .pk-value.pos { color: $success; }
 .pk-value.neg { color: $danger; }
-.pk-sub { margin-top: 1px; font-size: 10px; color: $faint; font-weight: 700; }
+.pk-sub {
+  margin-top: 3px;
+  overflow: hidden;
+  color: $faint;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .profit-net-grid,
 .profit-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 5px;
+  gap: 6px;
+}
+
+.profit-grid-3 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .profit-metric {
-  border-radius: 10px;
+  min-height: 36px;
+  border-radius: 8px;
   border: 1px solid rgba(219,226,234,.75);
   background: rgba(148,163,184,.10);
   padding: 6px 8px;
   display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.pm-label { font-size: 10.5px; color: $sub; font-weight: 800; }
-.pm-value { font-size: 12px; font-weight: 900; color: $ink; }
-.pm-value.pos { color: $success; }
-.pm-value.warn { color: $warning; }
-.pm-value.neg { color: $danger; }
-
-.fee-pay-card {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  min-height: 0;
-  padding: 6px 8px;
-  border: 1px solid rgba(219,226,234,.75);
-  border-radius: 10px;
-  background: rgba(255,255,255,.96);
-}
-
-.fee-pay-head {
-  display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  color: $ink;
-  font-size: 11.5px;
-  font-weight: 900;
+  gap: 8px;
 }
 
-.fee-pay-summary {
+.pm-label {
+  overflow: hidden;
   color: $sub;
   font-size: 10.5px;
   font-weight: 800;
-  text-align: right;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 0 64px;
 }
-
-.fee-pay-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 238px;
-  overflow-y: auto;
-  padding-right: 2px;
-}
-
-.fee-pay-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 6px;
+.pm-value {
+  flex: 1 1 auto;
+  font-size: 12px;
+  font-weight: 900;
+  color: $ink;
+  line-height: 1.2;
   min-width: 0;
-  padding: 4px 6px;
-  border-radius: 8px;
-  background: rgba(148,163,184,.08);
-}
-
-.fee-pay-main {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.fee-pay-title,
-.fee-pay-sub {
   overflow: hidden;
+  text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-.fee-pay-title {
-  color: $ink;
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.fee-pay-sub {
-  color: $faint;
-  font-size: 10px;
-  font-weight: 800;
-}
-
-.fee-pay-amount {
-  font-size: 11px;
-  font-weight: 900;
-  white-space: nowrap;
-}
-
-.fee-pay-amount.pos {
-  color: $success;
-}
-
-.fee-pay-amount.warn {
-  color: $warning;
-}
-
-.fee-pay-empty {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: $faint;
-  font-size: 12px;
-  font-weight: 800;
-}
+.pm-value.pos { color: $success; }
+.pm-value.warn { color: $warning; }
+.pm-value.neg { color: $danger; }
 
 .font-mono {
   font-family: var(--font-mono), monospace;
@@ -3486,18 +3480,21 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   .cards-grid { gap: 10px; padding: 10px 12px 12px; }
   .mini-stats { gap: 6px; }
   .mini-stat { padding: 9px 9px 8px; }
-  .pk-value { font-size: 24px; }
+  .pk-value { font-size: 18px; }
 }
 
 @media (max-width: 1280px) {
   .metrics-grid { min-width: 160px; }
   .metric-box { padding: 6px 7px; }
   .bill-item {
-    grid-template-columns: minmax(80px, 1fr) minmax(76px, .9fr) 60px 70px minmax(170px, 1fr) 64px;
-    gap: 6px;
-    padding: 8px;
+    gap: 8px;
+    padding: 6px 8px;
+  }
+  .bill-card-info {
+    min-width: 0;
   }
   .bill-amount-input { width: 82px; }
   .profit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .profit-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 </style>

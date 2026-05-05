@@ -36,7 +36,7 @@ public class BillDetailServiceImpl
         extends ServiceImpl<BillDetailMapper, BillDetail>
         implements BillDetailService {
 
-    private static final String[] DETAIL_TYPE_DESC = {"支出", "收入"};
+    private static final String[] DETAIL_TYPE_DESC = {"消费", "还款"};
 
     private final CardBillMapper cardBillMapper;
     private final CardBillService cardBillService;

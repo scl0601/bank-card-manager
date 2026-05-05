@@ -43,6 +43,7 @@ public class ProfitStatsServiceImpl implements ProfitStatsService {
         vo.setTotalBillAmount(defaultZero(vo.getTotalBillAmount()));
         vo.setTotalFeeAmount(defaultZero(vo.getTotalFeeAmount()));
         vo.setTotalPosCostAmount(defaultZero(vo.getTotalPosCostAmount()));
+        vo.setTotalOtherFeeAmount(defaultZero(vo.getTotalOtherFeeAmount()));
         vo.setTotalNetProfit(defaultZero(vo.getTotalNetProfit()));
         return vo;
     }
@@ -86,6 +87,7 @@ public class ProfitStatsServiceImpl implements ProfitStatsService {
             target.setTotalBillAmount(defaultZero(row.getTotalBillAmount()));
             target.setTotalFeeAmount(defaultZero(row.getTotalFeeAmount()));
             target.setTotalPosCostAmount(defaultZero(row.getTotalPosCostAmount()));
+            target.setTotalOtherFeeAmount(defaultZero(row.getTotalOtherFeeAmount()));
             target.setTotalNetProfit(defaultZero(row.getTotalNetProfit()));
             monthMap.put(target.getBillMonth(), target);
         }
@@ -113,6 +115,7 @@ public class ProfitStatsServiceImpl implements ProfitStatsService {
             row.setTotalBillAmount(defaultZero(row.getTotalBillAmount()));
             row.setTotalFeeAmount(defaultZero(row.getTotalFeeAmount()));
             row.setTotalPosCostAmount(defaultZero(row.getTotalPosCostAmount()));
+            row.setTotalOtherFeeAmount(defaultZero(row.getTotalOtherFeeAmount()));
             row.setTotalNetProfit(defaultZero(row.getTotalNetProfit()));
         });
     }
@@ -126,6 +129,7 @@ public class ProfitStatsServiceImpl implements ProfitStatsService {
             row.setTotalBillAmount(defaultZero(row.getTotalBillAmount()));
             row.setTotalFeeAmount(defaultZero(row.getTotalFeeAmount()));
             row.setTotalPosCostAmount(defaultZero(row.getTotalPosCostAmount()));
+            row.setTotalOtherFeeAmount(defaultZero(row.getTotalOtherFeeAmount()));
             row.setTotalNetProfit(defaultZero(row.getTotalNetProfit()));
         });
     }
@@ -138,6 +142,7 @@ public class ProfitStatsServiceImpl implements ProfitStatsService {
         vo.setTotalBillAmount(BigDecimal.ZERO);
         vo.setTotalFeeAmount(BigDecimal.ZERO);
         vo.setTotalPosCostAmount(BigDecimal.ZERO);
+        vo.setTotalOtherFeeAmount(BigDecimal.ZERO);
         vo.setTotalNetProfit(BigDecimal.ZERO);
         return vo;
     }

@@ -39,6 +39,9 @@ public class CardBillOverviewVO {
     @Schema(description = "POS总成本")
     private BigDecimal totalPosCostAmount;
 
+    @Schema(description = "其他费用总额")
+    private BigDecimal totalOtherFeeAmount;
+
     @Schema(description = "净利润总额")
     private BigDecimal totalNetProfit;
 }

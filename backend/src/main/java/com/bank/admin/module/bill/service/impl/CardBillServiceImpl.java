@@ -20,6 +20,7 @@ import com.bank.admin.module.card.mapper.BankCardMapper;
 import com.bank.admin.module.card.mapper.CardUserMapper;
 import com.bank.admin.module.reminder.service.ReminderTaskService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.RequiredArgsConstructor;
@@ -100,6 +101,7 @@ public class CardBillServiceImpl
         overview.setTotalBillAmount(scaleMoney(overview.getTotalBillAmount()));
         overview.setTotalFeeAmount(scaleMoney(overview.getTotalFeeAmount()));
         overview.setTotalPosCostAmount(scaleMoney(overview.getTotalPosCostAmount()));
+        overview.setTotalOtherFeeAmount(scaleMoney(overview.getTotalOtherFeeAmount()));
         overview.setTotalNetProfit(scaleMoney(overview.getTotalNetProfit()));
         return overview;
     }
@@ -204,6 +206,39 @@ public class CardBillServiceImpl
         updateById(entity);
         if (entity.getStatus() != null && entity.getStatus() == 1) {
             reminderTaskService.closeBillReminders(entity.getId());
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateVerification(Long id, Boolean verified, Boolean expenseVerified) {
+        if (id == null) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "ID不能为空");
+        }
+        if (verified == null && expenseVerified == null) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "核实状态不能为空");
+        }
+        CardBill entity = getById(id);
+        if (entity == null) {
+            throw new BusinessException(ResultCode.DATA_NOT_FOUND, "账单不存在");
+        }
+        if (verified != null) {
+            entity.setVerified(verified);
+        }
+        if (expenseVerified != null) {
+            entity.setExpenseVerified(expenseVerified);
+        }
+        int status = resolveBillStatus(entity, LocalDate.now());
+        entity.setStatus(status);
+
+        LambdaUpdateWrapper<CardBill> wrapper = new LambdaUpdateWrapper<CardBill>()
+                .eq(CardBill::getId, id)
+                .set(verified != null, CardBill::getVerified, verified)
+                .set(expenseVerified != null, CardBill::getExpenseVerified, expenseVerified)
+                .set(CardBill::getStatus, status);
+        update(wrapper);
+        if (status == 1) {
+            reminderTaskService.closeBillReminders(id);
         }
     }
 
@@ -353,11 +388,16 @@ public class CardBillServiceImpl
         heads.add(List.of("账单月份"));
         heads.add(List.of("账单日"));
         heads.add(List.of("代还金额"));
+        heads.add(List.of("实际还款"));
+        heads.add(List.of("消费总额"));
+        heads.add(List.of("差额"));
         heads.add(List.of("手续费率"));
         heads.add(List.of("手续费收入"));
         heads.add(List.of("手续费状态"));
-        heads.add(List.of("是否核实"));
+        heads.add(List.of("还款核实"));
+        heads.add(List.of("消费核实"));
         heads.add(List.of("POS成本"));
+        heads.add(List.of("其他费用"));
         heads.add(List.of("净利润"));
         heads.add(List.of("还款日"));
         heads.add(List.of("状态"));
@@ -371,11 +411,18 @@ public class CardBillServiceImpl
             row.add(vo.getBillMonth());
             row.add(vo.getBillDay());
             row.add(defaultZero(vo.getBillAmount()).toString());
+            BigDecimal actualPayAmount = defaultZero(vo.getActualPayAmount());
+            BigDecimal consumeAmount = defaultZero(vo.getConsumeAmount());
+            row.add(actualPayAmount.toString());
+            row.add(consumeAmount.toString());
+            row.add(actualPayAmount.subtract(consumeAmount).setScale(2, RoundingMode.HALF_UP).toString());
             row.add(formatRatePercent(vo.getFeeRate()));
             row.add(defaultZero(vo.getFeeAmount()).toString());
             row.add(Boolean.TRUE.equals(vo.getFeePaid()) ? "已付" : "未付");
             row.add(Boolean.TRUE.equals(vo.getVerified()) ? "已核实" : "未核实");
+            row.add(Boolean.TRUE.equals(vo.getExpenseVerified()) ? "已核实" : "未核实");
             row.add(defaultZero(vo.getPosCostAmount()).toString());
+            row.add(defaultZero(vo.getOtherFeeAmount()).toString());
             row.add(defaultZero(vo.getNetProfit()).toString());
             row.add(vo.getRepayDate());
             row.add(vo.getStatusDesc());
@@ -402,6 +449,7 @@ public class CardBillServiceImpl
         BigDecimal feeRate = dto.getFeeRate() != null ? dto.getFeeRate() : resolveEffectiveFeeRate(card.getUserId());
         entity.setFeeRate(normalizeFeeRate(feeRate));
         entity.setPosCostAmount(scaleMoney(dto.getPosCostAmount() != null ? dto.getPosCostAmount() : entity.getPosCostAmount()));
+        entity.setOtherFeeAmount(scaleMoney(dto.getOtherFeeAmount() != null ? dto.getOtherFeeAmount() : entity.getOtherFeeAmount()));
     }
 
     private void upsertBillsForRange(Long cardId, Long ownerId, Integer billDay, Integer repayDay, BigDecimal feeRate, YearMonth start, YearMonth end) {
@@ -438,6 +486,7 @@ public class CardBillServiceImpl
                 bill.setVerified(false);
                 bill.setExpenseVerified(false);
                 bill.setPosCostAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+                bill.setOtherFeeAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
                 bill.setNetProfit(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
                 refreshBillState(bill);
                 toInsert.add(bill);
@@ -552,11 +601,13 @@ public class CardBillServiceImpl
         entity.setFeeRate(feeRate);
         entity.setFeeAmount(feeAmount);
         entity.setPosCostAmount(posCost);
-        entity.setNetProfit(feeAmount.subtract(posCost).setScale(2, RoundingMode.HALF_UP));
+        BigDecimal otherFee = scaleMoney(entity.getOtherFeeAmount());
+        entity.setOtherFeeAmount(otherFee);
+        entity.setNetProfit(feeAmount.subtract(posCost).subtract(otherFee).setScale(2, RoundingMode.HALF_UP));
     }
 
     private void refreshBillState(CardBill entity) {
-        // 根据明细自动计算实际还款金额
+        // 根据还款明细自动计算实际还款金额
         BigDecimal totalIncome = calculateTotalIncomeFromDetails(entity.getId());
         entity.setActualPayAmount(totalIncome);
 
@@ -565,7 +616,7 @@ public class CardBillServiceImpl
     }
 
     /**
-     * 计算账单明细中的收入总额（detailType=1）
+     * 计算账单明细中的还款总额（detailType=1）
      */
     private BigDecimal calculateTotalIncomeFromDetails(Long billId) {
         if (billId == null) {
@@ -574,7 +625,7 @@ public class CardBillServiceImpl
         List<BillDetail> details = billDetailMapper.selectList(
             new LambdaQueryWrapper<BillDetail>()
                 .eq(BillDetail::getBillId, billId)
-                .eq(BillDetail::getDetailType, 1) // 收入类型
+                .eq(BillDetail::getDetailType, 1) // 还款类型
         );
         return details.stream()
             .map(BillDetail::getAmount)
@@ -583,6 +634,9 @@ public class CardBillServiceImpl
     }
 
     private int resolveBillStatus(CardBill entity, LocalDate today) {
+        if (Boolean.TRUE.equals(entity.getVerified()) && Boolean.TRUE.equals(entity.getExpenseVerified())) {
+            return 1; // 已还清
+        }
         BigDecimal billAmount = defaultZero(entity.getBillAmount());
         BigDecimal actualPayAmount = defaultZero(entity.getActualPayAmount());
         if (actualPayAmount.compareTo(BigDecimal.ZERO) > 0) {

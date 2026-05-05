@@ -201,7 +201,7 @@
               </template>
             </el-table-column>
 
-            <el-table-column prop="remark" label="备注" align="center">
+            <el-table-column prop="remark" label="备注" align="center" show-overflow-tooltip>
               <template #default="{ row }">
                 <span class="plain-cell remark-cell">{{ row.remark || '—' }}</span>
               </template>
@@ -1672,6 +1672,14 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   white-space: normal;
   word-break: break-all;
   overflow: visible;
+}
+
+.remark-cell {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: normal;
 }
 
 .phone-cell-inner {
