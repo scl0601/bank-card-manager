@@ -12,6 +12,9 @@ public class CardBillSqlProvider {
         CardBillQueryDTO query = (CardBillQueryDTO) params.get("query");
         @SuppressWarnings("unchecked")
         List<Long> cardIds = (List<Long>) params.get("cardIds");
+        String repayOrderDateExpr = "COALESCE(cb.repay_date, STR_TO_DATE(CONCAT(cb.bill_month, '-01'), '%Y-%m-%d'))";
+        String billYearExpr = "CAST(SUBSTRING_INDEX(cb.bill_month, '-', 1) AS UNSIGNED)";
+        String billMonthExpr = "CAST(SUBSTRING_INDEX(cb.bill_month, '-', -1) AS UNSIGNED)";
 
         StringBuilder sql = new StringBuilder();
         sql.append("""
@@ -55,21 +58,50 @@ public class CardBillSqlProvider {
                 WHERE cb.is_deleted = 0
                 """);
         appendFilters(sql, query, cardIds);
-        sql.append(" ORDER BY CAST(SUBSTRING_INDEX(cb.bill_month, '-', 1) AS UNSIGNED) DESC, ");
-        if (query != null && query.getCardId() != null && query.getOwnerId() == null) {
-            sql.append("CAST(SUBSTRING_INDEX(cb.bill_month, '-', -1) AS UNSIGNED) ASC, ");
+        boolean monthAscSort = isMonthAscSort(query, cardIds);
+        if (monthAscSort && !isRepayDateScope(query)) {
+            sql.append(" ORDER BY ")
+                    .append(billYearExpr)
+                    .append(" DESC, ")
+                    .append(billMonthExpr)
+                    .append(" ASC, ")
+                    .append(repayOrderDateExpr)
+                    .append(" ASC, ");
+        } else if (!monthAscSort) {
+            sql.append(" ORDER BY MOD(MONTH(")
+                    .append(repayOrderDateExpr)
+                    .append(") - CAST(SUBSTRING_INDEX(#{currentMonth}, '-', -1) AS SIGNED) + 12, 12) ASC, YEAR(")
+                    .append(repayOrderDateExpr)
+                    .append(") DESC, DAY(")
+                    .append(repayOrderDateExpr)
+                    .append(") ASC, ");
         } else {
-            sql.append("""
-                    MOD(
-                        CAST(SUBSTRING_INDEX(cb.bill_month, '-', -1) AS SIGNED)
-                        - CAST(SUBSTRING_INDEX(#{currentMonth}, '-', -1) AS SIGNED)
-                        + 12,
-                        12
-                    ) ASC,
-                    """);
+            sql.append(" ORDER BY YEAR(").append(repayOrderDateExpr).append(") DESC, ");
+            sql.append("MONTH(")
+                    .append(repayOrderDateExpr)
+                    .append(") ASC, DAY(")
+                    .append(repayOrderDateExpr)
+                    .append(") ASC, ");
         }
-        sql.append(" cb.create_time DESC");
+        sql.append(" cb.card_id ASC, cb.create_time DESC");
         return sql.toString();
+    }
+
+    private boolean isMonthAscSort(CardBillQueryDTO query, List<Long> cardIds) {
+        if (query == null) {
+            return false;
+        }
+        if ("monthAsc".equalsIgnoreCase(query.getSortMode())) {
+            return true;
+        }
+        if ("currentFirst".equalsIgnoreCase(query.getSortMode())) {
+            return false;
+        }
+        return query.getCardId() != null && query.getOwnerId() == null && (cardIds == null || cardIds.isEmpty());
+    }
+
+    private boolean isRepayDateScope(CardBillQueryDTO query) {
+        return query != null && (StringUtils.hasText(query.getRepayMonth()) || query.getRepayYear() != null);
     }
 
     @SuppressWarnings("unused")
@@ -159,6 +191,12 @@ public class CardBillSqlProvider {
         }
         if (query != null && query.getYear() != null) {
             sql.append(" AND LEFT(cb.bill_month, 4) = #{query.year}");
+        }
+        if (query != null && StringUtils.hasText(query.getRepayMonth())) {
+            sql.append(" AND DATE_FORMAT(cb.repay_date, '%Y-%m') = #{query.repayMonth}");
+        }
+        if (query != null && query.getRepayYear() != null) {
+            sql.append(" AND YEAR(cb.repay_date) = #{query.repayYear}");
         }
         if (query != null && StringUtils.hasText(query.getStartBillMonth())) {
             sql.append(" AND cb.bill_month >= #{query.startBillMonth}");

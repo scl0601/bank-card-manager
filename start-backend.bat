@@ -2,10 +2,11 @@
 chcp 65001 >nul
 
 :: ====== 自动探测 JAVA_HOME ======
-if defined JAVA_HOME goto :java_ok
+:: Do not trust an existing JAVA_HOME blindly; prefer a locally installed JDK 17+ if present.
 
 :: 常见 JDK 路径按优先级探测
 for %%p in (
+  "C:\Program Files\Microsoft\jdk-*"
   "C:\Program Files\Eclipse Adoptium\jdk-*"
   "C:\Program Files\Java\jdk-*"
   "C:\Program Files (x86)\Java\jre-*"

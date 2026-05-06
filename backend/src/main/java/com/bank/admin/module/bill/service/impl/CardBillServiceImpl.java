@@ -87,7 +87,11 @@ public class CardBillServiceImpl
             overview = new CardBillOverviewVO();
         }
         Integer targetYear = query.getYear();
-        if (targetYear == null && query.getBillMonth() != null && query.getBillMonth().length() >= 4) {
+        if (targetYear == null && query.getRepayYear() != null) {
+            targetYear = query.getRepayYear();
+        } else if (targetYear == null && query.getRepayMonth() != null && query.getRepayMonth().length() >= 4) {
+            targetYear = Integer.parseInt(query.getRepayMonth().substring(0, 4));
+        } else if (targetYear == null && query.getBillMonth() != null && query.getBillMonth().length() >= 4) {
             targetYear = Integer.parseInt(query.getBillMonth().substring(0, 4));
         } else if (targetYear == null && query.getStartBillMonth() != null && query.getStartBillMonth().length() >= 4) {
             targetYear = Integer.parseInt(query.getStartBillMonth().substring(0, 4));

@@ -96,45 +96,12 @@
                   <span v-if="baseStats.userCount" class="child-count">{{ baseStats.userCount }}</span>
                 </div>
 
-                <div class="panel-actions">
-                  <div v-if="userPageCount > 1" class="pager">
-                    <button class="icon-btn" @click.stop="prevUserPage" :title="uiText.prevPage">
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2.2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      >
-                        <polyline points="15 18 9 12 15 6" />
-                      </svg>
-                    </button>
-                    <span class="panel-meta">{{ userPageIndex + 1 }}/{{ userPageCount }}</span>
-                    <button class="icon-btn" @click.stop="nextUserPage" :title="uiText.nextPage">
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2.2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      >
-                        <polyline points="9 18 15 12 9 6" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
+                <span v-if="filteredGroupList.length > 9" class="panel-meta">可向下滚动</span>
               </div>
 
               <div class="user-list talker-list">
-                <template v-for="(u, idx) in pagedUsersFilled" :key="u?.userId ?? `u-ph-${idx}`">
+                <template v-for="u in filteredGroupList" :key="u.userId">
                   <div
-                    v-if="u"
                     :class="['list-item', 'user-item', 'talker-card', { active: u.userId === activeUserId }]"
                     role="button"
                     tabindex="0"
@@ -169,7 +136,6 @@
                     </div>
                   </div>
 
-                  <div v-else class="list-item talker-card placeholder" aria-hidden="true"></div>
                 </template>
 
                 <div v-if="groupsReady && !loadingGroups && filteredGroupList.length === 0" class="empty-hint">{{ uiText.emptyTalkers }}</div>
@@ -225,20 +191,8 @@
                   <el-option v-for="item in CARD_STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
                 </el-select>
               </div>
-              <div v-if="cardPageCount > 1" class="pager">
-                <button class="icon-btn" @click.stop="prevCardPage" title="上一页">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="15 18 9 12 15 6" />
-                  </svg>
-                </button>
-                <span class="panel-meta">{{ cardPageIndex + 1 }}/{{ cardPageCount }}</span>
-                <button class="icon-btn" @click.stop="nextCardPage" title="下一页">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6" />
-                  </svg>
-                </button>
-              </div>
-              <button class="icon-btn" @click="openAddCardWithActiveUser" :disabled="!canAddCardForUser" title="添加卡片">
+              <span v-if="activeCards.length > 5" class="panel-meta">可向下滚动</span>
+              <button class="icon-btn" @click="openAddCardWithActiveUser" :disabled="!canAddCardForUser" title="为当前洽谈人和名下持卡人添加银行卡">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
@@ -257,10 +211,9 @@
 
           <div class="panel-body card-panel-body">
             <div class="card-list">
-              <template v-if="pagedCardsFilled.length">
-                <template v-for="(c, idx) in pagedCardsFilled" :key="c?.id ?? `card-ph-${idx}`">
+              <template v-if="activeCards.length">
+                <template v-for="c in activeCards" :key="c.id">
                 <div
-                  v-if="c"
                   :class="['list-item', 'card-item', { active: c.id === activeCardId }]"
                   role="button"
                   tabindex="0"
@@ -330,14 +283,13 @@
                     </div>
                   </div>
                 </div>
-                <div v-else class="list-item card-item placeholder" aria-hidden="true"></div>
                 </template>
               </template>
 
               <div v-else class="empty-hint">
                 <div v-if="!activeUser">暂无持卡人可选</div>
                 <div v-else>当前持卡人暂无银行卡</div>
-                <button class="link-btn" @click="openAddCardWithActiveUser" :disabled="!canAddCardForUser">+ 添加一张银行卡</button>
+                <button class="link-btn" @click="openAddCardWithActiveUser" :disabled="!canAddCardForUser">+ 为洽谈人和名下持卡人添加银行卡</button>
               </div>
             </div>
 
@@ -383,54 +335,66 @@
             </div>
             <div class="bill-list" v-loading="recentBillsVisibleLoading">
               <template v-if="recentBills.length">
-                <div v-for="b in recentBills" :key="b.id" class="bill-item" :class="{ current: b.billMonth === currentBillMonth }">
-                  <div class="bill-card-info">
-                    <div class="bill-info-row">
+                <div v-for="b in recentBills" :key="b.id" class="bill-item" :class="{ current: isCurrentRepayMonth(b) }">
+                  <div class="bill-group bill-owner-group">
+                    <div class="bill-main-cell" :title="b.ownerName || '未命名'">
                       <span class="bill-field-label">名称</span>
-                      <span class="bill-owner bill-field-value" :title="b.ownerName || '未命名'">
-                        {{ b.ownerName || '未命名' }}
-                      </span>
-                      <span class="bill-field-label">银行卡名称</span>
-                      <span class="bill-bank bill-field-value" :title="displayBankName(b.bankName)">
-                        {{ displayBankName(b.bankName) }}
-                      </span>
+                      <strong>{{ b.ownerName || '未命名' }}</strong>
                     </div>
-                    <div class="bill-info-row">
-                      <span class="bill-field-label">尾号</span>
-                      <span class="bill-last4 bill-field-value font-mono">{{ b.cardNoLast4 || '-' }}</span>
-                      <span class="bill-field-label">还款日</span>
-                      <span class="bill-repay bill-field-value">{{ fmtRepayDay(b.repayDate) }}</span>
+                    <div class="bill-main-cell" :title="displayBankName(b.bankName)">
+                      <span class="bill-field-label">银行</span>
+                      <strong>{{ displayBankName(b.bankName) }}</strong>
                     </div>
                   </div>
-                  <div class="bill-amount-edit">
-                    <span class="bill-amount-symbol">¥</span>
-                    <el-input-number
-                      :model-value="billAmountDraftValue(b)"
-                      :min="0"
-                      :precision="2"
-                      :controls="false"
-                      size="small"
-                      class="bill-amount-input"
-                      placeholder="账单金额"
-                      :disabled="savingBillId === b.id"
-                      @update:model-value="(val: any) => updateBillAmountDraft(b.id, val)"
-                      @keyup.enter="saveBillAmount(b)"
-                    />
-                    <el-button
-                      type="primary"
-                      link
-                      size="small"
-                      class="bill-save-btn"
-                      :loading="savingBillId === b.id"
-                      :disabled="!isBillAmountChanged(b)"
-                      @click="saveBillAmount(b)"
-                    >
-                      保存
-                    </el-button>
-                    <el-button type="primary" link size="small" class="bill-repay-btn" @click="goRepayment(b)">还款</el-button>
+
+                  <div class="bill-group bill-card-group">
+                    <span class="bill-chip bill-last4">
+                      <span>尾号</span>
+                      <b class="font-mono">{{ b.cardNoLast4 || '-' }}</b>
+                    </span>
+                    <span class="bill-chip bill-repay">
+                      <span>还款日</span>
+                      <b>{{ fmtRepayDayNumber(b.repayDate) }}</b>
+                    </span>
                   </div>
-                  <div class="bill-status">
-                    <StatusTag :value="b.status" :label-map="BILL_STATUS_MAP" :type-map="BILL_STATUS_TAG_TYPE" size="small" effect="light" />
+
+                  <div class="bill-group bill-amount-group">
+                    <div class="bill-amount-edit">
+                      <span class="bill-amount-title">账单</span>
+                      <span class="bill-amount-symbol">¥</span>
+                      <el-input-number
+                        :model-value="billAmountDraftValue(b)"
+                        :min="0"
+                        :precision="2"
+                        :controls="false"
+                        size="small"
+                        class="bill-amount-input"
+                        placeholder="账单金额"
+                        :disabled="savingBillId === b.id"
+                        @update:model-value="(val: any) => updateBillAmountDraft(b.id, val)"
+                        @keyup.enter="saveBillAmount(b)"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="bill-group bill-action-group">
+                    <div class="bill-row-actions">
+                      <el-button
+                        type="primary"
+                        link
+                        size="small"
+                        class="bill-save-btn"
+                        :loading="savingBillId === b.id"
+                        :disabled="!isBillAmountChanged(b)"
+                        @click="saveBillAmount(b)"
+                      >
+                        保存
+                      </el-button>
+                      <el-button type="primary" link size="small" class="bill-repay-btn" @click="goRepayment(b)">还款</el-button>
+                    </div>
+                    <div class="bill-status">
+                      <StatusTag :value="b.status" :label-map="BILL_STATUS_MAP" :type-map="BILL_STATUS_TAG_TYPE" size="small" effect="light" />
+                    </div>
                   </div>
                 </div>
               </template>
@@ -509,63 +473,103 @@
     <!-- 新增/编辑弹窗 -->
     <CrudDialog
       v-model="dialogVisible"
+      class="card-bank-dialog"
       :title="dialogTitle + '银行卡'"
       :form-data="formData"
       :rules="computedRules"
       :loading="submitting"
       :is-edit="isEdit"
-      width="560px"
+      width="840px"
+      label-width="86px"
       @confirm="handleSubmit"
     >
       <template #default="{ form }">
-        <el-form-item label="用户" prop="userId">
-          <el-select v-model="form.userId" placeholder="选择用户" clearable filterable style="width:100%">
-            <el-option v-for="u in userOptions" :key="u.id" :label="u.displayName" :value="u.id">
-              <div class="user-opt">
-                <span>{{ u.displayName }}</span>
-                <el-tag v-if="!u.parentId" size="small" effect="light" round style="margin-left:6px">主账户</el-tag>
-                <el-tag v-else size="small" type="info" effect="plain" round style="margin-left:6px">子用户</el-tag>
+        <el-form-item label="归属对象" prop="userId" class="card-user-form-item">
+          <div class="card-user-picker" :class="{ 'is-locked': cardDialogUserLocked }">
+            <div v-if="!cardDialogUserLocked" class="card-user-picker-toolbar">
+              <el-input
+                v-model="userPickerKeyword"
+                clearable
+                placeholder="搜索洽谈人 / 名下持卡人 / 手机号"
+                @keydown.enter.prevent="selectFirstUserOption(form)"
+              />
+              <el-button type="primary" link size="small" class="manage-user-btn" @click="goUsers">+ 管理洽谈人和名下持卡人</el-button>
+            </div>
+
+            <div v-if="selectedUserOption" class="selected-user-card">
+              <div class="selected-user-main">
+                <span class="selected-user-label">{{ cardDialogUserLocked || userPickerScope === 'activeGroup' ? '新增到' : '当前选择' }}</span>
+                <strong>{{ selectedUserOption.name }}</strong>
+                <el-tag v-if="!selectedUserOption.parentId" size="small" effect="light" round>洽谈人</el-tag>
+                <el-tag v-else size="small" type="info" effect="plain" round>名下持卡人</el-tag>
               </div>
-            </el-option>
-          </el-select>
-          <el-button type="primary" link size="small" style="margin-left:8px" @click="goUsers">+ 管理持卡人</el-button>
+              <div class="selected-user-meta">{{ userOptionMeta(selectedUserOption) }}</div>
+            </div>
+
+            <div v-if="!cardDialogUserLocked && userPickerDisplayOptions.length" class="user-choice-list">
+              <button
+                v-for="u in userPickerDisplayOptions"
+                :key="u.id"
+                type="button"
+                class="user-choice-card"
+                :class="{ active: Number(form.userId) === Number(u.id) }"
+                @click="selectUserOption(form, u.id)"
+              >
+                <span class="user-choice-avatar">{{ userOptionInitial(u.name) }}</span>
+                <span class="user-choice-copy">
+                  <span class="user-choice-name">{{ u.name }}</span>
+                  <span class="user-choice-meta">{{ userOptionMeta(u) }}</span>
+                </span>
+                <span class="user-choice-tag">{{ u.parentId ? '名下持卡人' : '洽谈人' }}</span>
+              </button>
+            </div>
+            <div v-else-if="!cardDialogUserLocked" class="user-choice-empty">
+              {{ userPickerScope === 'activeGroup' ? '当前洽谈人下暂无可选对象' : '没有匹配的洽谈人和名下持卡人' }}
+            </div>
+
+            <div v-if="!cardDialogUserLocked && userPickerHiddenCount > 0" class="user-choice-tip">
+              还有 {{ userPickerHiddenCount }} 个未展示，输入姓名或手机号可快速定位
+            </div>
+          </div>
         </el-form-item>
-        <el-form-item label="银行名称" prop="bankName">
-          <el-input v-model="form.bankName" placeholder="如：招商银行" />
-        </el-form-item>
-        <el-form-item label="卡号后四位" prop="cardNoLast4">
-          <el-input v-model="form.cardNoLast4" placeholder="请输入卡号后四位（4位数字）" maxlength="4" />
-        </el-form-item>
-        <el-form-item label="卡片类型" prop="cardType">
-          <el-radio-group v-model="form.cardType">
-            <el-radio v-for="item in CARD_TYPE_OPTIONS" :key="item.value" :value="item.value">{{ item.label }}</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="信用额度">
-          <el-input v-model="form.creditLimit" placeholder="请输入信用额度" />
-        </el-form-item>
-        <el-form-item label="账单日">
-          <el-input-number v-model="form.billDay" :min="1" :max="31" controls-position="right" style="width: 100%" placeholder="请输入每月账单日" />
-        </el-form-item>
-        <el-form-item label="还款日">
-          <el-input-number v-model="form.repayDay" :min="1" :max="31" controls-position="right" style="width: 100%" placeholder="请输入每月还款日" />
-        </el-form-item>
-        <el-form-item label="有效期">
-          <el-input v-model="form.expireDate" placeholder="月/年，如：06/28、06-28、06月28年" />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="form.status">
-            <el-option v-for="item in CARD_STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="APP" prop="repayMethod">
-          <el-radio-group v-model="form.repayMethod" class="app-radio-group">
-            <el-radio v-for="item in APP_OPTIONS" :key="item.value" :value="item.value">{{ item.label }}</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="form.remark" type="textarea" rows="2" maxlength="500" show-word-limit placeholder="最多输入500字" />
-        </el-form-item>
+        <div class="card-form-grid">
+          <el-form-item label="银行名称" prop="bankName">
+            <el-input v-model="form.bankName" placeholder="如：招商银行" />
+          </el-form-item>
+          <el-form-item label="卡号后四位" prop="cardNoLast4">
+            <el-input v-model="form.cardNoLast4" placeholder="4位数字" maxlength="4" />
+          </el-form-item>
+          <el-form-item label="信用额度">
+            <el-input v-model="form.creditLimit" placeholder="请输入信用额度" />
+          </el-form-item>
+          <el-form-item label="卡片类型" prop="cardType">
+            <el-radio-group v-model="form.cardType">
+              <el-radio v-for="item in CARD_TYPE_OPTIONS" :key="item.value" :value="item.value">{{ item.label }}</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item label="状态">
+            <el-select v-model="form.status" style="width: 100%">
+              <el-option v-for="item in CARD_STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="APP" prop="repayMethod">
+            <el-select v-model="form.repayMethod" style="width: 100%" placeholder="请选择APP">
+              <el-option v-for="item in APP_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="账单日">
+            <el-input-number v-model="form.billDay" :min="1" :max="31" controls-position="right" style="width: 100%" placeholder="每月账单日" />
+          </el-form-item>
+          <el-form-item label="还款日">
+            <el-input-number v-model="form.repayDay" :min="1" :max="31" controls-position="right" style="width: 100%" placeholder="每月还款日" />
+          </el-form-item>
+          <el-form-item label="有效期">
+            <el-input v-model="form.expireDate" placeholder="如：06/28" />
+          </el-form-item>
+          <el-form-item label="备注" class="span-all">
+            <el-input v-model="form.remark" type="textarea" rows="2" maxlength="500" show-word-limit placeholder="最多输入500字" />
+          </el-form-item>
+        </div>
       </template>
     </CrudDialog>
   </div>
@@ -675,6 +679,8 @@ const router = useRouter()
 const currentYear = new Date().getFullYear()
 const currentMonth = new Date().getMonth() + 1
 const currentBillMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}`
+const BILL_SORT_CURRENT_FIRST = 'currentFirst'
+const BILL_SORT_MONTH_ASC = 'monthAsc'
 const yearOptions = Array.from({ length: 6 }, (_, index) => currentYear - 2 + index)
 const monthOptions = Array.from({ length: 12 }, (_, index) => index + 1)
 const uiText = {
@@ -753,7 +759,6 @@ const triggerGroupSearch = createDebouncedTask(() => {
 let syncingKeywordQuery = false
 
 const userPageIndex = ref(0)
-const cardPageIndex = ref(0)
 const childPageIndex = ref(0)
 
 function toAmount(value: any) {
@@ -809,6 +814,14 @@ const activeCard = computed<any | undefined>(() => {
   return found || activeCards.value[0]
 })
 
+const activeCardOwnerUserId = computed(() => {
+  const ownerId = Number(activeOwnerId.value || 0)
+  if (ownerId > 0) return ownerId
+  const cardUserId = Number(activeCard.value?.userId || 0)
+  if (cardUserId > 0) return cardUserId
+  const userId = Number(activeUser.value?.userId || 0)
+  return userId > 0 ? userId : null
+})
 
 const activeCardsTotalQuota = computed(() => sumCardQuota(activeCards.value))
 
@@ -825,7 +838,7 @@ const userSearchFocused = ref(false)
 
 const filteredGroupList = computed(() => {
   const kw = userKeyword.value.trim()
-  const list = groupList.value || []
+  const list = (groupList.value || []).filter(u => Number(u?.status ?? 0) === 0)
   if (!kw) return list
 
   const k = kw.toLowerCase()
@@ -925,7 +938,10 @@ async function ensureUserTree(force = false, silent = false) {
 
       for (const top of list) {
         if (!top) continue
-        const children = (top.children || []).map(c => ({ ...c, parentId: Number(top.id) }))
+        if (Number(top.status ?? 0) !== 0) continue
+        const children = (top.children || [])
+          .filter(c => Number(c?.status ?? 0) === 0)
+          .map(c => ({ ...c, parentId: Number(top.id) }))
         childrenMap.set(Number(top.id), children)
       }
 
@@ -1019,7 +1035,7 @@ function childTotalQuota(childId: number) {
 }
 
 const canAddCardForUser = computed(() => {
-  return !!activeUser.value && Number(activeUser.value.userId) > 0 && Number(activeUser.value.status) === 0
+  return !!activeCardOwnerUserId.value && !!activeUser.value && Number(activeUser.value.status) === 0
 })
 
 const billScopeOwnerId = computed(() => {
@@ -1032,16 +1048,10 @@ const canOpenUserBills = computed(() => !!billScopeOwnerId.value)
 
 // 洽谈人区域按三列三行展示，与顶部三格统计保持一致
 const USER_PAGE_SIZE = 9
-const CARD_PAGE_SIZE = 5
 
 const userPageCount = computed(() => {
   const total = filteredGroupList.value.length
   return Math.max(1, Math.ceil(total / USER_PAGE_SIZE))
-})
-
-const cardPageCount = computed(() => {
-  const total = activeCards.value.length
-  return Math.max(1, Math.ceil(total / CARD_PAGE_SIZE))
 })
 
 const pagedUsers = computed(() => {
@@ -1057,33 +1067,12 @@ const pagedUsersFilled = computed<(UserGroup | null)[]>(() => {
   return list
 })
 
-const pagedCards = computed(() => {
-  const list = activeCards.value || []
-  const start = cardPageIndex.value * CARD_PAGE_SIZE
-  return list.slice(start, start + CARD_PAGE_SIZE)
-})
-
-const pagedCardsFilled = computed<(any | null)[]>(() => {
-  if (!activeCards.value.length) return []
-  const list = [...pagedCards.value] as (any | null)[]
-  while (list.length < CARD_PAGE_SIZE) list.push(null)
-  return list
-})
-
 function prevUserPage() {
   userPageIndex.value = (userPageIndex.value - 1 + userPageCount.value) % userPageCount.value
 }
 
 function nextUserPage() {
   userPageIndex.value = (userPageIndex.value + 1) % userPageCount.value
-}
-
-function prevCardPage() {
-  cardPageIndex.value = (cardPageIndex.value - 1 + cardPageCount.value) % cardPageCount.value
-}
-
-function nextCardPage() {
-  cardPageIndex.value = (cardPageIndex.value + 1) % cardPageCount.value
 }
 
 function userInitial(name: string | undefined) {
@@ -1145,7 +1134,6 @@ function clearKeyword() {
 function setActiveUser(userId: number) {
   activeUserId.value = userId
   activeOwnerId.value = null
-  cardPageIndex.value = 0
   childPageIndex.value = 0
   ensureUserTree(false, true)
 }
@@ -1154,7 +1142,6 @@ function setActiveChildUser(cu: any) {
   if (!cu) return
   if (Number(cu.status) !== 0) return
   activeOwnerId.value = Number(cu.id)
-  cardPageIndex.value = 0
 }
 
 function setActiveCard(cardId: number) {
@@ -1188,11 +1175,6 @@ function syncActiveSelection() {
     activeCardId.value = Number(cards[0].id)
   }
 
-  // 同步卡片分页
-  const cardIdx = cards.findIndex(c => Number(c.id) === Number(activeCardId.value))
-  if (cardIdx >= 0) {
-    cardPageIndex.value = Math.floor(cardIdx / CARD_PAGE_SIZE)
-  }
 }
 
 async function fetchGroups(options: { silent?: boolean } = {}) {
@@ -1205,7 +1187,7 @@ async function fetchGroups(options: { silent?: boolean } = {}) {
   try {
     const res: any = await getCardsGroupedByUserApi(params)
     if (requestSeq !== groupsRequestSeq) return
-    groupList.value = res.data || []
+    groupList.value = (res.data || []).filter((item: UserGroup) => Number(item?.status ?? 0) === 0)
     groupsReady.value = true
     groupsFetchedAt.value = Date.now()
     syncActiveSelection()
@@ -1252,7 +1234,7 @@ const scopedCardIds = computed(() => {
     .filter(id => Number.isFinite(id) && id > 0)
 })
 
-const selectedBillMonth = computed(() => {
+const selectedRepayMonth = computed(() => {
   return billFilter.month ? `${billFilter.year}-${String(billFilter.month).padStart(2, '0')}` : ''
 })
 
@@ -1263,14 +1245,18 @@ function emptyBillOverview(): BillOverview {
 }
 
 function buildBillQueryParams() {
-  return {
+  const params: Record<string, any> = {
     cardIds: scopedCardIds.value.join(','),
     ownerId: undefined,
     cardName: '',
-    year: billFilter.year,
-    billMonth: selectedBillMonth.value || undefined,
     status: undefined
   }
+  if (selectedRepayMonth.value) {
+    params.repayMonth = selectedRepayMonth.value
+  } else {
+    params.repayYear = billFilter.year
+  }
+  return params
 }
 
 function buildBillOverviewFromRows(list: BillRow[]): BillOverview {
@@ -1351,6 +1337,20 @@ function fmtRepayDay(date: string | null | undefined) {
   return match ? fmtDayOfMonth(match[3]) : '—'
 }
 
+function fmtRepayDayNumber(date: string | null | undefined) {
+  const match = String(date || '').match(/(\d{4})-(\d{2})-(\d{2})/)
+  return match ? match[3] : '--'
+}
+
+function billRepayMonth(row: BillRow | null | undefined) {
+  const match = String(row?.repayDate || '').match(/^(\d{4})-(\d{2})-/)
+  return match ? `${match[1]}-${match[2]}` : ''
+}
+
+function isCurrentRepayMonth(row: BillRow) {
+  return billRepayMonth(row) === currentBillMonth
+}
+
 function fmtDayOfMonth(day: string | number | null | undefined) {
   const num = Number(day)
   if (!Number.isFinite(num) || num <= 0) return '—'
@@ -1426,40 +1426,52 @@ function openUserBillsPage() {
   if (!billScopeOwnerId.value) return
   router.push({
     path: '/bills',
-    query: { ownerId: String(billScopeOwnerId.value), year: String(currentYear) }
+    query: {
+      ownerId: String(billScopeOwnerId.value),
+      cardIds: scopedCardIds.value.join(','),
+      repayYear: String(billFilter.year),
+      sortMode: BILL_SORT_CURRENT_FIRST
+    }
   })
 }
 
 function openFilteredBillsPage() {
   if (!scopedCardIds.value.length) return
   const routeQuery: Record<string, string> = {
-    year: String(billFilter.year)
+    cardIds: scopedCardIds.value.join(','),
+    sortMode: BILL_SORT_CURRENT_FIRST
   }
-  if (selectedBillMonth.value) {
-    routeQuery.billMonth = selectedBillMonth.value
+  if (selectedRepayMonth.value) {
+    routeQuery.repayMonth = selectedRepayMonth.value
+  } else {
+    routeQuery.repayYear = String(billFilter.year)
   }
-  if (scopedCardIds.value.length === 1) {
-    routeQuery.cardId = String(scopedCardIds.value[0])
-  } else if (billScopeOwnerId.value) {
+  if (billScopeOwnerId.value) {
     routeQuery.ownerId = String(billScopeOwnerId.value)
   }
   router.push({ path: '/bills', query: routeQuery })
 }
 
 function goRepayment(b: BillRow) {
-  const year = b.billMonth ? b.billMonth.substring(0, 4) : String(currentYear)
+  const repayMonth = billRepayMonth(b) || selectedRepayMonth.value || currentBillMonth
   router.push({
     path: '/bills',
-    query: { cardId: String(b.cardId), year, billMonth: b.billMonth }
+    query: { cardId: String(b.cardId), repayMonth }
   })
 }
 
 function openCardBillsPage(card: any) {
   const cardId = Number(card?.id || 0)
   if (!cardId) return
+  const ownerId = Number(card?.userId || billScopeOwnerId.value || 0)
   router.push({
     path: '/bills',
-    query: { cardId: String(cardId), year: String(currentYear) }
+    query: {
+      ...(ownerId ? { ownerId: String(ownerId) } : {}),
+      cardId: String(cardId),
+      repayYear: String(billFilter.year),
+      sortMode: BILL_SORT_MONTH_ASC
+    }
   })
 }
 
@@ -1484,8 +1496,17 @@ const profitOverview = ref<ProfitOverview>({
   paidFeeCount: 0,
   unpaidFeeCount: 0
 })
+const profitDisplayScope = ref<{ year: number; month?: number }>({
+  year: currentYear,
+  month: currentMonth
+})
 const profitVisibleLoading = computed(() => profitLoading.value && !profitReady.value)
-const profitScopeLabel = computed(() => profitScope.value === 'month' ? '本月' : '本年')
+const profitScopeLabel = computed(() => {
+  if (profitDisplayScope.value.month) {
+    return `${profitDisplayScope.value.year}年${String(profitDisplayScope.value.month).padStart(2, '0')}月`
+  }
+  return `${profitDisplayScope.value.year}年`
+})
 let profitScopeRequestSeq = 0
 
 const profitRateLabel = computed(() => `${formatRate(activeUser.value?.feeRate ?? 0)}%`)
@@ -1496,10 +1517,17 @@ const profitFeePayStatusLabel = computed(() => {
   return `已收 ${paidCount} / 未收 ${unpaidCount}`
 })
 
-function emptyProfitOverview(): ProfitOverview {
+function currentProfitScopeSnapshot() {
   return {
-    year: currentYear,
-    month: profitScope.value === 'month' ? currentMonth : undefined,
+    year: billFilter.year,
+    month: billFilter.month
+  }
+}
+
+function emptyProfitOverview(scope = currentProfitScopeSnapshot()): ProfitOverview {
+  return {
+    year: scope.year,
+    month: scope.month,
     userCount: 0,
     cardCount: 0,
     totalBillAmount: 0,
@@ -1516,29 +1544,46 @@ function emptyProfitOverview(): ProfitOverview {
 }
 
 function buildProfitQueryParams() {
-  return {
+  const params: Record<string, any> = {
     cardIds: scopedCardIds.value.join(','),
     ownerId: undefined,
     cardName: '',
-    year: currentYear,
-    billMonth: profitScope.value === 'month' ? currentBillMonth : undefined,
     status: undefined
   }
+  if (selectedRepayMonth.value) {
+    params.repayMonth = selectedRepayMonth.value
+  } else {
+    params.repayYear = billFilter.year
+  }
+  return params
 }
 
 function setProfitScope(scope: ProfitScope) {
-  if (profitScope.value === scope) return
-  profitReady.value = false
   profitScope.value = scope
+  if (scope === 'month') {
+    if (!billFilter.month) {
+      billFilter.month = billFilter.year === currentYear ? currentMonth : 1
+    } else {
+      fetchProfitScopeData()
+    }
+    return
+  }
+  if (billFilter.month) {
+    billFilter.month = undefined
+  } else {
+    fetchProfitScopeData()
+  }
 }
 
 async function fetchProfitScopeData(options: { silent?: boolean } = {}) {
   const cardIds = scopedCardIds.value
   const requestSeq = ++profitScopeRequestSeq
+  const scopeSnapshot = currentProfitScopeSnapshot()
   if (!cardIds.length) {
     profitLoading.value = false
     profitRows.value = []
-    profitOverview.value = emptyProfitOverview()
+    profitOverview.value = emptyProfitOverview(scopeSnapshot)
+    profitDisplayScope.value = scopeSnapshot
     profitReady.value = groupsReady.value
     return
   }
@@ -1562,7 +1607,8 @@ async function fetchProfitScopeData(options: { silent?: boolean } = {}) {
     if (requestSeq !== profitScopeRequestSeq) return
 
     profitRows.value = records
-    profitOverview.value = buildProfitOverviewFromRows(records)
+    profitOverview.value = buildProfitOverviewFromRows(records, scopeSnapshot)
+    profitDisplayScope.value = scopeSnapshot
     profitReady.value = true
   } finally {
     if (requestSeq === profitScopeRequestSeq) {
@@ -1597,7 +1643,7 @@ async function fetchAllProfitBillRows() {
   return records
 }
 
-function buildProfitOverviewFromRows(list: BillRow[]): ProfitOverview {
+function buildProfitOverviewFromRows(list: BillRow[], scope = currentProfitScopeSnapshot()): ProfitOverview {
   const ownerIds = new Set<number>()
   let paidFeeAmount = 0
   let unpaidFeeAmount = 0
@@ -1626,7 +1672,7 @@ function buildProfitOverviewFromRows(list: BillRow[]): ProfitOverview {
     acc.totalOtherFeeAmount += Number(item?.otherFeeAmount ?? 0)
     return acc
   }, {
-    ...emptyProfitOverview(),
+    ...emptyProfitOverview(scope),
     userCount: ownerIds.size,
     cardCount: scopedCardIds.value.length
   })
@@ -1652,10 +1698,10 @@ function billFeeAmount(row: BillRow) {
 function goProfits() {
   if (!scopedCardIds.value.length) return
   const routeQuery: Record<string, string> = {
-    year: String(currentYear)
+    year: String(billFilter.year)
   }
-  if (profitScope.value === 'month') {
-    routeQuery.month = String(currentMonth)
+  if (selectedRepayMonth.value && billFilter.month) {
+    routeQuery.month = String(billFilter.month)
   }
   if (scopedCardIds.value.length === 1) {
     routeQuery.cardId = String(scopedCardIds.value[0])
@@ -1694,10 +1740,13 @@ const dialogVisible = ref(false)
 const submitting = ref(false)
 const userTreeList = ref<any[]>([])
 const userOptions = ref<any[]>([])
+const userPickerKeyword = ref('')
+const cardDialogUserLocked = ref(false)
+const userPickerScope = ref<'all' | 'activeGroup'>('all')
 
 const dialogTitle = computed(() => (isEdit.value ? '编辑' : '新增'))
 const computedRules = computed(() => ({
-  userId: [{ required: true, message: '请选择用户', trigger: 'change' }],
+  userId: [{ required: true, message: '请选择洽谈人和名下持卡人', trigger: 'change' }],
   bankName: [{ required: true, message: '请输入银行名称', trigger: 'blur' }],
   cardNoLast4: [
     { required: true, message: '请输入卡号后四位', trigger: 'blur' },
@@ -1707,6 +1756,108 @@ const computedRules = computed(() => ({
   repayMethod: [{ required: true, message: '请选择APP', trigger: 'change' }]
 }))
 
+const selectedUserOption = computed(() => {
+  const userId = Number(formData.userId || 0)
+  if (!userId) return null
+  const found = userOptions.value.find((user: any) => Number(user?.id) === userId)
+  if (found) return found
+  const cardUserId = Number(activeCard.value?.userId || 0)
+  const mainUserId = Number(activeUser.value?.userId || 0)
+  if (cardUserId === userId) {
+    return {
+      id: userId,
+      name: cardUserLabel(activeCard.value),
+      parentId: mainUserId && mainUserId !== userId ? mainUserId : null,
+      parentName: activeUser.value?.userName || '',
+      phone: '',
+      effectiveFeeRate: activeUser.value?.feeRate ?? 0
+    }
+  }
+  if (mainUserId === userId) {
+    return {
+      id: userId,
+      name: activeUser.value?.userName || `洽谈人${userId}`,
+      parentId: null,
+      parentName: '',
+      phone: activeUser.value?.phone || '',
+      effectiveFeeRate: activeUser.value?.feeRate ?? 0
+    }
+  }
+  return null
+})
+
+const currentGroupUserOptions = computed(() => {
+  const mainId = Number(activeUser.value?.userId || 0)
+  const mainName = String(activeUser.value?.userName || '').trim()
+  if (!mainId && !mainName) return []
+
+  const topNode = (userTreeList.value || []).find((node: any) => {
+    return Number(node?.id || 0) === mainId || String(node?.name || '').trim() === mainName
+  })
+  const topId = Number(topNode?.id || 0)
+  const allowedIds = new Set<number>()
+  if (mainId > 0) allowedIds.add(mainId)
+  if (topId > 0) allowedIds.add(topId)
+
+  const topNames = new Set<string>()
+  if (mainName) topNames.add(mainName)
+  if (topNode?.name) topNames.add(String(topNode.name).trim())
+
+  for (const child of topNode?.children || []) {
+    const childId = Number(child?.id || 0)
+    if (childId > 0) allowedIds.add(childId)
+  }
+
+  return userOptions.value.filter((user: any) => {
+    const id = Number(user?.id || 0)
+    const parentId = Number(user?.parentId || 0)
+    const name = String(user?.name || '').trim()
+    const parentName = String(user?.parentName || '').trim()
+    return allowedIds.has(id)
+      || (parentId > 0 && allowedIds.has(parentId))
+      || (!user?.parentId && topNames.has(name))
+      || (!!user?.parentId && topNames.has(parentName))
+  })
+})
+
+const pickerSourceUserOptions = computed(() => {
+  return userPickerScope.value === 'activeGroup' ? currentGroupUserOptions.value : userOptions.value
+})
+
+const userPickerFilteredOptions = computed(() => {
+  const keyword = userPickerKeyword.value.trim().toLowerCase()
+  const digits = userPickerKeyword.value.replace(/\D/g, '')
+  const list = [...pickerSourceUserOptions.value]
+  const currentUserId = Number(formData.userId || 0)
+  const activeId = Number(activeUser.value?.userId || 0)
+
+  const matched = keyword || digits
+    ? list.filter((user: any) => {
+        const phone = String(user?.phone || '')
+        const phoneDigits = phone.replace(/\D/g, '')
+        return String(user?.name || '').toLowerCase().includes(keyword)
+          || String(user?.displayName || '').toLowerCase().includes(keyword)
+          || String(user?.parentName || '').toLowerCase().includes(keyword)
+          || phone.toLowerCase().includes(keyword)
+          || Boolean(digits && phoneDigits.includes(digits))
+      })
+    : list
+
+  return matched.sort((a: any, b: any) => {
+    const aId = Number(a?.id || 0)
+    const bId = Number(b?.id || 0)
+    if (currentUserId && aId === currentUserId) return -1
+    if (currentUserId && bId === currentUserId) return 1
+    if (activeId && aId === activeId) return -1
+    if (activeId && bId === activeId) return 1
+    if (!!a?.parentId !== !!b?.parentId) return a?.parentId ? 1 : -1
+    return String(a?.name || '').localeCompare(String(b?.name || ''), 'zh-CN')
+  })
+})
+
+const userPickerDisplayOptions = computed(() => userPickerFilteredOptions.value)
+const userPickerHiddenCount = computed(() => Math.max(0, userPickerFilteredOptions.value.length - userPickerDisplayOptions.value.length))
+
 function flattenUserTree(list: any[], parentName = '') {
   const flatUsers: any[] = []
   const walk = (nodes: any[], currentParentName = '') => {
@@ -1714,12 +1865,13 @@ function flattenUserTree(list: any[], parentName = '') {
       const isChild = !!u.parentId
       const resolvedParentName = u.parentName || currentParentName
       const displayName = isChild && resolvedParentName
-        ? `${u.name}（${resolvedParentName}的子用户）`
+        ? `${u.name}（${resolvedParentName}名下持卡人）`
         : u.name
       flatUsers.push({
         id: u.id,
         name: u.name,
         displayName,
+        phone: u.phone || '',
         parentId: u.parentId,
         parentName: resolvedParentName,
         status: Number(u.status ?? 0),
@@ -1730,6 +1882,30 @@ function flattenUserTree(list: any[], parentName = '') {
   }
   walk(list, parentName)
   return flatUsers
+}
+
+function userOptionInitial(name: string | undefined) {
+  const text = String(name || '').trim()
+  return text ? text.slice(0, 1).toUpperCase() : '?'
+}
+
+function userOptionMeta(user: any) {
+  const parts = [
+    user?.parentId ? `${user?.parentName || '洽谈人'}名下持卡人` : '洽谈人',
+    user?.phone ? String(user.phone) : '',
+    `费率 ${formatRate(user?.effectiveFeeRate ?? 0)}%`
+  ].filter(Boolean)
+  return parts.join(' · ')
+}
+
+function selectUserOption(form: any, userId: number | null) {
+  form.userId = userId
+  if (userId) userPickerKeyword.value = ''
+}
+
+function selectFirstUserOption(form: any) {
+  const first = userPickerDisplayOptions.value[0]
+  if (first) selectUserOption(form, Number(first.id))
 }
 
 function findUserById(userId: number | null | undefined) {
@@ -1745,16 +1921,16 @@ function isUserDisabled(userId: number | null | undefined) {
 
 function notifyUserDisabled(userId: number | null | undefined) {
   const user = findUserById(userId)
-  const userName = user?.name || '该用户'
+  const userName = user?.name || '该洽谈人和名下持卡人'
   ElMessage.warning(`${userName}已停用，不能新增银行卡`)
 }
 
 async function openAddCard() {
   isEdit.value = false
   Object.assign(formData, defaultForm)
-  if (activeUser.value?.userId) {
-    formData.userId = activeUser.value.userId
-  }
+  userPickerKeyword.value = ''
+  cardDialogUserLocked.value = false
+  userPickerScope.value = 'all'
   await syncUserOptions()
   if (isUserDisabled(formData.userId)) {
     notifyUserDisabled(formData.userId)
@@ -1766,8 +1942,20 @@ async function openAddCard() {
 async function openAddCardWithActiveUser() {
   if (!canAddCardForUser.value) return
   isEdit.value = false
-  Object.assign(formData, defaultForm, { userId: activeUser.value?.userId })
+  Object.assign(formData, defaultForm)
+  userPickerKeyword.value = ''
+  cardDialogUserLocked.value = false
+  userPickerScope.value = 'activeGroup'
   await syncUserOptions()
+  const scopedOptions = currentGroupUserOptions.value
+  const mainUserId = Number(activeUser.value?.userId || 0)
+  const preferredUserId = Number(activeOwnerId.value || activeCard.value?.userId || 0)
+  const hasPreferred = scopedOptions.some((user: any) => Number(user?.id || 0) === preferredUserId)
+  if (hasPreferred && (preferredUserId !== mainUserId || scopedOptions.length === 1)) {
+    formData.userId = preferredUserId
+  } else if (scopedOptions.length === 1) {
+    formData.userId = Number(scopedOptions[0]?.id || 0) || null
+  }
   if (isUserDisabled(formData.userId)) {
     notifyUserDisabled(formData.userId)
     formData.userId = null
@@ -1781,6 +1969,9 @@ async function openEditCard(row: any) {
     userId: Number(row?.userId || 0) || null,
     repayMethod: row?.repayMethod === 'invoice' ? 'other' : (row?.repayMethod || 'cloudpay')
   })
+  userPickerKeyword.value = ''
+  cardDialogUserLocked.value = false
+  userPickerScope.value = 'all'
   await syncUserOptions()
   dialogVisible.value = true
 }
@@ -1788,7 +1979,7 @@ async function openEditCard(row: any) {
 function openBillYearView(card: any) {
   router.push({
     path: '/bills',
-    query: { cardId: String(card.id), year: String(currentYear) }
+    query: { cardId: String(card.id), year: String(currentYear), sortMode: BILL_SORT_MONTH_ASC }
   })
 }
 
@@ -1892,8 +2083,6 @@ watch(
       activeCardId.value = Number(cards[0].id)
     }
 
-    const cardIdx = cards.findIndex(c => Number(c.id) === Number(activeCardId.value))
-    cardPageIndex.value = cardIdx >= 0 ? Math.floor(cardIdx / CARD_PAGE_SIZE) : 0
   }
 )
 
@@ -1920,16 +2109,11 @@ watch(
 )
 
 watch(
-  () => activeCards.value.length,
-  () => {
-    cardPageIndex.value = Math.min(cardPageIndex.value, Math.max(0, cardPageCount.value - 1))
-  }
-)
-
-watch(
   () => [scopedCardIds.value.join(','), billFilter.year, billFilter.month],
   () => {
+    profitScope.value = billFilter.month ? 'month' : 'year'
     fetchBillScopeData({ silent: true })
+    fetchProfitScopeData({ silent: true })
   },
   { immediate: true }
 )
@@ -1937,6 +2121,14 @@ watch(
 watch(
   () => [scopedCardIds.value.join(','), profitScope.value],
   () => {
+    if (profitScope.value === 'month' && !billFilter.month) {
+      billFilter.month = billFilter.year === currentYear ? currentMonth : 1
+      return
+    }
+    if (profitScope.value === 'year' && billFilter.month) {
+      billFilter.month = undefined
+      return
+    }
     fetchProfitScopeData()
   },
   { immediate: true }
@@ -1958,7 +2150,7 @@ onActivated(() => {
   }
   // 从其他页面（如持卡人管理）返回时始终刷新，确保数据最新
   fetchGroups({ silent: true })
-  ensureUserTree(false, true)
+  ensureUserTree(true, true)
 })
 </script>
 
@@ -1977,6 +2169,76 @@ $warning:       #d97706;
 $success:       #2f9e44;
 $rs:            8px;
 $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
+
+:global(.card-bank-dialog.el-dialog),
+:global(.card-bank-dialog .el-dialog) {
+  max-width: calc(100vw - 32px);
+  border-radius: 10px;
+}
+
+:global(.card-bank-dialog .el-dialog__header) {
+  padding: 14px 18px 10px;
+  margin-right: 0;
+  border-bottom: 1px solid #eef2f6;
+}
+
+:global(.card-bank-dialog .el-dialog__title) {
+  color: #1f2937;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+:global(.card-bank-dialog .el-dialog__headerbtn) {
+  top: 4px;
+  right: 8px;
+  width: 38px;
+  height: 38px;
+}
+
+:global(.card-bank-dialog .el-dialog__body) {
+  max-height: calc(100vh - 142px);
+  overflow-y: auto;
+  padding: 12px 18px 6px;
+}
+
+:global(.card-bank-dialog .el-dialog__footer) {
+  padding: 10px 18px 14px;
+  border-top: 1px solid #eef2f6;
+}
+
+:global(.card-bank-dialog .el-form-item) {
+  margin-bottom: 8px;
+}
+
+:global(.card-bank-dialog .el-form-item__label) {
+  height: 30px;
+  padding-right: 10px;
+  color: #526074;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 30px;
+}
+
+:global(.card-bank-dialog .el-form-item__content) {
+  min-width: 0;
+  line-height: 30px;
+}
+
+:global(.card-bank-dialog .el-input__wrapper),
+:global(.card-bank-dialog .el-select__wrapper) {
+  min-height: 30px;
+  border-radius: 8px;
+}
+
+:global(.card-bank-dialog .el-input__inner),
+:global(.card-bank-dialog .el-select__selected-item) {
+  font-size: 12px;
+}
+
+:global(.card-bank-dialog .el-button + .el-button) {
+  margin-left: 0;
+}
 
 .cards-page {
   display: flex;
@@ -2683,6 +2945,28 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   overflow: hidden;
 }
 
+.talker-list.user-list {
+  grid-template-rows: none;
+  grid-auto-rows: calc((100% - 16px) / 3);
+  align-content: start;
+  align-items: stretch;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, .55) transparent;
+}
+
+.talker-list.user-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.talker-list.user-list::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, .55);
+  border-radius: 999px;
+}
+
 .user-list .empty-hint,
 .child-list .empty-hint {
   grid-row: 1 / -1;
@@ -2724,7 +3008,21 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   gap: 7px;
   min-height: 0;
   min-width: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, .55) transparent;
+}
+
+.card-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.card-list::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, .55);
+  border-radius: 999px;
 }
 
 .card-panel-body {
@@ -3136,7 +3434,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 2px;
@@ -3166,17 +3464,29 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 }
 
 .bill-item {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 6px 0;
+  min-height: 44px;
+  min-width: 0;
+  border: 1px solid rgba(219,226,234,.85);
   border-radius: 14px;
   background: $surface;
-  border: 1px solid rgba(219,226,234,.85);
-  min-height: 56px;
-  min-width: 0;
   transition: all .16s;
+}
+
+.bill-item > * {
+  align-self: center;
+}
+
+.bill-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 30px;
+  padding: 0 10px;
 }
 
 .bill-item:hover {
@@ -3191,104 +3501,139 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   box-shadow: inset 0 0 0 2px rgba($warning,.20);
 }
 
-.bill-owner,
-.bill-bank,
-.bill-last4,
-.bill-repay,
+.bill-owner-group,
+.bill-card-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.bill-amount-group {
+  display: flex;
+}
+
+.bill-action-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 58px;
+  gap: 8px;
+}
+
+.bill-action-group > *,
+.bill-amount-group > * {
+  align-self: center;
+}
+
+.bill-main-cell,
+.bill-chip,
 .bill-amount-edit,
+.bill-row-actions,
 .bill-status {
   min-width: 0;
 }
 
-.bill-card-info {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.bill-info-row {
-  display: grid;
-  grid-template-columns: 34px minmax(0, .82fr) 66px minmax(0, 1fr);
-  column-gap: 6px;
+.bill-main-cell {
+  display: flex;
   align-items: center;
-  min-width: 0;
+  gap: 5px;
+  height: 28px;
   overflow: hidden;
-  line-height: 1.5;
+  line-height: 1;
 }
 
 .bill-field-label {
-  color: $sub;
-  font-size: 11px;
-  font-weight: 700;
+  flex-shrink: 0;
+  overflow: hidden;
+  color: $faint;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.bill-field-value {
+.bill-main-cell strong {
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.bill-owner,
-.bill-bank {
-  overflow: hidden;
   color: $ink;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 800;
+  line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.bill-bank {
+.bill-main-cell:nth-child(2) strong {
   color: $ink2;
 }
 
-.bill-last4,
-.bill-repay {
+.bill-chip {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  height: 28px;
+  padding: 0;
+  color: $ink2;
+  font-size: 11.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.bill-chip span {
+  color: $sub;
+  font-weight: 800;
+}
+
+.bill-chip b {
+  min-width: 0;
   overflow: hidden;
   color: $ink2;
   font-size: 11.5px;
-  font-weight: 700;
+  font-weight: 900;
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.bill-owner {
-  color: $ink;
-}
-
-.bill-last4,
-.bill-repay {
-  flex: 0 0 auto;
 }
 
 .bill-amount-edit {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: 26px 8px minmax(0, 1fr);
   gap: 4px;
+  width: 100%;
+  height: 28px;
+}
+
+.bill-amount-edit > * {
+  align-self: center;
 }
 
 .bill-amount-edit :deep(.el-button + .el-button) {
   margin-left: 0;
 }
 
+.bill-amount-title {
+  color: $sub;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .bill-amount-symbol {
   color: $sub;
   font-size: 11.5px;
   font-weight: 900;
+  line-height: 1;
+  text-align: center;
 }
 
 .bill-amount-input {
-  width: 96px;
+  width: 100%;
 }
 
 .bill-amount-input :deep(.el-input__wrapper) {
   min-height: 26px;
-  padding: 0 7px;
-  border-radius: 8px;
+  padding: 0 6px;
+  border-radius: 7px;
 }
 
 .bill-amount-input :deep(.el-input__inner) {
@@ -3298,17 +3643,41 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   text-align: right;
 }
 
+.bill-row-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  height: 28px;
+}
+
+.bill-row-actions > * {
+  align-self: center;
+}
+
+.bill-row-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
 .bill-save-btn {
-  min-width: 34px;
+  width: 100%;
+  min-width: 0;
+  height: 26px;
   padding: 0;
+  border-radius: 7px;
+  font-size: 12px;
   font-weight: 900;
+  line-height: 26px;
 }
 
 .bill-repay-btn {
-  min-width: 34px;
-  padding: 0 2px;
+  width: 100%;
+  min-width: 0;
+  height: 26px;
+  padding: 0;
+  border-radius: 7px;
   font-weight: 900;
   font-size: 12px;
+  line-height: 26px;
 }
 
 .is-bills .panel-body {
@@ -3317,8 +3686,9 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 
 .bill-status {
   display: flex;
-  margin-left: auto;
-  justify-content: flex-end;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
 }
 
 .scope-switch { display: flex; align-items: center; gap: 6px; }
@@ -3459,26 +3829,326 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   width: 100%;
 }
 
-.app-radio-group {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 10px;
-  width: 100%;
-  overflow-x: auto;
-  white-space: nowrap;
-  padding-bottom: 2px;
+.card-user-form-item {
+  margin-bottom: 8px;
 }
 
-.app-radio-group :deep(.el-radio) {
-  margin-right: 0;
+.card-user-form-item :deep(.el-form-item__content) {
+  align-items: stretch;
+  flex-wrap: wrap;
+  line-height: normal;
+}
+
+.card-user-form-item :deep(.el-form-item__error) {
+  position: static;
+  flex-basis: 100%;
+  width: 100%;
+  padding-top: 4px;
+  color: #f56c6c;
+  font-size: 11.5px;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.card-user-picker {
+  display: grid;
+  flex: 1 1 100%;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.card-user-picker.is-locked {
+  gap: 0;
+}
+
+.card-user-picker-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  width: 100%;
+}
+
+.card-user-picker-toolbar > * {
+  align-self: center;
+}
+
+.manage-user-btn {
+  flex-shrink: 0;
+  min-height: 30px;
+  padding: 0 4px;
   white-space: nowrap;
-  flex: 0 0 auto;
+}
+
+.selected-user-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, .72fr);
+  gap: 8px;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid rgba(22, 119, 255, 0.24);
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.selected-user-card > * {
+  align-self: center;
+}
+
+.selected-user-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.selected-user-main strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #1f2a37;
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selected-user-label,
+.selected-user-meta,
+.user-choice-meta,
+.user-choice-tip,
+.user-choice-empty {
+  color: #667085;
+  font-size: 11.5px;
+  line-height: 1.3;
+}
+
+.selected-user-label {
+  color: #0958d9;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.selected-user-meta {
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-choice-list {
+  --user-choice-gap: 6px;
+  --user-choice-row-height: 46px;
+
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--user-choice-gap);
+  max-height: calc(var(--user-choice-row-height) * 3 + var(--user-choice-gap) * 2);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, .55) transparent;
+}
+
+.user-choice-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.user-choice-list::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, .55);
+  border-radius: 999px;
+}
+
+.user-choice-card {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  gap: 6px;
+  min-width: 0;
+  height: var(--user-choice-row-height);
+  min-height: 0;
+  overflow: hidden;
+  padding: 5px 7px;
+  border: 1px solid #dbe2ea;
+  border-radius: 8px;
+  background: #fff;
+  color: #1f2a37;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.user-choice-card > * {
+  align-self: center;
+}
+
+.user-choice-card:hover {
+  border-color: rgba(22, 119, 255, 0.42);
+  background: #f8fbff;
+}
+
+.user-choice-card.active {
+  border-color: rgba(22, 119, 255, 0.72);
+  background: #eef6ff;
+  box-shadow: inset 3px 0 0 #1677ff;
+}
+
+.user-choice-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: #eef2f7;
+  color: #0958d9;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.user-choice-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.user-choice-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12.5px;
+  font-weight: 800;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-choice-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-choice-tag {
+  justify-self: end;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #f2f4f7;
+  color: #526074;
+  font-size: 10.5px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.user-choice-card.active .user-choice-tag {
+  background: #dbeafe;
+  color: #0958d9;
+}
+
+.user-choice-empty {
+  padding: 9px 10px;
+  border: 1px dashed #dbe2ea;
+  border-radius: 8px;
+  background: #fafbfc;
+  text-align: center;
+}
+
+.user-choice-tip {
+  width: 100%;
+  padding-left: 2px;
+  line-height: 1.2;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.card-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: 10px;
+  row-gap: 0;
+  width: 100%;
+}
+
+.card-form-grid .span-all {
+  grid-column: 1 / -1;
+}
+
+.card-form-grid :deep(.el-form-item) {
+  margin-bottom: 8px;
+}
+
+.card-form-grid :deep(.el-form-item__label) {
+  line-height: 30px;
+}
+
+.card-form-grid :deep(.el-input-number) {
+  width: 100%;
+}
+
+.card-form-grid :deep(.el-input-number .el-input__wrapper),
+.card-form-grid :deep(.el-input__wrapper),
+.card-form-grid :deep(.el-select__wrapper) {
+  min-height: 30px;
+}
+
+.card-form-grid :deep(.el-radio-group) {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 30px;
+  white-space: nowrap;
+}
+
+.card-form-grid :deep(.el-radio) {
+  height: 30px;
+  margin-right: 0;
+}
+
+.card-form-grid :deep(.el-textarea__inner) {
+  min-height: 46px !important;
+}
+
+@media (max-width: 860px) {
+  .card-user-picker-toolbar,
+  .selected-user-card,
+  .user-choice-list,
+  .card-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .selected-user-meta {
+    text-align: left;
+  }
+
+  .card-form-grid .span-all {
+    grid-column: auto;
+  }
+}
+
+@media (max-height: 720px) {
+  :global(.card-bank-dialog .el-dialog__body) {
+    padding-top: 10px;
+    max-height: calc(100vh - 128px);
+  }
+
+  .user-choice-list {
+    max-height: calc(var(--user-choice-row-height) * 2 + var(--user-choice-gap));
+  }
+
+  .selected-user-card {
+    min-height: 32px;
+  }
+
+  .card-form-grid :deep(.el-textarea__inner) {
+    min-height: 40px !important;
+  }
 }
 
 @media (max-width: 1440px) {
   .page-header { padding: 14px 20px; }
   .cards-grid { gap: 10px; padding: 10px 12px 12px; }
   .mini-stats { gap: 6px; }
+  .bill-item { gap: 6px; }
   .mini-stat { padding: 9px 9px 8px; }
   .pk-value { font-size: 18px; }
 }
@@ -3486,14 +4156,17 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 @media (max-width: 1280px) {
   .metrics-grid { min-width: 160px; }
   .metric-box { padding: 6px 7px; }
-  .bill-item {
-    gap: 8px;
-    padding: 6px 8px;
+  .bill-group {
+    gap: 6px;
+    padding: 0 8px;
   }
-  .bill-card-info {
-    min-width: 0;
+  .bill-action-group {
+    grid-template-columns: minmax(0, 1fr) 54px;
+    gap: 6px;
   }
-  .bill-amount-input { width: 82px; }
+  .bill-amount-edit {
+    grid-template-columns: 24px 8px minmax(0, 1fr);
+  }
   .profit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .profit-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

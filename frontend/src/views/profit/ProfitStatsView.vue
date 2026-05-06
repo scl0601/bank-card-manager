@@ -633,6 +633,8 @@ function cardLabel(item: OptionItem) {
 
 const billActionLabel = computed(() => query.month ? '当月账单' : '年度账单')
 
+const BILL_SORT_MONTH_ASC = 'monthAsc'
+
 function buildBillRouteQuery(extra: Record<string, any>) {
   const routeQuery: Record<string, any> = {
     year: String(query.year),
@@ -645,11 +647,11 @@ function buildBillRouteQuery(extra: Record<string, any>) {
 }
 
 function openUserBills(row: UserProfitRow) {
-  router.push({ path: '/bills', query: buildBillRouteQuery({ ownerId: String(row.userId) }) })
+  router.push({ path: '/bills', query: buildBillRouteQuery({ ownerId: String(row.userId), sortMode: BILL_SORT_MONTH_ASC }) })
 }
 
 function openCardBills(row: CardProfitRow) {
-  router.push({ path: '/bills', query: buildBillRouteQuery({ cardId: String(row.cardId) }) })
+  router.push({ path: '/bills', query: buildBillRouteQuery({ cardId: String(row.cardId), sortMode: BILL_SORT_MONTH_ASC }) })
 }
 
 async function openOtherFeeEditor(scope: OtherFeeScope, row?: UserProfitRow | CardProfitRow | MonthProfitRow) {

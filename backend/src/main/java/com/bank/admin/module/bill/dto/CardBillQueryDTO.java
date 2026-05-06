@@ -34,6 +34,15 @@ public class CardBillQueryDTO extends PageDTO {
     @Schema(description = "统计年份")
     private Integer year;
 
+    @Schema(description = "还款月份（yyyy-MM）")
+    private String repayMonth;
+
+    @Schema(description = "还款年份")
+    private Integer repayYear;
+
+    @Schema(description = "Sort mode: currentFirst or monthAsc")
+    private String sortMode;
+
     @Schema(description = "账单开始月份（yyyy-MM）")
     private String startBillMonth;
 

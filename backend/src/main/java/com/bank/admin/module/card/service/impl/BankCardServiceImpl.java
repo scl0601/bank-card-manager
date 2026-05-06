@@ -171,7 +171,11 @@ public class BankCardServiceImpl
 
         List<CardUser> topUsers = allUsers.stream()
                 .filter(user -> user.getParentId() == null)
+                .filter(user -> Objects.equals(user.getStatus(), 0))
                 .toList();
+        Set<Long> activeTopUserIds = topUsers.stream()
+                .map(CardUser::getId)
+                .collect(Collectors.toSet());
 
         LambdaQueryWrapper<BankCard> cardWrapper = new LambdaQueryWrapper<BankCard>()
                 .like(StringUtils.hasText(query.getBankName()), BankCard::getBankName, query.getBankName())
@@ -189,12 +193,21 @@ public class BankCardServiceImpl
 
         Map<Long, Long> userToTopMap = new HashMap<>();
         for (CardUser user : allUsers) {
-            userToTopMap.put(user.getId(), user.getParentId() == null ? user.getId() : user.getParentId());
+            if (!Objects.equals(user.getStatus(), 0)) {
+                continue;
+            }
+            Long topUserId = user.getParentId() == null ? user.getId() : user.getParentId();
+            if (activeTopUserIds.contains(topUserId)) {
+                userToTopMap.put(user.getId(), topUserId);
+            }
         }
+        List<BankCardVO> visibleCardVOs = allCardVOs.stream()
+                .filter(card -> userToTopMap.containsKey(card.getUserId()))
+                .toList();
 
         List<UserCardGroupVO> result = new ArrayList<>();
         for (CardUser topUser : topUsers) {
-            List<BankCardVO> groupCards = allCardVOs.stream()
+            List<BankCardVO> groupCards = visibleCardVOs.stream()
                     .filter(card -> topUser.getId().equals(userToTopMap.get(card.getUserId())))
                     .toList();
 
@@ -209,9 +222,9 @@ public class BankCardServiceImpl
             result.add(group);
         }
 
-        Set<Long> allAssignedIds = userToTopMap.keySet();
+        Set<Long> allUserIds = allUsers.stream().map(CardUser::getId).collect(Collectors.toSet());
         List<BankCardVO> unassignedCards = allCardVOs.stream()
-                .filter(card -> !allAssignedIds.contains(card.getUserId()))
+                .filter(card -> !allUserIds.contains(card.getUserId()))
                 .toList();
         if (!unassignedCards.isEmpty()) {
             UserCardGroupVO unassigned = new UserCardGroupVO();

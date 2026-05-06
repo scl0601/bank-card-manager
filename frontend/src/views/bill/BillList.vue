@@ -650,12 +650,14 @@ import {
 interface BillRow {
   id: number
   cardId: number
+  ownerId?: number
   ownerName: string
   bankName: string
   cardNoLast4: string
   billMonth: string
   billDay: number | null
   repayDate: string | null
+  repayDay?: number | null
   billAmount: number | null
   actualPayAmount?: number | null
   consumeAmount?: number | null
@@ -727,6 +729,7 @@ interface BankCardOption {
 }
 
 type CreateBillMode = 'month' | 'year'
+type BillSortMode = 'currentFirst' | 'monthAsc'
 
 const route = useRoute()
 const router = useRouter()
@@ -735,6 +738,8 @@ const now = new Date()
 const currentYear = now.getFullYear()
 const currentMonthNumber = now.getMonth() + 1
 const currentMonth = `${currentYear}-${String(currentMonthNumber).padStart(2, '0')}`
+const BILL_SORT_CURRENT_FIRST: BillSortMode = 'currentFirst'
+const BILL_SORT_MONTH_ASC: BillSortMode = 'monthAsc'
 const SINGLE_CARD_ANNUAL_PAGE_SIZE = 12
 const DEFAULT_BILL_PAGE_SIZE = 18
 const DETAIL_PREFETCH_DELAY = 80
@@ -792,17 +797,22 @@ const {
   defaultQuery: {
     pageSize: DEFAULT_BILL_PAGE_SIZE,
     cardId: undefined as any,
+    cardIds: '',
     ownerId: undefined as any,
     ownerName: '',
     cardName: '',
     startBillMonth: '',
     endBillMonth: '',
+    repayMonth: '',
+    repayYear: undefined as any,
+    sortMode: BILL_SORT_CURRENT_FIRST as BillSortMode,
     status: undefined as any,
     feePaid: undefined as any
   },
   autoSearch: false,
   beforeFetch: (params) => {
     params.pageSize = resolveBillPageSize(params)
+    params.sortMode = resolveBillSortMode(params)
     ;(params as any).current = params.pageNum
     ;(params as any).size = params.pageSize
     delete (params as any).pageNum
@@ -848,10 +858,10 @@ const createBillForm = reactive({
   remark: ''
 })
 
-const billScopeLabel = computed(() => formatBillRangeLabel(query.startBillMonth, query.endBillMonth))
+const billScopeLabel = computed(() => formatRepayScopeLabel(query.repayMonth, query.repayYear) || formatBillRangeLabel(query.startBillMonth, query.endBillMonth))
 const singleCardAnnualMode = computed(() => isSingleCardAnnualScope(query))
 const safeBillPageSize = computed(() => Number(query.pageSize || 0) || DEFAULT_BILL_PAGE_SIZE)
-const isBillTableScrollable = computed(() => safeBillPageSize.value > defaultPageSizeForScope(query))
+const isBillTableScrollable = computed(() => true)
 const billTableHeight = computed(() => '100%')
 const showBillPagination = computed(() => true)
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / safeBillPageSize.value)))
@@ -888,6 +898,9 @@ const detailModeMessage = computed(() => {
   const scopeText = billScopeLabel.value
   if (route.query.cardId) {
     return scopeText ? `当前为单张银行卡账单模式，已定位到 ${scopeText}。` : '当前为单张银行卡账单模式。'
+  }
+  if (route.query.cardIds) {
+    return scopeText ? `当前为当前持卡人全部银行卡账单模式，已定位到 ${scopeText}。` : '当前为当前持卡人全部银行卡账单模式。'
   }
   if (route.query.ownerId) {
     return scopeText ? `当前为持卡人/子用户账单模式，已定位到 ${scopeText}。` : '当前为持卡人/子用户账单模式。'
@@ -934,6 +947,19 @@ function formatBillRangeLabel(startBillMonth?: string | null, endBillMonth?: str
   return start || end
 }
 
+function formatRepayScopeLabel(repayMonth?: string | null, repayYear?: number | string | null) {
+  const month = String(repayMonth || '').trim()
+  if (/^\d{4}-\d{2}$/.test(month)) {
+    const [year, monthPart] = month.split('-')
+    return `${year}年${monthPart}月还款`
+  }
+  const year = Number(repayYear)
+  if (Number.isFinite(year) && year >= 2000) {
+    return `${year}年还款`
+  }
+  return ''
+}
+
 function isWholeYearRange(startBillMonth?: string | null, endBillMonth?: string | null) {
   const start = parseBillMonthParts(startBillMonth)
   const end = parseBillMonthParts(endBillMonth)
@@ -941,11 +967,27 @@ function isWholeYearRange(startBillMonth?: string | null, endBillMonth?: string 
 }
 
 function isAnnualBillScope(params: any) {
-  return isWholeYearRange(params?.startBillMonth, params?.endBillMonth)
+  return isWholeYearRange(params?.startBillMonth, params?.endBillMonth) || (!!params?.repayYear && !params?.repayMonth)
+}
+
+function hasScopedCardIds(params: any) {
+  return String(params?.cardIds || '').trim().length > 0
 }
 
 function isSingleCardAnnualScope(params: any) {
-  return isAnnualBillScope(params) && Number(params?.cardId || 0) > 0 && !Number(params?.ownerId || 0)
+  return isAnnualBillScope(params) && Number(params?.cardId || 0) > 0 && !Number(params?.ownerId || 0) && !hasScopedCardIds(params)
+}
+
+function resolveBillSortMode(params: any): BillSortMode {
+  const rawMode = String(params?.sortMode || '').trim()
+  if (rawMode === BILL_SORT_MONTH_ASC || rawMode === BILL_SORT_CURRENT_FIRST) {
+    return rawMode as BillSortMode
+  }
+  return isSingleCardAnnualScope(params) ? BILL_SORT_MONTH_ASC : BILL_SORT_CURRENT_FIRST
+}
+
+function isMonthAscBillSort(params: any) {
+  return resolveBillSortMode(params) === BILL_SORT_MONTH_ASC
 }
 
 function defaultPageSizeForScope(params: any) {
@@ -963,6 +1005,8 @@ function syncBillMonthQuery() {
   const billMonth = String(billMonthFilter.value || '').trim()
   query.startBillMonth = billMonth
   query.endBillMonth = billMonth
+  query.repayMonth = ''
+  query.repayYear = undefined as any
 }
 
 function applyBillMonthRange(startBillMonth?: string | null, endBillMonth?: string | null) {
@@ -981,25 +1025,40 @@ function submitBillSearch() {
 }
 
 function resolveMonthOrder(month: number) {
-  const hasCardId = Number(query.cardId || 0) > 0
-  const hasOwnerId = Number(query.ownerId || 0) > 0
-  if (hasCardId && !hasOwnerId) {
+  if (isMonthAscBillSort(query)) {
     return month
   }
   return (month - currentMonthNumber + 12) % 12
 }
 
+function resolveRepayMonthParts(row: BillRow) {
+  const repayMonth = repayMonthOf(row)
+  return parseBillMonthParts(repayMonth) || parseBillMonthParts(row.billMonth)
+}
+
+function resolveSortMonthParts(row: BillRow) {
+  if (isMonthAscBillSort(query) && !query.repayMonth && !query.repayYear) {
+    return parseBillMonthParts(row.billMonth) || resolveRepayMonthParts(row)
+  }
+  return resolveRepayMonthParts(row)
+}
+
 const sortedList = computed<BillRow[]>(() => {
   return [...(list.value as BillRow[])].sort((a, b) => {
-    const aParts = parseBillMonthParts(a.billMonth)
-    const bParts = parseBillMonthParts(b.billMonth)
+    const aParts = resolveSortMonthParts(a)
+    const bParts = resolveSortMonthParts(b)
+    const monthOrderDelta = resolveMonthOrder(Number(aParts?.month || 0)) - resolveMonthOrder(Number(bParts?.month || 0))
+
+    if (!isMonthAscBillSort(query) && monthOrderDelta !== 0) {
+      return monthOrderDelta
+    }
 
     if (aParts?.year !== bParts?.year) {
       return Number(bParts?.year || 0) - Number(aParts?.year || 0)
     }
 
-    if (aParts?.month !== bParts?.month) {
-      return resolveMonthOrder(Number(aParts?.month || 0)) - resolveMonthOrder(Number(bParts?.month || 0))
+    if (monthOrderDelta !== 0) {
+      return monthOrderDelta
     }
 
     return Number(b.id || 0) - Number(a.id || 0)
@@ -1009,7 +1068,12 @@ const sortedList = computed<BillRow[]>(() => {
 const tableDisplayList = computed<BillRow[]>(() => loading.value ? [] : sortedList.value)
 
 function billRowClassName({ row }: { row: BillRow }) {
-  return row?.billMonth === currentMonth ? 'current-month-row' : ''
+  return repayMonthOf(row) === currentMonth ? 'current-month-row' : ''
+}
+
+function repayMonthOf(row: BillRow | null | undefined) {
+  const match = String(row?.repayDate || '').match(/^(\d{4})-(\d{2})-/)
+  return match ? `${match[1]}-${match[2]}` : ''
 }
 
 function resetBillTableTransientState() {
@@ -1047,11 +1111,15 @@ function handleExport() {
 function buildExportParams() {
   return {
     cardId: query.cardId,
+    cardIds: query.cardIds,
     ownerId: query.ownerId,
     ownerName: query.ownerName,
     cardName: query.cardName,
     startBillMonth: query.startBillMonth,
     endBillMonth: query.endBillMonth,
+    repayMonth: query.repayMonth,
+    repayYear: query.repayYear,
+    sortMode: resolveBillSortMode(query),
     status: query.status,
     feePaid: query.feePaid
   }
@@ -1060,6 +1128,7 @@ function buildExportParams() {
 function buildOverviewParams() {
   const params = buildExportParams()
   delete (params as any).status
+  delete (params as any).sortMode
   return params
 }
 
@@ -1107,6 +1176,23 @@ function toRouteBillMonthValue(value: unknown) {
   return typeof target === 'string' && /^\d{4}-\d{2}$/.test(target) ? target : ''
 }
 
+function toRouteCardIdsValue(value: unknown) {
+  const target = Array.isArray(value) ? value[0] : value
+  if (typeof target !== 'string') return ''
+  return Array.from(new Set(
+    target
+      .split(',')
+      .map(item => Number(item.trim()))
+      .filter(id => Number.isFinite(id) && id > 0)
+      .map(id => String(Math.trunc(id)))
+  )).join(',')
+}
+
+function toRouteBillSortMode(value: unknown) {
+  const target = Array.isArray(value) ? value[0] : value
+  return target === BILL_SORT_MONTH_ASC || target === BILL_SORT_CURRENT_FIRST ? target as BillSortMode : undefined
+}
+
 function normalizeRouteBillRange(
   startValue: unknown,
   endValue: unknown,
@@ -1135,19 +1221,23 @@ function normalizeRouteBillRange(
 function clearRouteFilters() {
   const nextQuery = { ...route.query }
   delete nextQuery.cardId
+  delete nextQuery.cardIds
   delete nextQuery.ownerId
   delete nextQuery.status
   delete nextQuery.year
   delete nextQuery.billMonth
   delete nextQuery.startBillMonth
   delete nextQuery.endBillMonth
+  delete nextQuery.repayMonth
+  delete nextQuery.repayYear
+  delete nextQuery.sortMode
   router.replace({ path: route.path, query: nextQuery })
 }
 
 async function handleResetAll() {
   triggerBillSearch.cancel()
   syncingBillFilters = true
-  const hasRouteFilters = !!(route.query.cardId || route.query.ownerId || route.query.status || route.query.year || route.query.billMonth || route.query.startBillMonth || route.query.endBillMonth)
+  const hasRouteFilters = !!(route.query.cardId || route.query.cardIds || route.query.ownerId || route.query.status || route.query.year || route.query.billMonth || route.query.startBillMonth || route.query.endBillMonth || route.query.repayMonth || route.query.repayYear || route.query.sortMode)
   if (hasRouteFilters) {
     skipRouteDrivenSearch = true
     clearRouteFilters()
@@ -1256,16 +1346,22 @@ function focusCreatedBills(cardId: number, startBillMonth: string, endBillMonth:
     ...route.query,
     cardId: String(cardId),
     startBillMonth,
-    endBillMonth
+    endBillMonth,
+    sortMode: BILL_SORT_MONTH_ASC
   }
   delete nextRouteQuery.ownerId
+  delete nextRouteQuery.cardIds
   delete nextRouteQuery.status
   delete nextRouteQuery.year
   delete nextRouteQuery.billMonth
+  delete nextRouteQuery.repayMonth
+  delete nextRouteQuery.repayYear
   void router.replace({ path: route.path, query: nextRouteQuery }).catch(() => {})
   syncingBillFilters = true
   query.cardId = cardId as any
+  query.cardIds = ''
   query.ownerId = undefined as any
+  query.sortMode = BILL_SORT_MONTH_ASC
   query.ownerName = ''
   query.cardName = ''
   query.status = undefined as any
@@ -2065,7 +2161,7 @@ watch(
 )
 
 watch(
-  () => [query.ownerName, query.cardName, query.status, query.feePaid, query.startBillMonth, query.endBillMonth],
+  () => [query.ownerName, query.cardName, query.status, query.feePaid, query.startBillMonth, query.endBillMonth, query.repayMonth, query.repayYear, query.sortMode],
   () => {
     if (syncingBillFilters) return
     triggerBillSearch()
@@ -2074,22 +2170,33 @@ watch(
 )
 
 watch(
-  () => [route.query.cardId, route.query.ownerId, route.query.status, route.query.year, route.query.billMonth, route.query.startBillMonth, route.query.endBillMonth],
-  ([cardId, ownerId, status, year, billMonth, startBillMonth, endBillMonth]) => {
+  () => [route.query.cardId, route.query.cardIds, route.query.ownerId, route.query.status, route.query.year, route.query.billMonth, route.query.startBillMonth, route.query.endBillMonth, route.query.repayMonth, route.query.repayYear, route.query.sortMode],
+  ([cardId, cardIds, ownerId, status, year, billMonth, startBillMonth, endBillMonth, repayMonth, repayYear, sortMode]) => {
     triggerBillSearch.cancel()
     const previousSyncState = syncingBillFilters
     syncingBillFilters = true
     const routeCardId = toRouteNumber(cardId)
+    const routeCardIds = toRouteCardIdsValue(cardIds)
     const routeOwnerId = toRouteNumber(ownerId)
+    const routeRepayMonth = toRouteBillMonthValue(repayMonth)
+    const routeRepayYear = toRouteYearValue(repayYear)
+    const routeSortMode = toRouteBillSortMode(sortMode)
     let [routeStartBillMonth, routeEndBillMonth] = normalizeRouteBillRange(startBillMonth, endBillMonth, year, billMonth)
-    if (routeCardId && !routeOwnerId && !routeStartBillMonth && !routeEndBillMonth) {
+    if (routeRepayMonth || routeRepayYear) {
+      routeStartBillMonth = ''
+      routeEndBillMonth = ''
+    } else if (routeCardId && !routeOwnerId && !routeCardIds && !routeStartBillMonth && !routeEndBillMonth) {
       routeStartBillMonth = `${currentYear}-01`
       routeEndBillMonth = `${currentYear}-12`
     }
     query.cardId = routeCardId as any
+    query.cardIds = routeCardIds
     query.ownerId = routeOwnerId as any
     query.status = toRouteBillStatus(status) as any
+    query.repayMonth = routeRepayMonth
+    query.repayYear = routeRepayMonth ? undefined as any : routeRepayYear as any
     applyBillMonthRange(routeStartBillMonth, routeEndBillMonth)
+    query.sortMode = routeSortMode || resolveBillSortMode({ ...query, sortMode: undefined })
     query.pageSize = defaultPageSizeForScope(query)
     syncingBillFilters = previousSyncState
     currentExpandedRow.value = null
@@ -2562,7 +2669,8 @@ watch(
 .bill-page-table :deep(.el-table__body-wrapper),
 .bill-page-table :deep(.el-scrollbar__wrap) {
   overflow-x: hidden !important;
-  overflow-y: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
 }
 
 /*noinspection CssUnusedSymbol*/
@@ -2570,6 +2678,7 @@ watch(
 .bill-page-table.bill-page-table-scrollable :deep(.el-scrollbar__wrap) {
   overflow-x: hidden !important;
   overflow-y: auto !important;
+  overscroll-behavior: contain;
 }
 
 /*noinspection CssUnusedSymbol*/
@@ -2885,6 +2994,9 @@ watch(
   padding: 6px 8px;
   background: #f8fafc;
   border-radius: 8px;
+  max-height: min(58vh, 560px);
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .detail-section {
@@ -2893,6 +3005,7 @@ watch(
   border: 1px solid #e5eaf1;
   overflow: hidden;
   box-shadow: none;
+  min-height: 0;
 }
 
 .detail-header {
@@ -2946,10 +3059,14 @@ watch(
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   padding: 8px;
+  min-height: 0;
 }
 
 .detail-pane {
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   border: 1px solid #e5eaf1;
   border-radius: 8px;
   overflow: hidden;
@@ -2959,6 +3076,10 @@ watch(
 .detail-lite-list {
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  max-height: min(34vh, 320px);
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .detail-lite-head,
@@ -2971,6 +3092,9 @@ watch(
 }
 
 .detail-lite-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   background: #fcfcfd;
   border-bottom: 1px solid #eef2f6;
   color: #7c8799;
