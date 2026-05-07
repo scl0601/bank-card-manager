@@ -77,6 +77,15 @@ public class CardBillVO {
     @Schema(description = "手续费是否已支付")
     private Boolean feePaid;
 
+    @Schema(description = "手续费已支付金额")
+    private BigDecimal feePaidAmount;
+
+    @Schema(description = "最近手续费支付时间")
+    private LocalDateTime feePayTime;
+
+    @Schema(description = "手续费支付方式：wechat微信 alipay支付宝 cash现金 other其他")
+    private String feePayMethod;
+
     @Schema(description = "POS机使用成本")
     private BigDecimal posCostAmount;
 

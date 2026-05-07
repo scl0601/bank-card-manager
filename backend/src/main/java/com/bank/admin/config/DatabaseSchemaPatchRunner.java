@@ -304,6 +304,27 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
         );
         ensureColumnExists(
                 "card_bill",
+                "fee_paid_amount",
+                "ALTER TABLE `card_bill` ADD COLUMN `fee_paid_amount` DECIMAL(18,2) DEFAULT 0.00 COMMENT 'fee paid amount' AFTER `fee_paid`"
+        );
+        ensureColumnExists(
+                "card_bill",
+                "fee_pay_time",
+                "ALTER TABLE `card_bill` ADD COLUMN `fee_pay_time` DATETIME DEFAULT NULL COMMENT 'latest fee payment time' AFTER `fee_paid_amount`"
+        );
+        ensureColumnExists(
+                "card_bill",
+                "fee_pay_method",
+                "ALTER TABLE `card_bill` ADD COLUMN `fee_pay_method` VARCHAR(20) DEFAULT NULL COMMENT 'fee payment method: wechat/alipay/cash/other' AFTER `fee_pay_time`"
+        );
+        jdbcTemplate.update(sql(
+                "UPDATE `card_bill`",
+                "SET `fee_paid_amount` = IFNULL(`fee_amount`, 0)",
+                "WHERE `fee_paid` = 1",
+                "  AND IFNULL(`fee_paid_amount`, 0) = 0"
+        ));
+        ensureColumnExists(
+                "card_bill",
                 "verified",
                 "ALTER TABLE `card_bill` ADD COLUMN `verified` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'current bill verified' AFTER `fee_paid`"
         );

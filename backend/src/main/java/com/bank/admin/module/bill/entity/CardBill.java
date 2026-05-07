@@ -7,6 +7,7 @@ import lombok.EqualsAndHashCode;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 /**
  * 账单实体
@@ -62,6 +63,15 @@ public class CardBill extends BaseEntity {
 
     /** 手续费是否已支付 */
     private Boolean feePaid;
+
+    /** 手续费已支付金额 */
+    private BigDecimal feePaidAmount;
+
+    /** 最近手续费支付时间 */
+    private LocalDateTime feePayTime;
+
+    /** 手续费支付方式：wechat/alipay/cash/other */
+    private String feePayMethod;
 
     /** 本月还款明细是否已核实 */
     private Boolean verified;

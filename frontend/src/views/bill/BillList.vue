@@ -503,9 +503,6 @@
           <el-form-item label="账单金额" prop="billAmount">
             <el-input-number v-model="createBillForm.billAmount" :min="0" :precision="2" controls-position="right" style="width: 100%" />
           </el-form-item>
-          <el-form-item label="POS成本">
-            <el-input-number v-model="createBillForm.posCostAmount" :min="0" :precision="2" controls-position="right" style="width: 100%" />
-          </el-form-item>
           <el-form-item label="备注">
             <el-input v-model="createBillForm.remark" type="textarea" rows="2" maxlength="500" show-word-limit />
           </el-form-item>
@@ -548,16 +545,6 @@
               controls-position="right"
               style="width: 100%"
               @update:model-value="(val:any) => updateEditField(billEditRowId, 'repayDay', val)"
-            />
-          </el-form-item>
-          <el-form-item label="POS成本">
-            <el-input-number
-              :model-value="editFormMap[billEditRowId]?.posCostAmount"
-              :min="0"
-              :precision="2"
-              controls-position="right"
-              style="width: 100%"
-              @update:model-value="(val:any) => updateEditField(billEditRowId, 'posCostAmount', val)"
             />
           </el-form-item>
           <el-form-item label="备注">
@@ -854,7 +841,6 @@ const createBillForm = reactive({
   repayDay: null as number | null,
   feeRate: 0 as number | null,
   billAmount: 0,
-  posCostAmount: 0,
   remark: ''
 })
 
@@ -1293,7 +1279,6 @@ function resetCreateBillForm() {
     repayDay: null,
     feeRate: 0,
     billAmount: 0,
-    posCostAmount: 0,
     remark: ''
   })
   nextTick(() => createBillFormRef.value?.clearValidate?.())
@@ -1414,7 +1399,7 @@ async function handleCreateBill() {
       feePaid: false,
       verified: false,
       expenseVerified: false,
-      posCostAmount: toNumber(createBillForm.posCostAmount),
+      posCostAmount: 0,
       remark: createBillForm.remark || ''
     })
     ElMessage.success('账单新增成功')

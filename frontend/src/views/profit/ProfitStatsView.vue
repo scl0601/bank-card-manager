@@ -4,6 +4,7 @@
       <div class="header-top">
         <div class="header-copy">
           <div class="header-title">收益统计</div>
+          <div class="header-sub">{{ currentScopeLabel }} · {{ activeViewDesc }}</div>
         </div>
         <div class="header-actions">
           <el-button class="action-btn" :icon="RefreshRight" @click="refresh">刷新</el-button>
@@ -11,8 +12,8 @@
         </div>
       </div>
 
-      <div class="header-stat-row" v-loading="overviewLoading">
-        <div v-for="item in summaryCards" :key="item.label" class="header-stat">
+      <div class="header-stat-row" v-loading="billLoading">
+        <div v-for="item in summaryCards" :key="item.label" class="header-stat" :class="{ 'is-net': item.emphasis }">
           <div class="header-stat-icon" :style="{ background: item.iconBg, color: item.iconColor }">
             <el-icon :size="16"><component :is="item.icon" /></el-icon>
           </div>
@@ -25,244 +26,287 @@
       </div>
     </section>
 
-    <section class="app-search-panel card-shell profit-search-panel">
-      <div class="app-search-main">
+    <section class="app-search-panel card-shell profit-filter-panel">
+      <div class="app-search-main profit-filter-grid">
         <div class="app-search-title">筛选</div>
         <el-date-picker
-          v-model="profitMonthRange"
-          class="app-search-item app-search-item-range"
-          type="monthrange"
-          value-format="YYYY-MM"
-          range-separator="至"
-          start-placeholder="请选择收益统计开始时间"
-          end-placeholder="请选择收益统计结束时间"
+          v-model="queryYearDate"
+          class="app-search-item profit-filter-item"
+          type="year"
+          value-format="YYYY"
+          placeholder="统计年份"
           :editable="false"
           clearable
         />
-        <el-select v-model="query.userId" class="app-search-item app-search-item-md" placeholder="请选择持卡人" clearable filterable>
-          <el-option v-for="item in userOptions" :key="item.id" :label="item.name" :value="item.id" />
-        </el-select>
-        <el-select v-model="query.cardId" class="app-search-item app-search-item-lg" placeholder="请选择银行卡" clearable filterable>
-          <el-option v-for="item in cardOptions" :key="item.id" :label="cardLabel(item)" :value="item.id" />
-        </el-select>
-        <el-select v-model="activeTab" class="app-search-item app-search-item-sm" placeholder="请选择收益类型">
-          <el-option label="按用户收益" value="users" />
-          <el-option label="按银行卡收益" value="cards" />
-          <el-option label="按月度汇总" value="months" />
-        </el-select>
+        <el-select-v2
+          v-model="query.month"
+          class="app-search-item profit-filter-item"
+          :options="monthFilterOptions"
+          placeholder="全部月份"
+          clearable
+          filterable
+          :height="240"
+          :item-height="30"
+          popper-class="profit-filter-dropdown"
+        />
+        <el-select-v2
+          v-model="query.userId"
+          class="app-search-item app-search-item-md profit-filter-item"
+          :options="userFilterOptions"
+          placeholder="全部用户"
+          clearable
+          filterable
+          :height="280"
+          :item-height="30"
+          popper-class="profit-filter-dropdown"
+          no-match-text="没有匹配用户"
+          no-data-text="暂无用户"
+        />
+        <el-select-v2
+          v-model="query.cardId"
+          class="app-search-item app-search-item-lg profit-filter-item"
+          :options="cardFilterOptions"
+          placeholder="全部银行卡"
+          clearable
+          filterable
+          :height="300"
+          :item-height="30"
+          popper-class="profit-filter-dropdown"
+          no-match-text="没有匹配银行卡"
+          no-data-text="暂无银行卡"
+        />
+        <el-select-v2
+          v-model="activeTab"
+          class="app-search-item app-search-item-lg profit-filter-item"
+          :options="viewFilterOptions"
+          placeholder="统计视角"
+          :height="120"
+          :item-height="30"
+          popper-class="profit-filter-dropdown"
+        />
       </div>
     </section>
 
-    <section class="content-grid">
-      <div class="main-panel card-shell">
-        <div class="panel-head">
-          <div>
-            <div class="panel-title">{{ activeViewTitle }}</div>
-            <div class="panel-desc">{{ activeViewDesc }}</div>
-          </div>
-          <div class="inline-summary">
-            <span>{{ activeViewCountLabel }} {{ activeViewCount }}</span>
-            <span>用户 {{ overview.userCount }}</span>
-            <span>卡 {{ overview.cardCount }}</span>
-          </div>
+    <section class="main-panel card-shell">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">{{ activeViewTitle }}</div>
+          <div class="panel-desc">{{ tableRows.length }} 行 · {{ billRows.length }} 条账单</div>
         </div>
-
-        <div v-show="activeTab === 'users'" class="table-shell" v-loading="userLoading">
-          <el-table :data="userPage.records" border stripe height="100%" table-layout="fixed">
-            <el-table-column prop="userName" label="用户" min-width="120" />
-            <el-table-column prop="cardCount" label="卡数" width="70" align="center" />
-            <el-table-column prop="billMonthCount" label="月数" width="70" align="center" />
-            <el-table-column label="代还" min-width="110" align="right">
-              <template #default="{ row }">{{ formatMoney(row.totalBillAmount) }}</template>
-            </el-table-column>
-            <el-table-column label="费率" width="76" align="center">
-              <template #default="{ row }">{{ formatRate(row.avgFeeRate) }}%</template>
-            </el-table-column>
-            <el-table-column label="手续费" min-width="110" align="right">
-              <template #default="{ row }"><span class="amount-income">{{ formatMoney(row.totalFeeAmount) }}</span></template>
-            </el-table-column>
-            <el-table-column label="支付状态" width="92" align="center">
-              <template #default="{ row }">
-                <el-tag :type="feePaidTagType(row)" size="small" effect="light">{{ feePaidText(row) }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="POS" min-width="100" align="right">
-              <template #default="{ row }"><span class="amount-cost">{{ formatMoney(row.totalPosCostAmount) }}</span></template>
-            </el-table-column>
-            <el-table-column label="其他费用" min-width="100" align="right">
-              <template #default="{ row }"><span class="amount-cost">{{ formatMoney(row.totalOtherFeeAmount) }}</span></template>
-            </el-table-column>
-            <el-table-column label="净收益" min-width="110" align="right">
-              <template #default="{ row }">
-                <span :class="Number(row.totalNetProfit || 0) >= 0 ? 'amount-income' : 'amount-cost'">{{ formatMoney(row.totalNetProfit) }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="128" fixed="right" align="center">
-              <template #default="{ row }">
-                <div class="row-actions">
-                  <el-button type="primary" link size="small" @click="openOtherFeeEditor('user', row)">费用</el-button>
-                  <el-button type="primary" link size="small" @click="openUserBills(row)">{{ billActionLabel }}</el-button>
-                </div>
-              </template>
-            </el-table-column>
-          </el-table>
-
-          <div class="pager-wrap">
-            <el-pagination
-              v-model:current-page="userPage.current"
-              v-model:page-size="userPage.size"
-              background
-              layout="total, prev, pager, next"
-              :total="userPage.total"
-              @current-change="fetchUserPage"
-              @size-change="handleUserSizeChange"
-            />
-          </div>
-        </div>
-
-        <div v-show="activeTab === 'cards'" class="table-shell" v-loading="cardLoading">
-          <el-table :data="cardPage.records" border stripe height="100%" table-layout="fixed">
-            <el-table-column prop="userName" label="用户" min-width="100" />
-            <el-table-column prop="ownerName" label="持卡人" min-width="96" />
-            <el-table-column label="银行卡" min-width="136">
-              <template #default="{ row }">{{ row.bankName }} *{{ row.cardNoLast4 }}</template>
-            </el-table-column>
-            <el-table-column prop="billCount" label="账单" width="68" align="center" />
-            <el-table-column label="代还" min-width="110" align="right">
-              <template #default="{ row }">{{ formatMoney(row.totalBillAmount) }}</template>
-            </el-table-column>
-            <el-table-column label="费率" width="76" align="center">
-              <template #default="{ row }">{{ formatRate(row.avgFeeRate) }}%</template>
-            </el-table-column>
-            <el-table-column label="手续费" min-width="110" align="right">
-              <template #default="{ row }"><span class="amount-income">{{ formatMoney(row.totalFeeAmount) }}</span></template>
-            </el-table-column>
-            <el-table-column label="支付状态" width="92" align="center">
-              <template #default="{ row }">
-                <el-tag :type="feePaidTagType(row)" size="small" effect="light">{{ feePaidText(row) }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="POS" min-width="100" align="right">
-              <template #default="{ row }"><span class="amount-cost">{{ formatMoney(row.totalPosCostAmount) }}</span></template>
-            </el-table-column>
-            <el-table-column label="其他费用" min-width="100" align="right">
-              <template #default="{ row }"><span class="amount-cost">{{ formatMoney(row.totalOtherFeeAmount) }}</span></template>
-            </el-table-column>
-            <el-table-column label="净收益" min-width="110" align="right">
-              <template #default="{ row }">
-                <span :class="Number(row.totalNetProfit || 0) >= 0 ? 'amount-income' : 'amount-cost'">{{ formatMoney(row.totalNetProfit) }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="128" fixed="right" align="center">
-              <template #default="{ row }">
-                <div class="row-actions">
-                  <el-button type="primary" link size="small" @click="openOtherFeeEditor('card', row)">费用</el-button>
-                  <el-button type="primary" link size="small" @click="openCardBills(row)">{{ billActionLabel }}</el-button>
-                </div>
-              </template>
-            </el-table-column>
-          </el-table>
-
-          <div class="pager-wrap">
-            <el-pagination
-              v-model:current-page="cardPage.current"
-              v-model:page-size="cardPage.size"
-              background
-              layout="total, prev, pager, next"
-              :total="cardPage.total"
-              @current-change="fetchCardPage"
-              @size-change="handleCardSizeChange"
-            />
-          </div>
-        </div>
-
-        <div v-show="activeTab === 'months'" class="table-shell" v-loading="monthLoading">
-          <el-table :data="monthList" border stripe height="100%" table-layout="fixed">
-            <el-table-column prop="billMonth" label="月份" width="86" align="center" />
-            <el-table-column prop="userCount" label="用户" width="68" align="center" />
-            <el-table-column prop="cardCount" label="卡数" width="72" align="center" />
-            <el-table-column label="代还" min-width="112" align="right">
-              <template #default="{ row }">{{ formatMoney(row.totalBillAmount) }}</template>
-            </el-table-column>
-            <el-table-column label="费率" width="76" align="center">
-              <template #default="{ row }">{{ formatRate(row.avgFeeRate) }}%</template>
-            </el-table-column>
-            <el-table-column label="手续费" min-width="112" align="right">
-              <template #default="{ row }"><span class="amount-income">{{ formatMoney(row.totalFeeAmount) }}</span></template>
-            </el-table-column>
-            <el-table-column label="支付状态" width="92" align="center">
-              <template #default="{ row }">
-                <el-tag :type="feePaidTagType(row)" size="small" effect="light">{{ feePaidText(row) }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="POS" min-width="102" align="right">
-              <template #default="{ row }"><span class="amount-cost">{{ formatMoney(row.totalPosCostAmount) }}</span></template>
-            </el-table-column>
-            <el-table-column label="其他费用" min-width="102" align="right">
-              <template #default="{ row }"><span class="amount-cost">{{ formatMoney(row.totalOtherFeeAmount) }}</span></template>
-            </el-table-column>
-            <el-table-column label="净收益" min-width="112" align="right">
-              <template #default="{ row }">
-                <span :class="Number(row.totalNetProfit || 0) >= 0 ? 'amount-income' : 'amount-cost'">{{ formatMoney(row.totalNetProfit) }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="76" fixed="right" align="center">
-              <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openOtherFeeEditor('month', row)">费用</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+        <div class="inline-summary">
+          <span>用户 {{ summary.userCount }}</span>
+          <span>卡 {{ summary.cardCount }}</span>
+          <span>账单 {{ summary.billCount }}</span>
         </div>
       </div>
 
+      <div ref="tableShellRef" class="table-shell" v-loading="billLoading">
+        <el-table :data="pagedRows" border stripe height="100%" table-layout="fixed" size="small">
+          <el-table-column prop="userName" :width="showCardColumn ? 70 : 72" align="center" header-align="center" show-overflow-tooltip>
+            <template #header>
+              <div class="sortable-header" @click="toggleUserSort">
+                <span>洽谈人</span>
+                <span class="sort-indicator">
+                  <span class="sort-arrow up" :class="{ active: userSortOrder === 'asc' }">▲</span>
+                  <span class="sort-arrow down" :class="{ active: userSortOrder === 'desc' }">▼</span>
+                </span>
+              </div>
+            </template>
+            <template #default="{ row }">
+              <span class="person-cell negotiator-cell">{{ row.userName }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="持卡人" :width="showCardColumn ? 78 : 86" align="center" header-align="center" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span class="person-cell holder-cell">{{ holderCellText(row) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column v-if="showCardColumn" label="银行卡" min-width="110" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span class="single-line card-scope-cell">{{ row.cardInfoLabel }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column v-else label="卡数" width="42" align="center" header-align="center">
+            <template #default="{ row }">
+              <span class="single-line">{{ row.cardCount }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="月份" width="44" align="center" header-align="center">
+            <template #default="{ row }">
+              <span class="single-line">{{ row.monthLabel }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="代还" :min-width="showCardColumn ? 76 : 84" align="right" header-align="right">
+            <template #default="{ row }">
+              <span class="money-cell">{{ formatMoney(row.totalBillAmount) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="手续费" :min-width="showCardColumn ? 76 : 82" align="right" header-align="right">
+            <template #default="{ row }">
+              <span class="money-cell amount-income">{{ formatMoney(row.totalFeeAmount) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="支付状态" width="60" align="center" header-align="center">
+            <template #default="{ row }">
+              <el-tag class="status-tag" :type="feeStatusTagType(row)" size="small" effect="light">{{ row.feePayStatus }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="已支付" :min-width="showCardColumn ? 72 : 80" align="right" header-align="right">
+            <template #default="{ row }">
+              <span class="money-cell amount-income">{{ formatMoney(row.feePaidAmount) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="剩余支付" :min-width="showCardColumn ? 76 : 84" align="right" header-align="right">
+            <template #default="{ row }">
+              <span class="money-cell" :class="row.remainingFeeAmount > 0 ? 'amount-warn' : 'amount-muted'">{{ formatMoney(row.remainingFeeAmount) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="最近支付时间" :min-width="showCardColumn ? 104 : 110" align="center" header-align="center" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span class="single-line">{{ formatDateTime(row.latestFeePayTime) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="支付方式" width="56" align="center" header-align="center" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span class="single-line">{{ row.feePayMethodText || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="其他费用" :min-width="showCardColumn ? 72 : 80" align="right" header-align="right">
+            <template #default="{ row }">
+              <span class="money-cell amount-cost">{{ formatMoney(row.totalOtherFeeAmount) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="POS成本" :min-width="showCardColumn ? 72 : 80" align="right" header-align="right">
+            <template #default="{ row }">
+              <span class="money-cell amount-cost">{{ formatMoney(row.totalPosCostAmount) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="净利润" :min-width="showCardColumn ? 80 : 90" align="right" header-align="right">
+            <template #default="{ row }">
+              <span class="money-cell" :class="row.totalNetProfit >= 0 ? 'amount-income' : 'amount-cost'">{{ formatMoney(row.totalNetProfit) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="48" align="center" header-align="center">
+            <template #default="{ row }">
+              <el-button type="primary" link size="small" :disabled="!row.bills.length" @click="openProfitEditor(row)">编辑</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <div class="pager-wrap">
+          <el-pagination
+            v-model:current-page="detailPage.current"
+            v-model:page-size="detailPage.size"
+            background
+            small
+            layout="total, prev, pager, next"
+            :total="tableRows.length"
+          />
+        </div>
+      </div>
     </section>
 
-    <el-drawer v-model="otherFeeDrawerVisible" :title="otherFeeDrawerTitle" size="560px" destroy-on-close>
-      <div class="other-fee-editor" v-loading="otherFeeLoading">
-        <div class="other-fee-editor-head">
-          <span>账单</span>
-          <span>费率 / 手续费 / 支付状态</span>
-          <span>其他费用</span>
-        </div>
-        <div v-if="otherFeeRows.length" class="other-fee-editor-list">
-          <div v-for="row in otherFeeRows" :key="row.id" class="other-fee-editor-row">
-            <div class="fee-bill-main">
-              <span class="fee-bill-title">{{ feeBillLabel(row) }}</span>
-              <span class="fee-bill-sub">{{ row.billMonth }} · 还款日 {{ repayDateText(row.repayDate) }}</span>
+    <el-drawer v-model="profitEditorVisible" :title="profitEditorTitle" size="920px" destroy-on-close>
+      <div class="profit-editor">
+        <div v-if="profitEditorRows.length" class="profit-editor-list">
+          <div v-for="row in profitEditorRows" :key="row.id" class="profit-editor-card">
+            <div class="editor-card-head">
+              <div class="editor-bill-main">
+                <span class="editor-bill-title">{{ feeBillLabel(row) }}</span>
+                <span class="editor-bill-sub">{{ monthLabel(row.billMonth) }} · 还款日 {{ repayDateText(row.repayDate) }}</span>
+              </div>
+              <div class="editor-net" :class="draftNetProfit(row) >= 0 ? 'amount-income' : 'amount-cost'">
+                净利润 {{ formatMoney(draftNetProfit(row)) }}
+              </div>
             </div>
-            <div class="fee-bill-stats">
-              <span>{{ formatRate(row.feeRate) }}%</span>
-              <span class="amount-income">¥{{ formatMoney(row.feeAmount) }}</span>
-              <el-tag v-if="row.feePaid" type="success" size="small" effect="light">已支付</el-tag>
-              <el-tag v-else type="warning" size="small" effect="plain">未支付</el-tag>
+            <div class="editor-field-grid">
+              <div class="editor-field readonly-field">
+                <span>手续费</span>
+                <strong class="amount-income">{{ formatMoney(billFeeAmount(row)) }}</strong>
+              </div>
+              <label class="editor-field">
+                <span>已支付</span>
+                <el-input-number
+                  :model-value="profitDraftValue(row.id, 'feePaidAmount')"
+                  :min="0"
+                  :precision="2"
+                  :controls="false"
+                  size="small"
+                  class="editor-number-input"
+                  :disabled="savingProfitBillId === row.id"
+                  @update:model-value="(val: any) => updateProfitDraft(row.id, 'feePaidAmount', val)"
+                />
+              </label>
+              <label class="editor-field">
+                <span>支付方式</span>
+                <el-select
+                  :model-value="profitDraftValue(row.id, 'feePayMethod')"
+                  class="editor-method-select"
+                  placeholder="方式"
+                  clearable
+                  size="small"
+                  :disabled="savingProfitBillId === row.id"
+                  @update:model-value="(val: any) => updateProfitDraft(row.id, 'feePayMethod', val)"
+                >
+                  <el-option v-for="item in PAYMENT_METHOD_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+                </el-select>
+              </label>
+              <label class="editor-field is-time">
+                <span>最近支付时间</span>
+                <el-date-picker
+                  :model-value="profitDraftValue(row.id, 'feePayTime')"
+                  class="editor-time-picker"
+                  type="datetime"
+                  value-format="YYYY-MM-DDTHH:mm:ss"
+                  placeholder="支付时间"
+                  size="small"
+                  :editable="false"
+                  clearable
+                  :disabled="savingProfitBillId === row.id"
+                  @update:model-value="(val: any) => updateProfitDraft(row.id, 'feePayTime', val)"
+                />
+              </label>
+              <label class="editor-field">
+                <span>其他费用</span>
+                <el-input-number
+                  :model-value="profitDraftValue(row.id, 'otherFeeAmount')"
+                  :min="0"
+                  :precision="2"
+                  :controls="false"
+                  size="small"
+                  class="editor-number-input"
+                  :disabled="savingProfitBillId === row.id"
+                  @update:model-value="(val: any) => updateProfitDraft(row.id, 'otherFeeAmount', val)"
+                />
+              </label>
+              <label class="editor-field">
+                <span>POS成本</span>
+                <el-input-number
+                  :model-value="profitDraftValue(row.id, 'posCostAmount')"
+                  :min="0"
+                  :precision="2"
+                  :controls="false"
+                  size="small"
+                  class="editor-number-input"
+                  :disabled="savingProfitBillId === row.id"
+                  @update:model-value="(val: any) => updateProfitDraft(row.id, 'posCostAmount', val)"
+                />
+              </label>
             </div>
-            <div class="fee-bill-edit">
-              <span class="currency-symbol">¥</span>
-              <el-input-number
-                :model-value="otherFeeDraftValue(row)"
-                :min="0"
-                :precision="2"
-                :controls="false"
-                size="small"
-                class="other-fee-input"
-                :disabled="savingOtherFeeBillId === row.id"
-                @update:model-value="(val: any) => updateOtherFeeDraft(row.id, val)"
-                @keyup.enter="saveOtherFee(row)"
-              />
+            <div class="editor-row-actions">
               <el-button
                 type="primary"
-                link
                 size="small"
-                :loading="savingOtherFeeBillId === row.id"
-                :disabled="!isOtherFeeChanged(row)"
-                @click="saveOtherFee(row)"
+                :loading="savingProfitBillId === row.id"
+                :disabled="!isProfitDraftChanged(row)"
+                @click="saveProfitBill(row)"
               >
                 保存
               </el-button>
             </div>
           </div>
         </div>
-        <el-empty v-else description="暂无账单" :image-size="64" />
+        <el-empty v-else description="当前行暂无账单" :image-size="72" />
       </div>
     </el-drawer>
   </div>
@@ -270,70 +314,36 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'ProfitStats' })
-import { computed, watch, onActivated, onMounted, onUnmounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onActivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Wallet, Money, CreditCard, TrendCharts, RefreshRight } from '@element-plus/icons-vue'
+import { CreditCard, Money, RefreshRight, TrendCharts, Wallet } from '@element-plus/icons-vue'
 import { getUserTreeApi, getCardListApi } from '@/api/card'
-import { getProfitOverviewApi, getProfitUserPageApi, getProfitCardPageApi, getProfitMonthListApi } from '@/api/profit'
 import { getBillPageApi, updateBillApi } from '@/api/bill'
 
-interface OptionItem {
+type ViewKey = 'userMonths' | 'cardMonths' | 'monthUsers'
+type UserSortOrder = 'default' | 'asc' | 'desc'
+type PaymentMethod = 'wechat' | 'alipay' | 'cash' | 'other'
+
+interface UserNode {
   id: number
   name: string
   parentId?: number | null
+  parentName?: string
+  phone?: string
+  status?: number
+  createTime?: string | null
+  children?: UserNode[]
+}
+
+interface CardOption {
+  id: number
+  userId?: number
   userName?: string
+  ownerName?: string
   bankName?: string
   cardNoLast4?: string
-  children?: OptionItem[]
-}
-
-interface UserProfitRow {
-  userId: number
-  userName: string
-  cardCount: number
-  billCount: number
-  billMonthCount: number
-  totalBillAmount: number
-  avgFeeRate: number
-  totalFeeAmount: number
-  feePaidCount: number
-  feeUnpaidCount: number
-  totalPosCostAmount: number
-  totalOtherFeeAmount: number
-  totalNetProfit: number
-}
-
-interface CardProfitRow {
-  cardId: number
-  userName: string
-  ownerName: string
-  bankName: string
-  cardNoLast4: string
-  billCount: number
-  totalBillAmount: number
-  avgFeeRate: number
-  totalFeeAmount: number
-  feePaidCount: number
-  feeUnpaidCount: number
-  totalPosCostAmount: number
-  totalOtherFeeAmount: number
-  totalNetProfit: number
-}
-
-interface MonthProfitRow {
-  billMonth: string
-  userCount: number
-  cardCount: number
-  billCount: number
-  totalBillAmount: number
-  avgFeeRate: number
-  totalFeeAmount: number
-  feePaidCount: number
-  feeUnpaidCount: number
-  totalPosCostAmount: number
-  totalOtherFeeAmount: number
-  totalNetProfit: number
+  cardType?: number | null
 }
 
 interface BillRow {
@@ -354,56 +364,86 @@ interface BillRow {
   feeRate?: number | null
   feeAmount?: number | null
   feePaid?: boolean | null
+  feePaidAmount?: number | null
+  feePayTime?: string | null
+  feePayMethod?: PaymentMethod | string | null
   posCostAmount?: number | null
   otherFeeAmount?: number | null
+  netProfit?: number | null
   verified?: boolean | null
   expenseVerified?: boolean | null
   status: number
   remark?: string | null
 }
 
-type ViewKey = 'users' | 'cards' | 'months'
-type OtherFeeScope = 'user' | 'card' | 'month' | 'current'
-
-const router = useRouter()
-const currentYear = new Date().getFullYear()
-
-function createDebouncedTask(fn: () => void, delay = 300) {
-  let timer = 0
-  const run = () => {
-    if (timer) window.clearTimeout(timer)
-    timer = window.setTimeout(() => {
-      timer = 0
-      fn()
-    }, delay)
-  }
-  run.cancel = () => {
-    if (timer) {
-      window.clearTimeout(timer)
-      timer = 0
-    }
-  }
-  return run
+interface ProfitDetailRow {
+  id: string
+  userId: number
+  userName: string
+  cardId?: number
+  cardLabel?: string
+  holderLabel: string
+  cardInfoLabel: string
+  cardCount: number
+  billMonth: string
+  monthLabel: string
+  billCount: number
+  totalBillAmount: number
+  totalFeeAmount: number
+  feePaidAmount: number
+  remainingFeeAmount: number
+  feePayStatus: string
+  latestFeePayTime: string
+  feePayMethodText: string
+  totalOtherFeeAmount: number
+  totalPosCostAmount: number
+  totalNetProfit: number
+  bills: BillRow[]
 }
 
-const activeTab = ref<ViewKey>('users')
-const profitMonthRange = ref<[string, string] | null>(null)
-const overviewLoading = ref(false)
-const userLoading = ref(false)
-const cardLoading = ref(false)
-const monthLoading = ref(false)
-const userOptions = ref<OptionItem[]>([])
-const cardOptions = ref<OptionItem[]>([])
-const otherFeeDrawerVisible = ref(false)
-const otherFeeLoading = ref(false)
-const otherFeeRows = ref<BillRow[]>([])
-const otherFeeDraftMap = ref<Record<number, number>>({})
-const savingOtherFeeBillId = ref<number | null>(null)
-const otherFeeEditorTitle = ref('其他费用')
-const triggerProfitSearch = createDebouncedTask(() => {
-  void handleSearch()
-}, 300)
-let syncingProfitFilters = false
+interface ProfitDraft {
+  feePaidAmount: number
+  feePayMethod: string
+  feePayTime: string
+  otherFeeAmount: number
+  posCostAmount: number
+}
+
+interface FilterOption {
+  label: string
+  value: number | string
+}
+
+const route = useRoute()
+const currentYear = new Date().getFullYear()
+const currentMonth = new Date().getMonth() + 1
+const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1)
+const monthFilterOptions: FilterOption[] = MONTH_OPTIONS.map((month) => ({ label: `${month}月`, value: month }))
+const viewFilterOptions: FilterOption[] = [
+  { label: '每个用户12个月', value: 'userMonths' },
+  { label: '每张卡12个月', value: 'cardMonths' },
+  { label: '每月所有用户', value: 'monthUsers' }
+]
+const PAYMENT_METHOD_OPTIONS = [
+  { label: '微信', value: 'wechat' },
+  { label: '支付宝', value: 'alipay' },
+  { label: '现金', value: 'cash' },
+  { label: '其他', value: 'other' }
+]
+
+const activeTab = ref<ViewKey>('userMonths')
+const userSortOrder = ref<UserSortOrder>('default')
+const queryYearDate = ref(String(currentYear))
+const billLoading = ref(false)
+const userTree = ref<UserNode[]>([])
+const cardOptions = ref<CardOption[]>([])
+const billRows = ref<BillRow[]>([])
+const tableShellRef = ref<HTMLElement | null>(null)
+const profitEditorVisible = ref(false)
+const profitEditorRows = ref<BillRow[]>([])
+const profitEditorBaseTitle = ref('收益编辑')
+const profitDraftMap = ref<Record<number, ProfitDraft>>({})
+const savingProfitBillId = ref<number | null>(null)
 
 const query = reactive({
   year: currentYear,
@@ -412,290 +452,504 @@ const query = reactive({
   cardId: undefined as number | undefined
 })
 
-const overview = reactive({
-  year: currentYear,
-  month: undefined as number | undefined,
-  userCount: 0,
-  cardCount: 0,
-  totalBillAmount: 0,
-  totalFeeAmount: 0,
-  totalPosCostAmount: 0,
-  totalOtherFeeAmount: 0,
-  totalNetProfit: 0
+const detailPage = reactive({
+  current: 1,
+  size: 20
 })
 
-const userPage = reactive({ current: 1, size: 10, total: 0, records: [] as UserProfitRow[] })
-const cardPage = reactive({ current: 1, size: 10, total: 0, records: [] as CardProfitRow[] })
-const monthList = ref<MonthProfitRow[]>([])
+let tableResizeObserver: ResizeObserver | null = null
+let fitPageFrame = 0
 
-const otherFeeDrawerTitle = computed(() => `${otherFeeEditorTitle.value} · ${currentScopeLabel.value}`)
+const sortedTopUserOptions = computed(() => normalizeTopUsers(userTree.value, userSortOrder.value))
+const userLookup = computed(() => buildUserLookup(userTree.value))
+const userOrderMap = computed(() => {
+  const map = new Map<number, number>()
+  sortedTopUserOptions.value.forEach((user, index) => map.set(Number(user.id), index))
+  return map
+})
+const cardCountByTopUser = computed(() => buildCardCountByTopUser())
+const profitCardOptions = computed(() => cardOptions.value.filter(isProfitCardOption))
+const filteredCardOptions = computed(() => {
+  return profitCardOptions.value
+    .filter((card) => {
+      if (!query.userId) return true
+      const topUser = topUserForOwner(Number(card.userId || 0))
+      return Number(topUser?.id || 0) === Number(query.userId)
+    })
+    .sort((a, b) => {
+      const aTop = topUserForOwner(Number(a.userId || 0))
+      const bTop = topUserForOwner(Number(b.userId || 0))
+      const orderDelta = userSortIndex(Number(aTop?.id || 0)) - userSortIndex(Number(bTop?.id || 0))
+      if (orderDelta !== 0) return orderDelta
+      return cardLabel(a).localeCompare(cardLabel(b), 'zh-CN')
+    })
+})
+const userFilterOptions = computed<FilterOption[]>(() => sortedTopUserOptions.value.map((user) => {
+  const cardCount = cardCountByTopUser.value.get(Number(user.id)) || 0
+  return {
+    label: cardCount > 0 ? `${user.name} (${cardCount}张卡)` : user.name,
+    value: Number(user.id)
+  }
+}))
+const cardFilterOptions = computed<FilterOption[]>(() => filteredCardOptions.value.map((card) => ({
+  label: cardLabel(card),
+  value: Number(card.id)
+})))
 
+const selectedMonths = computed(() => query.month ? [query.month] : MONTH_OPTIONS)
 const currentScopeLabel = computed(() => query.month ? `${query.year}年${query.month}月` : `${query.year}年全年`)
+const activeViewTitle = computed(() => {
+  if (activeTab.value === 'cardMonths') return '每张卡的12个月'
+  if (activeTab.value === 'monthUsers') return '每个月的所有用户'
+  return '每个用户的12个月'
+})
+const activeViewDesc = computed(() => {
+  if (activeTab.value === 'cardMonths') return '按银行卡逐月查看代还、手续费、成本和净利润'
+  if (activeTab.value === 'monthUsers') return '按月份展开每个用户当月收益'
+  return '按用户逐月查看12个月收益'
+})
+const showCardColumn = computed(() => activeTab.value === 'cardMonths' || Boolean(query.cardId))
+
+const tableRows = computed(() => {
+  if (activeTab.value === 'cardMonths') return buildCardMonthRows()
+  if (activeTab.value === 'monthUsers') return buildMonthUserRows()
+  return buildUserMonthRows()
+})
+
+const pagedRows = computed(() => {
+  const start = (detailPage.current - 1) * detailPage.size
+  return tableRows.value.slice(start, start + detailPage.size)
+})
+
+const summary = computed(() => {
+  const userIds = new Set<number>()
+  const cardIds = new Set<number>()
+  let totalBillAmount = 0
+  let totalFeeAmount = 0
+  let feePaidAmount = 0
+  let totalPosCostAmount = 0
+  let totalOtherFeeAmount = 0
+
+  for (const bill of billRows.value) {
+    const topUser = topUserForBill(bill)
+    if (topUser?.id) userIds.add(Number(topUser.id))
+    if (bill.cardId) cardIds.add(Number(bill.cardId))
+    totalBillAmount += toAmount(bill.billAmount)
+    totalFeeAmount += billFeeAmount(bill)
+    feePaidAmount += billPaidAmount(bill)
+    totalPosCostAmount += toAmount(bill.posCostAmount)
+    totalOtherFeeAmount += toAmount(bill.otherFeeAmount)
+  }
+
+  return {
+    userCount: userIds.size,
+    cardCount: cardIds.size,
+    billCount: billRows.value.length,
+    totalBillAmount,
+    totalFeeAmount,
+    feePaidAmount,
+    remainingFeeAmount: Math.max(0, totalFeeAmount - feePaidAmount),
+    totalPosCostAmount,
+    totalOtherFeeAmount,
+    totalNetProfit: totalFeeAmount - totalPosCostAmount - totalOtherFeeAmount
+  }
+})
 
 const summaryCards = computed(() => [
   {
-    label: '账单总金额',
-    value: `¥${formatMoney(overview.totalBillAmount)}`,
-    sub: `${currentScopeLabel.value}账单汇总`,
-    className: '',
-    icon: Wallet,
-    iconBg: '#eaf2ff',
-    iconColor: '#0958d9'
+    label: '净利润',
+    value: `¥${formatMoney(summary.value.totalNetProfit)}`,
+    sub: '手续费 - POS成本 - 其他费用',
+    className: summary.value.totalNetProfit >= 0 ? 'amount-income' : 'amount-cost',
+    icon: TrendCharts,
+    iconBg: summary.value.totalNetProfit >= 0 ? '#e8f7ed' : '#fdebec',
+    iconColor: summary.value.totalNetProfit >= 0 ? '#2f9e44' : '#cf1322',
+    emphasis: true
   },
   {
-    label: '手续费收入',
-    value: `¥${formatMoney(overview.totalFeeAmount)}`,
-    sub: `覆盖 ${overview.userCount} 个用户`,
+    label: '手续费',
+    value: `¥${formatMoney(summary.value.totalFeeAmount)}`,
+    sub: `已支付 ¥${formatMoney(summary.value.feePaidAmount)}`,
     className: 'amount-income',
     icon: Money,
     iconBg: '#e8f7ed',
     iconColor: '#2f9e44'
   },
   {
-    label: 'POS总成本',
-    value: `¥${formatMoney(overview.totalPosCostAmount)}`,
-    sub: `涉及 ${overview.cardCount} 张银行卡`,
+    label: '剩余支付',
+    value: `¥${formatMoney(summary.value.remainingFeeAmount)}`,
+    sub: '手续费待收金额',
+    className: summary.value.remainingFeeAmount > 0 ? 'amount-warn' : 'amount-muted',
+    icon: CreditCard,
+    iconBg: '#fff7e6',
+    iconColor: '#d48806'
+  },
+  {
+    label: '总成本',
+    value: `¥${formatMoney(summary.value.totalPosCostAmount + summary.value.totalOtherFeeAmount)}`,
+    sub: `POS ${formatMoney(summary.value.totalPosCostAmount)} / 其他 ${formatMoney(summary.value.totalOtherFeeAmount)}`,
     className: 'amount-cost',
     icon: CreditCard,
     iconBg: '#fdebec',
     iconColor: '#cf1322'
   },
   {
-    label: '其他费用',
-    value: `¥${formatMoney(overview.totalOtherFeeAmount)}`,
-    sub: '编辑账单录入的其他扣费',
-    className: 'amount-cost',
-    icon: Money,
-    iconBg: '#fff1e6',
-    iconColor: '#d46b08'
-  },
-  {
-    label: '实际净收益',
-    value: `¥${formatMoney(overview.totalNetProfit)}`,
-    sub: '手续费 - POS成本 - 其他费用',
-    className: Number(overview.totalNetProfit || 0) >= 0 ? 'amount-income' : 'amount-cost',
-    icon: TrendCharts,
-    iconBg: Number(overview.totalNetProfit || 0) >= 0 ? '#e8f7ed' : '#fdebec',
-    iconColor: Number(overview.totalNetProfit || 0) >= 0 ? '#2f9e44' : '#cf1322'
+    label: '代还总额',
+    value: `¥${formatMoney(summary.value.totalBillAmount)}`,
+    sub: `${summary.value.billCount} 条账单`,
+    className: '',
+    icon: Wallet,
+    iconBg: '#eaf2ff',
+    iconColor: '#0958d9'
   }
 ])
 
-const activeViewTitle = computed(() => {
-  if (activeTab.value === 'cards') return '银行卡收益明细'
-  if (activeTab.value === 'months') return '月度收益汇总'
-  return '用户收益明细'
-})
+const profitEditorTitle = computed(() => `${profitEditorBaseTitle.value} · ${currentScopeLabel.value}`)
 
-const activeViewDesc = computed(() => {
-  if (activeTab.value === 'cards') return '按银行卡查看利润贡献、持卡关系和收益结构'
-  if (activeTab.value === 'months') return '查看年度内各月份利润走势与汇总变化'
-  return '按用户查看全年 / 当月代还、手续费、POS成本与净收益'
-})
+function normalizeTopUsers(list: UserNode[], order: UserSortOrder) {
+  const activeUsers = list.filter((u) => Number(u.status ?? 0) === 0)
+  const disabledUsers = list.filter((u) => Number(u.status ?? 0) === 1)
+  const sortFn = order === 'asc'
+    ? (a: UserNode, b: UserNode) => String(a.name || '').localeCompare(String(b.name || ''), 'zh-CN')
+    : order === 'desc'
+      ? (a: UserNode, b: UserNode) => String(b.name || '').localeCompare(String(a.name || ''), 'zh-CN')
+      : compareUsersByCreateTimeDesc
+  return [...activeUsers.sort(sortFn), ...disabledUsers.sort(sortFn)]
+}
 
-const activeViewCountLabel = computed(() => {
-  if (activeTab.value === 'cards') return '银行卡'
-  if (activeTab.value === 'months') return '月份'
-  return '用户'
-})
+function compareUsersByCreateTimeDesc(a: UserNode, b: UserNode) {
+  const timeA = a.createTime ? new Date(a.createTime).getTime() : 0
+  const timeB = b.createTime ? new Date(b.createTime).getTime() : 0
+  return timeB - timeA
+}
 
-const activeViewCount = computed(() => {
-  if (activeTab.value === 'cards') return cardPage.total
-  if (activeTab.value === 'months') return monthList.value.length
-  return userPage.total
-})
+function buildUserLookup(list: UserNode[]) {
+  const lookup = new Map<number, { id: number; name: string; parentId?: number | null; topId: number; topName: string }>()
+  for (const top of list) {
+    lookup.set(Number(top.id), {
+      id: Number(top.id),
+      name: top.name,
+      parentId: top.parentId,
+      topId: Number(top.id),
+      topName: top.name
+    })
+    for (const child of top.children || []) {
+      lookup.set(Number(child.id), {
+        id: Number(child.id),
+        name: child.name,
+        parentId: Number(top.id),
+        topId: Number(top.id),
+        topName: top.name
+      })
+    }
+  }
+  return lookup
+}
 
-function buildParams(extra: Record<string, any> = {}) {
+function buildCardCountByTopUser() {
+  const map = new Map<number, Set<number>>()
+  for (const card of profitCardOptions.value) {
+    const top = topUserForOwner(Number(card.userId || 0))
+    const topId = Number(top?.id || 0)
+    if (!topId || !card.id) continue
+    if (!map.has(topId)) map.set(topId, new Set<number>())
+    map.get(topId)?.add(Number(card.id))
+  }
+  return new Map(Array.from(map.entries()).map(([key, value]) => [key, value.size]))
+}
+
+function buildUserMonthRows() {
+  const targetUsers = baseUsersForRows()
+  const rows: ProfitDetailRow[] = []
+  for (const user of targetUsers) {
+    for (const month of selectedMonths.value) {
+      const billMonth = buildBillMonth(query.year, month)
+      const bills = billRows.value.filter((bill) => Number(topUserForBill(bill)?.id || 0) === Number(user.id) && bill.billMonth === billMonth)
+      rows.push(buildProfitRow({
+        id: `user-${user.id}-${billMonth}`,
+        userId: Number(user.id),
+        userName: user.name,
+        cardId: query.cardId ? Number(query.cardId) : undefined,
+        cardCount: query.cardId ? 1 : (cardCountByTopUser.value.get(Number(user.id)) || distinctCount(bills.map((bill) => bill.cardId))),
+        billMonth,
+        cardLabel: '-',
+        bills
+      }))
+    }
+  }
+  return sortRows(rows)
+}
+
+function buildCardMonthRows() {
+  const targetCards = baseCardsForRows()
+  const rows: ProfitDetailRow[] = []
+  for (const card of targetCards) {
+    const topUser = topUserForOwner(Number(card.userId || 0))
+    for (const month of selectedMonths.value) {
+      const billMonth = buildBillMonth(query.year, month)
+      const bills = billRows.value.filter((bill) => Number(bill.cardId || 0) === Number(card.id) && bill.billMonth === billMonth)
+      rows.push(buildProfitRow({
+        id: `card-${card.id}-${billMonth}`,
+        userId: Number(topUser?.id || 0),
+        userName: topUser?.name || card.userName || '-',
+        cardId: Number(card.id),
+        cardLabel: cardLabel(card),
+        cardCount: 1,
+        billMonth,
+        bills
+      }))
+    }
+  }
+  return sortRows(rows)
+}
+
+function buildMonthUserRows() {
+  const targetUsers = baseUsersForRows()
+  const rows: ProfitDetailRow[] = []
+  for (const month of selectedMonths.value) {
+    const billMonth = buildBillMonth(query.year, month)
+    for (const user of targetUsers) {
+      const bills = billRows.value.filter((bill) => Number(topUserForBill(bill)?.id || 0) === Number(user.id) && bill.billMonth === billMonth)
+      rows.push(buildProfitRow({
+        id: `month-user-${billMonth}-${user.id}`,
+        userId: Number(user.id),
+        userName: user.name,
+        cardId: query.cardId ? Number(query.cardId) : undefined,
+        cardCount: query.cardId ? 1 : (cardCountByTopUser.value.get(Number(user.id)) || distinctCount(bills.map((bill) => bill.cardId))),
+        billMonth,
+        cardLabel: '-',
+        bills
+      }))
+    }
+  }
+  return sortRows(rows)
+}
+
+function baseUsersForRows() {
+  if (query.cardId) {
+    const card = cardOptions.value.find((item) => Number(item.id) === Number(query.cardId))
+    const top = topUserForOwner(Number(card?.userId || billRows.value[0]?.ownerId || 0))
+    return top ? [top] : []
+  }
+  if (query.userId) {
+    return sortedTopUserOptions.value.filter((user) => Number(user.id) === Number(query.userId))
+  }
+  return sortedTopUserOptions.value.filter((user) => {
+    const cardCount = cardCountByTopUser.value.get(Number(user.id)) || 0
+    const hasBill = billRows.value.some((bill) => Number(topUserForBill(bill)?.id || 0) === Number(user.id))
+    return cardCount > 0 || hasBill
+  })
+}
+
+function baseCardsForRows() {
+  if (query.cardId) {
+    return filteredCardOptions.value.filter((card) => Number(card.id) === Number(query.cardId))
+  }
+  return filteredCardOptions.value.filter((card) => {
+    const hasBill = billRows.value.some((bill) => Number(bill.cardId) === Number(card.id))
+    return hasBill || Number(card.id) > 0
+  })
+}
+
+function isProfitCardOption(card: CardOption) {
+  const cardType = Number(card.cardType ?? 2)
+  return cardType === 2
+}
+
+function toggleUserSort() {
+  if (userSortOrder.value === 'default') userSortOrder.value = 'asc'
+  else if (userSortOrder.value === 'asc') userSortOrder.value = 'desc'
+  else userSortOrder.value = 'default'
+}
+
+function buildProfitRow(input: {
+  id: string
+  userId: number
+  userName: string
+  cardId?: number
+  cardLabel?: string
+  cardCount: number
+  billMonth: string
+  bills: BillRow[]
+}): ProfitDetailRow {
+  let totalBillAmount = 0
+  let totalFeeAmount = 0
+  let feePaidAmount = 0
+  let totalOtherFeeAmount = 0
+  let totalPosCostAmount = 0
+  const payTimes: string[] = []
+  const payMethods = new Set<string>()
+
+  for (const bill of input.bills) {
+    totalBillAmount += toAmount(bill.billAmount)
+    totalFeeAmount += billFeeAmount(bill)
+    feePaidAmount += billPaidAmount(bill)
+    totalOtherFeeAmount += toAmount(bill.otherFeeAmount)
+    totalPosCostAmount += toAmount(bill.posCostAmount)
+    if (bill.feePayTime) payTimes.push(String(bill.feePayTime))
+    if (bill.feePayMethod && billPaidAmount(bill) > 0) payMethods.add(paymentMethodText(String(bill.feePayMethod)))
+  }
+
+  const remainingFeeAmount = Math.max(0, totalFeeAmount - feePaidAmount)
   return {
-    year: query.year,
-    month: query.month,
-    userId: query.userId,
-    cardId: query.cardId,
-    ...extra
+    id: input.id,
+    userId: input.userId,
+    userName: input.userName || '-',
+    cardId: input.cardId,
+    cardLabel: input.cardLabel,
+    holderLabel: buildHolderLabel(input.userId, input.cardId, input.bills),
+    cardInfoLabel: buildCardInfoLabel(input.userId, input.cardId, input.cardCount, input.bills),
+    cardCount: input.cardCount,
+    billMonth: input.billMonth,
+    monthLabel: monthLabel(input.billMonth),
+    billCount: input.bills.length,
+    totalBillAmount,
+    totalFeeAmount,
+    feePaidAmount,
+    remainingFeeAmount,
+    feePayStatus: feePayStatus(totalFeeAmount, feePaidAmount),
+    latestFeePayTime: latestTime(payTimes),
+    feePayMethodText: Array.from(payMethods).join(' / '),
+    totalOtherFeeAmount,
+    totalPosCostAmount,
+    totalNetProfit: totalFeeAmount - totalPosCostAmount - totalOtherFeeAmount,
+    bills: input.bills
   }
 }
 
-function buildBillParams(extra: Record<string, any> = {}) {
-  const params: Record<string, any> = {
-    year: query.year,
-    ...extra
+function sortRows(rows: ProfitDetailRow[]) {
+  return [...rows].sort((a, b) => {
+    if (activeTab.value === 'monthUsers') {
+      const monthDelta = monthNumber(a.billMonth) - monthNumber(b.billMonth)
+      if (monthDelta !== 0) return monthDelta
+    }
+    const userDelta = userSortIndex(a.userId) - userSortIndex(b.userId)
+    if (userDelta !== 0) return userDelta
+    if (activeTab.value === 'cardMonths') {
+      const cardDelta = String(a.cardLabel || '').localeCompare(String(b.cardLabel || ''), 'zh-CN')
+      if (cardDelta !== 0) return cardDelta
+    }
+    return monthNumber(a.billMonth) - monthNumber(b.billMonth)
+  })
+}
+
+function userSortIndex(userId: number) {
+  return userOrderMap.value.get(Number(userId)) ?? 999999
+}
+
+function topUserForBill(bill: BillRow) {
+  const owner = userLookup.value.get(Number(bill.ownerId || 0))
+  if (owner) return { id: owner.topId, name: owner.topName }
+  return topUserForOwner(Number(bill.ownerId || 0)) || { id: Number(bill.ownerId || 0), name: bill.ownerName || '-' }
+}
+
+function topUserForOwner(ownerId: number) {
+  const owner = userLookup.value.get(Number(ownerId || 0))
+  if (!owner) return null
+  return { id: owner.topId, name: owner.topName }
+}
+
+function ownerNameForId(ownerId: number) {
+  const owner = userLookup.value.get(Number(ownerId || 0))
+  return owner?.name || ''
+}
+
+function ownerNameForCard(card: CardOption | undefined | null) {
+  if (!card) return ''
+  return card.ownerName || ownerNameForId(Number(card.userId || 0)) || card.userName || ''
+}
+
+function cardInfoForCard(card: CardOption | undefined | null) {
+  if (!card) return ''
+  return `${card.bankName || '-'} *${card.cardNoLast4 || '-'}`
+}
+
+function summarizeNames(names: string[], emptyText = '-') {
+  const uniqueNames = Array.from(new Set(names.map((name) => String(name || '').trim()).filter(Boolean)))
+  if (!uniqueNames.length) return emptyText
+  if (uniqueNames.length <= 2) return uniqueNames.join(' / ')
+  return `${uniqueNames[0]}等${uniqueNames.length}人`
+}
+
+function cardsForTopUser(userId: number) {
+  return profitCardOptions.value.filter((card) => Number(topUserForOwner(Number(card.userId || 0))?.id || 0) === Number(userId))
+}
+
+function buildHolderLabel(userId: number, cardId: number | undefined, bills: BillRow[]) {
+  if (cardId) {
+    const card = cardOptions.value.find((item) => Number(item.id) === Number(cardId))
+    return ownerNameForCard(card) || summarizeNames(bills.map((bill) => bill.ownerName || ownerNameForId(Number(bill.ownerId || 0))))
   }
-  if (query.month) {
-    params.billMonth = `${query.year}-${String(query.month).padStart(2, '0')}`
+  if (bills.length) {
+    return summarizeNames(bills.map((bill) => bill.ownerName || ownerNameForId(Number(bill.ownerId || 0))))
   }
-  return params
+  return summarizeNames(cardsForTopUser(userId).map(ownerNameForCard), '全部持卡人')
+}
+
+function buildCardInfoLabel(userId: number, cardId: number | undefined, cardCount: number, bills: BillRow[]) {
+  if (cardId) {
+    const card = cardOptions.value.find((item) => Number(item.id) === Number(cardId))
+    return cardInfoForCard(card) || summarizeNames(bills.map((bill) => `${bill.bankName || '-'} *${bill.cardNoLast4 || '-'}`), '指定银行卡')
+  }
+  const billCards = bills.map((bill) => `${bill.bankName || '-'} *${bill.cardNoLast4 || '-'}`)
+  const uniqueBillCards = Array.from(new Set(billCards.filter((label) => label && label !== '- *-')))
+  if (uniqueBillCards.length === 1) return uniqueBillCards[0]
+  if (uniqueBillCards.length === 2) return uniqueBillCards.join(' / ')
+  if (uniqueBillCards.length > 2) return `${uniqueBillCards.length}张卡`
+
+  const allCards = cardsForTopUser(userId)
+  if (allCards.length === 1) return cardInfoForCard(allCards[0])
+  if (allCards.length > 1) return `${allCards.length}张卡`
+  return cardCount > 0 ? `${cardCount}张卡` : '全部银行卡'
+}
+
+function distinctCount(values: Array<number | undefined | null>) {
+  return new Set(values.filter((value) => Number(value || 0) > 0).map(Number)).size
+}
+
+function applyRouteQuery() {
+  const year = Number(route.query.year || 0)
+  const month = Number(route.query.month || 0)
+  const userId = Number(route.query.userId || 0)
+  const cardId = Number(route.query.cardId || 0)
+  if (year > 0) {
+    query.year = year
+    queryYearDate.value = String(year)
+  }
+  if (month >= 1 && month <= 12) query.month = month
+  if (userId > 0) query.userId = userId
+  if (cardId > 0) {
+    query.cardId = cardId
+    activeTab.value = 'cardMonths'
+  } else if (month > 0) {
+    activeTab.value = 'monthUsers'
+  }
 }
 
 async function fetchBaseOptions() {
   const [userRes, cardRes]: any = await Promise.all([getUserTreeApi(), getCardListApi()])
-  userOptions.value = flattenTopUsers(userRes.data || [])
+  userTree.value = userRes.data || []
   cardOptions.value = cardRes.data || []
 }
 
-function flattenTopUsers(list: OptionItem[]) {
-  return list.filter(item => !item.parentId).map(item => ({ id: item.id, name: item.name }))
-}
-
-async function fetchOverview() {
-  overviewLoading.value = true
+async function fetchBillRows() {
+  billLoading.value = true
   try {
-    const res: any = await getProfitOverviewApi(buildParams())
-    overview.year = res.data?.year ?? query.year
-    overview.month = res.data?.month
-    overview.userCount = Number(res.data?.userCount ?? 0)
-    overview.cardCount = Number(res.data?.cardCount ?? 0)
-    overview.totalBillAmount = Number(res.data?.totalBillAmount ?? 0)
-    overview.totalFeeAmount = Number(res.data?.totalFeeAmount ?? 0)
-    overview.totalPosCostAmount = Number(res.data?.totalPosCostAmount ?? 0)
-    overview.totalOtherFeeAmount = Number(res.data?.totalOtherFeeAmount ?? 0)
-    overview.totalNetProfit = Number(res.data?.totalNetProfit ?? 0)
+    billRows.value = await fetchAllBillRows(buildBillQueryParams())
   } finally {
-    overviewLoading.value = false
+    billLoading.value = false
   }
 }
 
-async function fetchUserPage() {
-  userLoading.value = true
-  try {
-    const res: any = await getProfitUserPageApi(buildParams({ current: userPage.current, size: userPage.size }))
-    userPage.records = res.data?.records || []
-    userPage.total = Number(res.data?.total || 0)
-    userPage.current = Number(res.data?.current || userPage.current)
-    userPage.size = Number(res.data?.size || userPage.size)
-  } finally {
-    userLoading.value = false
+function buildBillQueryParams() {
+  const params: Record<string, any> = {
+    year: query.year,
+    sortMode: 'monthAsc'
   }
-}
-
-async function fetchCardPage() {
-  cardLoading.value = true
-  try {
-    const res: any = await getProfitCardPageApi(buildParams({ current: cardPage.current, size: cardPage.size }))
-    cardPage.records = res.data?.records || []
-    cardPage.total = Number(res.data?.total || 0)
-    cardPage.current = Number(res.data?.current || cardPage.current)
-    cardPage.size = Number(res.data?.size || cardPage.size)
-  } finally {
-    cardLoading.value = false
-  }
-}
-
-async function fetchMonthList() {
-  monthLoading.value = true
-  try {
-    const res: any = await getProfitMonthListApi(buildParams({ current: 1, size: 100 }))
-    monthList.value = res.data || []
-  } finally {
-    monthLoading.value = false
-  }
-}
-
-async function handleSearch() {
-  userPage.current = 1
-  cardPage.current = 1
-  await Promise.all([fetchOverview(), fetchUserPage(), fetchCardPage(), fetchMonthList()])
-}
-
-async function refresh() {
-  await handleSearch()
-}
-
-async function refreshWithoutResetPosition() {
-  await Promise.all([fetchOverview(), fetchUserPage(), fetchCardPage(), fetchMonthList()])
-}
-
-function resetQuery() {
-  triggerProfitSearch.cancel()
-  syncingProfitFilters = true
-  profitMonthRange.value = null
-  query.year = currentYear
-  query.month = undefined
-  query.userId = undefined
-  query.cardId = undefined
-  syncingProfitFilters = false
-  void handleSearch()
-}
-
-function handleUserSizeChange(size: number) {
-  userPage.size = size
-  userPage.current = 1
-  fetchUserPage()
-}
-
-function handleCardSizeChange(size: number) {
-  cardPage.size = size
-  cardPage.current = 1
-  fetchCardPage()
-}
-
-function cardLabel(item: OptionItem) {
-  return `${item.userName || '未归属'} / ${item.bankName || ''} *${item.cardNoLast4 || ''}`
-}
-
-const billActionLabel = computed(() => query.month ? '当月账单' : '年度账单')
-
-const BILL_SORT_MONTH_ASC = 'monthAsc'
-
-function buildBillRouteQuery(extra: Record<string, any>) {
-  const routeQuery: Record<string, any> = {
-    year: String(query.year),
-    ...extra
-  }
-  if (query.month) {
-    routeQuery.billMonth = `${query.year}-${String(query.month).padStart(2, '0')}`
-  }
-  return routeQuery
-}
-
-function openUserBills(row: UserProfitRow) {
-  router.push({ path: '/bills', query: buildBillRouteQuery({ ownerId: String(row.userId), sortMode: BILL_SORT_MONTH_ASC }) })
-}
-
-function openCardBills(row: CardProfitRow) {
-  router.push({ path: '/bills', query: buildBillRouteQuery({ cardId: String(row.cardId), sortMode: BILL_SORT_MONTH_ASC }) })
-}
-
-async function openOtherFeeEditor(scope: OtherFeeScope, row?: UserProfitRow | CardProfitRow | MonthProfitRow) {
-  const params = buildOtherFeeParams(scope, row)
-  otherFeeEditorTitle.value = otherFeeTitle(scope, row)
-  otherFeeDrawerVisible.value = true
-  otherFeeLoading.value = true
-  otherFeeRows.value = []
-  otherFeeDraftMap.value = {}
-
-  try {
-    const rows = await fetchAllBillRows(params)
-    otherFeeRows.value = rows
-    syncOtherFeeDrafts(rows)
-  } finally {
-    otherFeeLoading.value = false
-  }
-}
-
-function buildOtherFeeParams(scope: OtherFeeScope, row?: UserProfitRow | CardProfitRow | MonthProfitRow) {
-  if (scope === 'user' && row) {
-    return buildBillParams({ ownerId: (row as UserProfitRow).userId })
-  }
-  if (scope === 'card' && row) {
-    return buildBillParams({ cardId: (row as CardProfitRow).cardId })
-  }
-  if (scope === 'month' && row) {
-    const monthRow = row as MonthProfitRow
-    return {
-      ...buildBillParams({}),
-      billMonth: monthRow.billMonth
-    }
-  }
-  return buildBillParams({ ownerId: query.userId, cardId: query.cardId })
-}
-
-function otherFeeTitle(scope: OtherFeeScope, row?: UserProfitRow | CardProfitRow | MonthProfitRow) {
-  if (scope === 'user' && row) return `${(row as UserProfitRow).userName} 其他费用`
-  if (scope === 'card' && row) {
-    const card = row as CardProfitRow
-    return `${card.bankName} *${card.cardNoLast4} 其他费用`
-  }
-  if (scope === 'month' && row) return `${(row as MonthProfitRow).billMonth} 其他费用`
-  return '其他费用'
+  if (query.month) params.billMonth = buildBillMonth(query.year, query.month)
+  if (query.userId) params.ownerId = query.userId
+  if (query.cardId) params.cardId = query.cardId
+  return params
 }
 
 async function fetchAllBillRows(params: Record<string, any>) {
@@ -703,7 +957,6 @@ async function fetchAllBillRows(params: Record<string, any>) {
   const records: BillRow[] = []
   let current = 1
   let total = 0
-
   while (true) {
     const res: any = await getBillPageApi({ current, size: pageSize, ...params })
     const pageRecords = (res.data?.records || []) as BillRow[]
@@ -714,48 +967,134 @@ async function fetchAllBillRows(params: Record<string, any>) {
     if (pageRecords.length < pageSize) break
     current += 1
   }
-
   return records
 }
 
-function syncOtherFeeDrafts(rows: BillRow[]) {
-  const next: Record<number, number> = {}
-  rows.forEach(row => {
-    next[row.id] = otherFeeDraftMap.value[row.id] ?? toAmount(row.otherFeeAmount)
+async function handleSearch() {
+  detailPage.current = 1
+  await fetchBillRows()
+}
+
+async function refresh() {
+  await fetchBaseOptions()
+  await handleSearch()
+}
+
+function resetQuery() {
+  query.year = currentYear
+  queryYearDate.value = String(currentYear)
+  query.month = undefined
+  query.userId = undefined
+  query.cardId = undefined
+  activeTab.value = 'userMonths'
+  userSortOrder.value = 'default'
+  void handleSearch()
+}
+
+function openProfitEditor(row: ProfitDetailRow) {
+  if (!row.bills.length) return
+  profitEditorBaseTitle.value = `${row.userName} · ${row.cardLabel && row.cardLabel !== '-' ? row.cardLabel + ' · ' : ''}${row.monthLabel}`
+  profitEditorRows.value = [...row.bills].sort((a, b) => {
+    const cardDelta = feeBillLabel(a).localeCompare(feeBillLabel(b), 'zh-CN')
+    if (cardDelta !== 0) return cardDelta
+    return Number(a.id) - Number(b.id)
   })
-  otherFeeDraftMap.value = next
+  syncProfitDrafts(profitEditorRows.value)
+  profitEditorVisible.value = true
 }
 
-function otherFeeDraftValue(row: BillRow) {
-  return otherFeeDraftMap.value[row.id] ?? toAmount(row.otherFeeAmount)
+function syncProfitDrafts(rows: BillRow[]) {
+  const next: Record<number, ProfitDraft> = {}
+  rows.forEach((row) => {
+    next[row.id] = {
+      feePaidAmount: billPaidAmount(row),
+      feePayMethod: String(row.feePayMethod || ''),
+      feePayTime: normalizeDateTime(row.feePayTime),
+      otherFeeAmount: toAmount(row.otherFeeAmount),
+      posCostAmount: toAmount(row.posCostAmount)
+    }
+  })
+  profitDraftMap.value = next
 }
 
-function updateOtherFeeDraft(billId: number, value: any) {
-  otherFeeDraftMap.value[billId] = toAmount(value)
+function profitDraftValue(id: number, field: keyof ProfitDraft) {
+  return profitDraftMap.value[id]?.[field] as any
 }
 
-function isOtherFeeChanged(row: BillRow) {
-  return Math.abs(otherFeeDraftValue(row) - toAmount(row.otherFeeAmount)) >= 0.005
-}
-
-async function saveOtherFee(row: BillRow) {
-  if (!isOtherFeeChanged(row) || savingOtherFeeBillId.value === row.id) return
-  savingOtherFeeBillId.value = row.id
-  try {
-    const otherFeeAmount = otherFeeDraftValue(row)
-    await updateBillApi(buildBillUpdatePayload(row, { otherFeeAmount }))
-    row.otherFeeAmount = otherFeeAmount
-    syncOtherFeeDrafts(otherFeeRows.value)
-    ElMessage.success('其他费用已保存')
-    await refreshWithoutResetPosition()
-  } catch (error: any) {
-    ElMessage.error(error?.response?.data?.message || error?.message || '保存其他费用失败')
-  } finally {
-    savingOtherFeeBillId.value = null
+function updateProfitDraft(id: number, field: keyof ProfitDraft, value: any) {
+  const current = profitDraftMap.value[id]
+  if (!current) return
+  profitDraftMap.value = {
+    ...profitDraftMap.value,
+    [id]: {
+      ...current,
+      [field]: field === 'feePayMethod' || field === 'feePayTime' ? (value || '') : toAmount(value)
+    }
   }
 }
 
-function buildBillUpdatePayload(row: BillRow, overrides: Record<string, any> = {}) {
+function isProfitDraftChanged(row: BillRow) {
+  const draft = profitDraftMap.value[row.id]
+  if (!draft) return false
+  return Math.abs(draft.feePaidAmount - billPaidAmount(row)) >= 0.005
+    || Math.abs(draft.otherFeeAmount - toAmount(row.otherFeeAmount)) >= 0.005
+    || Math.abs(draft.posCostAmount - toAmount(row.posCostAmount)) >= 0.005
+    || draft.feePayMethod !== String(row.feePayMethod || '')
+    || draft.feePayTime !== normalizeDateTime(row.feePayTime)
+}
+
+function draftNetProfit(row: BillRow) {
+  const draft = profitDraftMap.value[row.id]
+  return billFeeAmount(row) - toAmount(draft?.posCostAmount ?? row.posCostAmount) - toAmount(draft?.otherFeeAmount ?? row.otherFeeAmount)
+}
+
+async function saveProfitBill(row: BillRow) {
+  const draft = profitDraftMap.value[row.id]
+  if (!draft || savingProfitBillId.value === row.id) return
+  const feePaidAmount = toAmount(draft.feePaidAmount)
+  if (feePaidAmount > 0 && !draft.feePayMethod) {
+    ElMessage.warning('已支付金额大于0时请选择支付方式')
+    return
+  }
+
+  savingProfitBillId.value = row.id
+  try {
+    const feePayTime = feePaidAmount > 0 ? (draft.feePayTime || formatDateTimeForInput(new Date())) : ''
+    const payload = buildBillUpdatePayload(row, {
+      feePaidAmount,
+      feePaid: isFeePaidFlag(billFeeAmount(row), feePaidAmount),
+      feePayMethod: feePaidAmount > 0 ? draft.feePayMethod : null,
+      feePayTime: feePaidAmount > 0 ? feePayTime : null,
+      posCostAmount: toAmount(draft.posCostAmount),
+      otherFeeAmount: toAmount(draft.otherFeeAmount)
+    })
+    await updateBillApi(payload)
+    applySavedProfitDraft(row, payload)
+    ElMessage.success('收益信息已保存')
+  } catch (error: any) {
+    ElMessage.error(error?.response?.data?.message || error?.message || '保存收益信息失败')
+  } finally {
+    savingProfitBillId.value = null
+  }
+}
+
+function applySavedProfitDraft(row: BillRow, payload: Record<string, any>) {
+  const target = billRows.value.find((bill) => Number(bill.id) === Number(row.id))
+  const patch = {
+    feePaidAmount: payload.feePaidAmount,
+    feePaid: payload.feePaid,
+    feePayMethod: payload.feePayMethod,
+    feePayTime: payload.feePayTime,
+    posCostAmount: payload.posCostAmount,
+    otherFeeAmount: payload.otherFeeAmount,
+    netProfit: billFeeAmount(row) - toAmount(payload.posCostAmount) - toAmount(payload.otherFeeAmount)
+  }
+  if (target) Object.assign(target, patch)
+  Object.assign(row, patch)
+  syncProfitDrafts(profitEditorRows.value)
+}
+
+function buildBillUpdatePayload(row: BillRow, overrides: Record<string, any>) {
   return {
     id: row.id,
     cardId: row.cardId,
@@ -769,52 +1108,109 @@ function buildBillUpdatePayload(row: BillRow, overrides: Record<string, any> = {
     actualPayAmount: toAmount(row.actualPayAmount),
     actualPayDate: row.actualPayDate,
     feeRate: row.feeRate,
-    feePaid: row.feePaid,
     verified: row.verified,
     expenseVerified: row.expenseVerified,
-    posCostAmount: toAmount(row.posCostAmount),
-    otherFeeAmount: toAmount(row.otherFeeAmount),
     status: row.status,
     remark: row.remark || '',
+    posCostAmount: toAmount(row.posCostAmount),
+    otherFeeAmount: toAmount(row.otherFeeAmount),
+    feePaid: Boolean(row.feePaid),
+    feePaidAmount: billPaidAmount(row),
+    feePayMethod: row.feePayMethod || null,
+    feePayTime: row.feePayTime || null,
     ...overrides
   }
 }
 
+function billFeeAmount(row: BillRow) {
+  const explicitFee = row.feeAmount
+  if (explicitFee !== null && explicitFee !== undefined) return toAmount(explicitFee)
+  const billAmount = toAmount(row.billAmount)
+  const feeRate = toAmount(row.feeRate)
+  return Number(((billAmount * feeRate) / 100).toFixed(2))
+}
+
+function billPaidAmount(row: BillRow) {
+  const paidAmount = toAmount(row.feePaidAmount)
+  if (paidAmount > 0) return paidAmount
+  return row.feePaid ? billFeeAmount(row) : 0
+}
+
+function isFeePaidFlag(feeAmount: number, paidAmount: number) {
+  if (paidAmount <= 0) return false
+  if (feeAmount <= 0) return true
+  return paidAmount + 0.005 >= feeAmount
+}
+
+function feePayStatus(feeAmount: number, paidAmount: number) {
+  if (feeAmount <= 0) return paidAmount > 0 ? '已支付' : '-'
+  if (paidAmount <= 0) return '未支付'
+  if (paidAmount + 0.005 >= feeAmount) return '已支付'
+  return '部分支付'
+}
+
+function feeStatusTagType(row: ProfitDetailRow) {
+  if (row.feePayStatus === '已支付') return 'success'
+  if (row.feePayStatus === '部分支付') return 'primary'
+  if (row.feePayStatus === '未支付') return 'warning'
+  return 'info'
+}
+
+function paymentMethodText(method: string) {
+  return PAYMENT_METHOD_OPTIONS.find((item) => item.value === method)?.label || method
+}
+
+function latestTime(values: string[]) {
+  if (!values.length) return ''
+  return [...values].sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]
+}
+
+function buildBillMonth(year: number, month: number) {
+  return `${year}-${String(month).padStart(2, '0')}`
+}
+
+function monthNumber(billMonth: string) {
+  return Number(String(billMonth || '').split('-')[1] || 0)
+}
+
+function monthLabel(billMonth: string) {
+  const month = monthNumber(billMonth)
+  return month ? `${month}月` : '-'
+}
+
+function cardLabel(item: CardOption) {
+  const bank = item.bankName || '-'
+  const last4 = item.cardNoLast4 || '-'
+  const owner = item.ownerName || item.userName || '未归属'
+  return `${owner} / ${bank} *${last4}`
+}
+
+function holderCellText(row: ProfitDetailRow) {
+  if (!row.holderLabel || row.holderLabel === '-') return '-'
+  return row.holderLabel === row.userName ? '本人' : row.holderLabel
+}
+
 function feeBillLabel(row: BillRow) {
-  return `${row.ownerName || '未命名'} · ${row.bankName || '-'} · 尾号${row.cardNoLast4 || '-'}`
+  return `${row.ownerName || '未命名'} / ${row.bankName || '-'} *${row.cardNoLast4 || '-'}`
 }
 
 function repayDateText(date: string | null | undefined) {
   return date ? String(date).slice(5) : '-'
 }
 
-function feePaidTotal(row: { billCount?: number; feePaidCount?: number; feeUnpaidCount?: number }) {
-  const directTotal = Number(row.billCount ?? 0)
-  if (directTotal > 0) return directTotal
-  return Number(row.feePaidCount ?? 0) + Number(row.feeUnpaidCount ?? 0)
+function normalizeDateTime(value: string | null | undefined) {
+  if (!value) return ''
+  return String(value).replace(' ', 'T').slice(0, 19)
 }
 
-function feePaidText(row: { billCount?: number; feePaidCount?: number; feeUnpaidCount?: number }) {
-  const total = feePaidTotal(row)
-  const paid = Number(row.feePaidCount ?? 0)
-  if (total <= 0) return '-'
-  if (paid >= total) return '已支付'
-  if (paid <= 0) return '未支付'
-  return `部分 ${paid}/${total}`
+function formatDateTime(value: string | null | undefined) {
+  const normalized = normalizeDateTime(value)
+  return normalized ? normalized.replace('T', ' ').slice(0, 16) : '-'
 }
 
-function feePaidTagType(row: { billCount?: number; feePaidCount?: number; feeUnpaidCount?: number }) {
-  const total = feePaidTotal(row)
-  const paid = Number(row.feePaidCount ?? 0)
-  if (total <= 0) return 'info'
-  if (paid >= total) return 'success'
-  if (paid <= 0) return 'warning'
-  return 'primary'
-}
-
-function formatRate(value: number | string | null | undefined) {
-  const rate = Number(value ?? 0)
-  return Number.isFinite(rate) ? rate.toFixed(2) : '0.00'
+function formatDateTimeForInput(value: Date) {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`
 }
 
 function toAmount(value: number | string | null | undefined) {
@@ -830,47 +1226,99 @@ function formatMoney(value: number | string | null | undefined) {
   })
 }
 
+function scheduleFitPageSize() {
+  if (fitPageFrame) return
+  fitPageFrame = window.requestAnimationFrame(() => {
+    fitPageFrame = 0
+    updateFitPageSize()
+  })
+}
+
+function updateFitPageSize() {
+  const shell = tableShellRef.value
+  if (!shell) return
+  const tableHeaderHeight = 29
+  const pagerHeight = tableRows.value.length > 0 ? 34 : 0
+  const rowHeight = 30
+  const availableHeight = shell.clientHeight - tableHeaderHeight - pagerHeight - 8
+  const nextSize = Math.max(8, Math.min(100, Math.floor(availableHeight / rowHeight)))
+  if (!Number.isFinite(nextSize) || nextSize <= 0) return
+  if (detailPage.size !== nextSize) {
+    detailPage.size = nextSize
+  }
+  const maxPage = Math.max(1, Math.ceil(tableRows.value.length / detailPage.size))
+  if (detailPage.current > maxPage) {
+    detailPage.current = maxPage
+  }
+}
+
+async function bindTableResizeObserver() {
+  await nextTick()
+  tableResizeObserver?.disconnect()
+  const shell = tableShellRef.value
+  if (!shell) return
+  tableResizeObserver = new ResizeObserver(scheduleFitPageSize)
+  tableResizeObserver.observe(shell)
+  window.addEventListener('resize', scheduleFitPageSize)
+  scheduleFitPageSize()
+}
+
 onMounted(async () => {
+  applyRouteQuery()
   await fetchBaseOptions()
   await handleSearch()
+  await bindTableResizeObserver()
 })
 
 onActivated(async () => {
   await fetchBaseOptions()
   await handleSearch()
+  scheduleFitPageSize()
 })
 
 onUnmounted(() => {
-  triggerProfitSearch.cancel()
+  billRows.value = []
+  tableResizeObserver?.disconnect()
+  tableResizeObserver = null
+  window.removeEventListener('resize', scheduleFitPageSize)
+  if (fitPageFrame) {
+    window.cancelAnimationFrame(fitPageFrame)
+    fitPageFrame = 0
+  }
+})
+
+watch(queryYearDate, (value) => {
+  const year = Number(value || currentYear)
+  query.year = Number.isFinite(year) && year > 0 ? year : currentYear
 })
 
 watch(
-  profitMonthRange,
-  (range) => {
-    if (syncingProfitFilters) return
-    triggerProfitSearch.cancel()
-    syncingProfitFilters = true
-    if (range && range[0]) {
-      const [yearStr, monthStr] = range[0].split('-')
-      query.year = Number(yearStr)
-      query.month = Number(monthStr) || undefined
-    } else {
-      query.year = currentYear
-      query.month = undefined
+  () => [query.year, query.month, query.userId, query.cardId],
+  () => {
+    detailPage.current = 1
+    if (query.cardId && !filteredCardOptions.value.some((card) => Number(card.id) === Number(query.cardId))) {
+      query.cardId = undefined
+      return
     }
-    syncingProfitFilters = false
-    triggerProfitSearch()
-  },
-  { flush: 'sync' }
+    void handleSearch()
+  }
 )
 
+watch(activeTab, () => {
+  detailPage.current = 1
+  scheduleFitPageSize()
+})
+
+watch(userSortOrder, () => {
+  detailPage.current = 1
+})
+
 watch(
-  () => [query.userId, query.cardId],
+  () => tableRows.value.length,
   () => {
-    if (syncingProfitFilters) return
-    triggerProfitSearch()
-  },
-  { flush: 'sync' }
+    detailPage.current = 1
+    scheduleFitPageSize()
+  }
 )
 </script>
 
@@ -878,29 +1326,28 @@ watch(
 .profit-page {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: 0;
+  gap: 6px;
   width: 100%;
   height: 100%;
   min-height: 0;
-  padding: 8px;
-  background: #f5f7fb;
+  padding: 6px;
   overflow: hidden;
+  background: #f5f7fb;
   box-sizing: border-box;
 }
 
 .card-shell {
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid #dbe2ea;
-  border-radius: 14px;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.045);
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
 }
 
 .page-header {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 6px;
+  padding: 6px 8px;
   flex-shrink: 0;
 }
 
@@ -917,10 +1364,17 @@ watch(
 }
 
 .header-title {
-  font-size: 18px;
-  line-height: 1.1;
-  font-weight: 700;
   color: #1f2a37;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.header-sub {
+  margin-top: 2px;
+  color: #7c8799;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .header-actions {
@@ -932,33 +1386,39 @@ watch(
 
 .action-btn,
 .header-actions :deep(.el-button) {
-  height: 30px;
-  padding: 0 12px;
+  height: 26px;
+  padding: 0 9px;
   border-radius: 8px;
 }
 
 .header-stat-row {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .header-stat {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 7px;
   min-width: 0;
-  min-height: 76px;
-  padding: 10px 12px;
+  min-height: 42px;
+  padding: 5px 8px;
   border: 1px solid #e5eaf1;
-  border-radius: 12px;
+  border-radius: 8px;
   background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
 }
 
+.header-stat.is-net {
+  border-color: rgba(47, 158, 68, 0.28);
+  background: linear-gradient(180deg, #ffffff 0%, #f1fbf5 120%);
+  box-shadow: inset 3px 0 0 rgba(47, 158, 68, 0.72);
+}
+
 .header-stat-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -966,223 +1426,321 @@ watch(
 }
 
 .header-stat-label {
-  font-size: 12px;
   color: #7c8799;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .header-stat-value {
   margin-top: 2px;
-  font-size: 22px;
-  line-height: 1.1;
-  font-weight: 700;
   color: #1f2a37;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.1;
 }
 
 .header-stat-sub {
-  margin-top: 4px;
-  font-size: 11px;
-  color: #98a2b3;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: none;
 }
 
-.profit-search-panel {
+.profit-filter-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 6px 8px;
   flex-shrink: 0;
 }
 
-.content-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 8px;
+.profit-filter-grid {
+  width: 100%;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.profit-filter-panel .app-search-title {
+  min-height: 28px;
+  font-size: 11px;
+}
+
+.profit-filter-panel :deep(.el-input__wrapper),
+.profit-filter-panel :deep(.el-select__wrapper),
+.profit-filter-panel :deep(.el-select-v2__wrapper),
+.profit-filter-panel :deep(.el-date-editor.el-input__wrapper),
+.profit-filter-panel :deep(.el-date-editor .el-input__wrapper) {
+  min-height: 28px;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 8px;
+}
+
+.profit-filter-panel :deep(.el-input__inner),
+.profit-filter-panel :deep(.el-select__selected-item),
+.profit-filter-panel :deep(.el-select-v2__placeholder),
+.profit-filter-panel :deep(.el-select-v2__selected-item),
+.profit-filter-panel :deep(.el-select-v2__combobox-input),
+.profit-filter-panel :deep(.el-range-input),
+.profit-filter-panel :deep(.el-input-number__input) {
+  font-size: 12px;
+  color: #1f2a37;
+}
+
+.profit-filter-panel :deep(.el-select-v2__selected-item) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profit-filter-item {
+  flex: 1 1 128px;
+  width: auto;
+  min-width: 112px;
+  height: 28px;
+}
+
+.profit-filter-panel :deep(.el-input),
+.profit-filter-panel :deep(.el-select),
+.profit-filter-panel :deep(.el-date-editor) {
+  height: 28px;
+}
+
+.main-panel {
   flex: 1;
   min-height: 0;
-}
-
-.main-panel {
   display: flex;
   flex-direction: column;
-  min-height: 0;
-}
-
-.main-panel {
-  padding: 8px;
+  padding: 4px;
 }
 
 .panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 6px;
+  margin-bottom: 5px;
   flex-shrink: 0;
 }
 
 .panel-title {
-  font-size: 14px;
-  font-weight: 700;
   color: #1f2a37;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .panel-desc {
-  margin-top: 3px;
-  font-size: 12px;
+  margin-top: 2px;
   color: #7c8799;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .inline-summary {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 10px;
-  height: 30px;
+  gap: 10px;
+  height: 24px;
+  padding: 0 8px;
   border-radius: 8px;
   background: #f5f8fc;
   color: #667085;
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 700;
   white-space: nowrap;
 }
 
 .table-shell {
+  --profit-cell-x: 5px;
+  --profit-row-h: 30px;
+  --profit-head-h: 28px;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   border: 1px solid #e5eaf1;
-  border-radius: 12px;
+  border-radius: 8px;
   background: #fff;
 }
 
 .table-shell :deep(.el-table) {
   flex: 1;
   --el-table-border-color: #e5eaf1;
-  font-size: 12px;
+  font-size: 11px;
+  color: #344054;
 }
 
 .table-shell :deep(.el-table .cell) {
-  padding-top: 0;
-  padding-bottom: 0;
-  line-height: 1.2;
+  padding: 0 var(--profit-cell-x);
+  overflow: hidden;
+  line-height: calc(var(--profit-row-h) - 2px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .table-shell :deep(.el-table th.el-table__cell) {
-  height: 36px;
+  height: var(--profit-head-h);
+  padding: 0;
   background: #f7f9fc;
   color: #5b6472;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
+  border-right-color: #eef2f6;
 }
 
 .table-shell :deep(.el-table td.el-table__cell) {
-  height: 48px;
+  height: var(--profit-row-h);
+  padding: 0;
+  border-right-color: #eef2f6;
 }
 
-.table-shell :deep(.el-table__body-wrapper) {
-  scrollbar-width: none;
+.table-shell :deep(.el-table__body tr) {
+  height: var(--profit-row-h);
 }
 
-.table-shell :deep(.el-table__body-wrapper::-webkit-scrollbar) {
-  width: 0;
-  height: 0;
+.table-shell :deep(.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell) {
+  background: #fbfcfe;
+}
+
+.table-shell :deep(.el-table__body tr:hover > td.el-table__cell) {
+  background: #eef6ff;
 }
 
 .table-shell :deep(.el-tag) {
   height: 18px;
-  padding: 0 6px;
-  font-size: 11px;
+  padding: 0 4px;
+  font-size: 10.5px;
+  line-height: 17px;
 }
 
-.row-actions {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  white-space: nowrap;
-}
-
-.row-actions :deep(.el-button) {
+.table-shell :deep(.el-button--small) {
+  height: 22px;
   padding: 0 2px;
-}
-
-.row-actions :deep(.el-button + .el-button) {
-  margin-left: 0;
+  font-size: 11px;
 }
 
 .pager-wrap {
   display: flex;
   justify-content: flex-end;
-  padding: 8px 10px;
+  min-height: 34px;
+  padding: 3px 6px;
   border-top: 1px solid #eef2f6;
   background: #fff;
 }
 
 .pager-wrap :deep(.el-pagination) {
-  transform: scale(0.94);
+  transform: scale(0.9);
   transform-origin: right center;
 }
 
-.amount-income {
-  color: #2f9e44;
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-}
-
-.amount-cost {
-  color: #cf1322;
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-}
-
-.other-fee-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 240px;
-}
-
-.other-fee-editor-head,
-.other-fee-editor-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 176px 154px;
+.sortable-header {
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  user-select: none;
 }
 
-.other-fee-editor-head {
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: #f7f9fc;
-  color: #667085;
-  font-size: 12px;
+.sort-indicator {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  color: #b6bfcc;
+  font-size: 8px;
+  line-height: 0.8;
+}
+
+.sort-arrow.active {
+  color: #1677ff;
+}
+
+.person-cell {
+  display: block;
+  overflow: hidden;
+  min-width: 0;
+  line-height: calc(var(--profit-row-h) - 2px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.negotiator-cell {
+  color: #0958d9;
+  font-weight: 800;
+}
+
+.holder-cell {
+  color: #526074;
   font-weight: 700;
 }
 
-.other-fee-editor-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-height: 0;
-  overflow-y: auto;
-  padding-right: 2px;
+.card-scope-cell {
+  color: #526074;
+  font-weight: 700;
 }
 
-.other-fee-editor-row {
-  min-height: 54px;
-  padding: 9px 10px;
-  border: 1px solid #e5eaf1;
-  border-radius: 10px;
-  background: #fff;
+.single-line,
+.money-cell {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  line-height: calc(var(--profit-row-h) - 2px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.fee-bill-main,
-.fee-bill-stats {
+.money-cell {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 50px;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+:global(.profit-filter-dropdown) {
+  --el-border-radius-base: 8px;
+}
+
+:global(.profit-filter-dropdown .el-select-dropdown__list) {
+  padding: 4px;
+}
+
+:global(.profit-filter-dropdown .el-select-dropdown__item) {
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: #344054;
+  font-size: 12px;
+  line-height: 30px;
+}
+
+:global(.profit-filter-dropdown .el-select-dropdown__item.selected) {
+  color: #0958d9;
+  font-weight: 800;
+  background: #eaf2ff;
+}
+
+:global(.profit-filter-dropdown .el-select-dropdown__item.hover),
+:global(.profit-filter-dropdown .el-select-dropdown__item:hover) {
+  background: #f2f6fb;
+}
+
+.stack-cell {
   min-width: 0;
 }
 
-.fee-bill-title,
-.fee-bill-sub {
+.stack-cell strong,
+.stack-cell span {
   display: block;
   min-width: 0;
   overflow: hidden;
@@ -1190,81 +1748,267 @@ watch(
   white-space: nowrap;
 }
 
-.fee-bill-title {
+.stack-cell strong {
   color: #1f2a37;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
-.fee-bill-sub {
+.stack-cell span {
   margin-top: 3px;
   color: #98a2b3;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
-.fee-bill-stats {
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 58px;
+.metric-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.metric-stack.is-tight {
+  gap: 2px;
+}
+
+.metric-stack > div {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  font-size: 12px;
-  color: #667085;
+  min-width: 0;
 }
 
-.fee-bill-stats > span {
+.metric-stack span {
+  flex-shrink: 0;
+  color: #98a2b3;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.metric-stack b {
+  min-width: 0;
+  overflow: hidden;
+  color: #1f2a37;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.payment-cell {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+}
+
+.payment-cell > * {
+  align-self: center;
+}
+
+.amount-income {
+  color: #2f9e44;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.amount-cost {
+  color: #cf1322;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.amount-warn {
+  color: #d48806;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.amount-muted {
+  color: #667085;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.profit-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 260px;
+}
+
+.profit-editor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.profit-editor-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e5eaf1;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.editor-card-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+}
+
+.editor-card-head > * {
+  align-self: center;
+}
+
+.editor-bill-main {
+  min-width: 0;
+}
+
+.editor-bill-title,
+.editor-bill-sub {
+  display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.fee-bill-edit {
-  display: grid;
-  grid-template-columns: auto 92px 38px;
-  align-items: center;
-  gap: 4px;
+.editor-bill-title {
+  color: #1f2a37;
+  font-size: 12px;
+  font-weight: 800;
 }
 
-.currency-symbol {
+.editor-bill-sub {
+  margin-top: 3px;
   color: #98a2b3;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
 }
 
-.other-fee-input {
-  width: 92px;
+.editor-net {
+  overflow: hidden;
+  font-size: 12px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.other-fee-input :deep(.el-input__wrapper) {
+.editor-field-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.editor-field {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+  min-height: 34px;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid #eef2f6;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.editor-field > * {
+  align-self: center;
+}
+
+.editor-field.is-time {
+  grid-column: span 2;
+}
+
+.editor-field > span {
+  overflow: hidden;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-field > strong {
+  overflow: hidden;
+  font-size: 12px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.readonly-field {
+  background: #f2fbf6;
+  border-color: rgba(47, 158, 68, 0.18);
+}
+
+.editor-row-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.editor-number-input,
+.editor-method-select,
+.editor-time-picker {
+  width: 100%;
+}
+
+.editor-number-input :deep(.el-input__wrapper),
+.editor-method-select :deep(.el-select__wrapper),
+.editor-time-picker :deep(.el-input__wrapper) {
   min-height: 26px;
   padding: 0 7px;
   border-radius: 8px;
 }
 
-.other-fee-input :deep(.el-input__inner) {
+.editor-number-input :deep(.el-input__inner),
+.editor-method-select :deep(.el-select__selected-item),
+.editor-time-picker :deep(.el-input__inner) {
   color: #1f2a37;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
+}
+
+.editor-number-input :deep(.el-input__inner) {
   text-align: right;
 }
 
-@media (max-width: 1480px) {
-  .filter-card {
-    width: 180px;
-  }
-
+@media (max-width: 1180px) {
   .header-stat-row {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .profit-filter-grid {
+    flex-wrap: wrap;
+  }
 }
 
-@media (max-width: 1320px) {
+@media (max-width: 1120px) {
   .header-stat-sub,
+  .header-sub,
   .panel-desc,
   .inline-summary {
     display: none;
+  }
+}
+
+@media (max-width: 960px) {
+  .editor-field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .editor-field.is-time {
+    grid-column: span 2;
   }
 }
 </style>

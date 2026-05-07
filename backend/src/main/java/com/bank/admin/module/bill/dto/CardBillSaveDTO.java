@@ -7,6 +7,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 /**
  * 账单新增/编辑DTO
@@ -62,6 +63,15 @@ public class CardBillSaveDTO {
 
     @Schema(description = "手续费是否已支付")
     private Boolean feePaid;
+
+    @Schema(description = "手续费已支付金额")
+    private BigDecimal feePaidAmount;
+
+    @Schema(description = "最近手续费支付时间")
+    private LocalDateTime feePayTime;
+
+    @Schema(description = "手续费支付方式：wechat微信 alipay支付宝 cash现金 other其他")
+    private String feePayMethod;
 
     @Schema(description = "本月还款明细是否已核实")
     private Boolean verified;

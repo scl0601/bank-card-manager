@@ -423,46 +423,38 @@
             </div>
           </div>
           <div class="panel-body profit-summary-block" v-loading="profitVisibleLoading">
-            <div class="profit-net-grid">
-              <div class="profit-kpi">
-                <div class="pk-label">预计{{ profitScopeLabel }}净利润</div>
-                <div class="pk-value" :class="Number(profitOverview.expectedNetProfit || 0) >= 0 ? 'pos' : 'neg'">
+            <div class="profit-ledger">
+              <div class="profit-cell is-net">
+                <span class="pl-label">净收入</span>
+                <span class="pl-value font-mono" :class="Number(profitOverview.expectedNetProfit || 0) >= 0 ? 'pos' : 'neg'">
                   ¥{{ formatMoneySafe(profitOverview.expectedNetProfit) }}
-                </div>
-                <div class="pk-sub">应收手续费 - POS成本 - 其他费用</div>
+                </span>
+                <span class="pl-note">预计{{ profitScopeLabel }}净利润 = 手续费 - POS成本 - 其他费用</span>
               </div>
-              <div class="profit-kpi">
-                <div class="pk-label">实际{{ profitScopeLabel }}净利润</div>
-                <div class="pk-value" :class="Number(profitOverview.totalNetProfit || 0) >= 0 ? 'pos' : 'neg'">
-                  ¥{{ formatMoneySafe(profitOverview.totalNetProfit) }}
-                </div>
-                <div class="pk-sub">已收手续费 - POS成本 - 其他费用</div>
+              <div class="profit-cell is-income">
+                <span class="pl-label">手续费</span>
+                <span class="pl-value pos font-mono">¥{{ formatMoneySafe(profitOverview.totalFeeAmount) }}</span>
+                <span class="pl-note">包含成本</span>
               </div>
-            </div>
-            <div class="profit-grid profit-grid-3">
-              <div class="profit-metric">
-                <span class="pm-label">费率</span>
-                <span class="pm-value font-mono">{{ profitRateLabel }}</span>
+              <div class="profit-cell">
+                <span class="pl-label">账单金额</span>
+                <span class="pl-value font-mono">¥{{ formatMoneySafe(profitOverview.totalBillAmount) }}</span>
               </div>
-              <div class="profit-metric">
-                <span class="pm-label">手续费</span>
-                <span class="pm-value pos font-mono">¥{{ formatMoneySafe(profitOverview.totalFeeAmount) }}</span>
+              <div class="profit-cell">
+                <span class="pl-label">费率</span>
+                <span class="pl-value font-mono">{{ profitRateLabel }}</span>
               </div>
-              <div class="profit-metric">
-                <span class="pm-label">手续费支付</span>
-                <span class="pm-value">{{ profitFeePayStatusLabel }}</span>
+              <div class="profit-cell">
+                <span class="pl-label">POS成本</span>
+                <span class="pl-value neg font-mono">¥{{ formatMoneySafe(profitOverview.totalPosCostAmount) }}</span>
               </div>
-              <div class="profit-metric">
-                <span class="pm-label">已收手续费</span>
-                <span class="pm-value pos font-mono">¥{{ formatMoneySafe(profitOverview.paidFeeAmount) }}</span>
+              <div class="profit-cell">
+                <span class="pl-label">POS费率</span>
+                <span class="pl-value font-mono">{{ profitPosRateLabel }}</span>
               </div>
-              <div class="profit-metric">
-                <span class="pm-label">POS成本</span>
-                <span class="pm-value neg font-mono">¥{{ formatMoneySafe(profitOverview.totalPosCostAmount) }}</span>
-              </div>
-              <div class="profit-metric">
-                <span class="pm-label">其他费用</span>
-                <span class="pm-value neg font-mono">¥{{ formatMoneySafe(profitOverview.totalOtherFeeAmount) }}</span>
+              <div class="profit-cell">
+                <span class="pl-label">其他费用</span>
+                <span class="pl-value neg font-mono">¥{{ formatMoneySafe(profitOverview.totalOtherFeeAmount) }}</span>
               </div>
             </div>
           </div>
@@ -1509,13 +1501,16 @@ const profitScopeLabel = computed(() => {
 })
 let profitScopeRequestSeq = 0
 
-const profitRateLabel = computed(() => `${formatRate(activeUser.value?.feeRate ?? 0)}%`)
-const profitFeePayStatusLabel = computed(() => {
-  const paidCount = profitOverview.value.paidFeeCount
-  const unpaidCount = profitOverview.value.unpaidFeeCount
-  if (!paidCount && !unpaidCount) return '暂无手续费'
-  return `已收 ${paidCount} / 未收 ${unpaidCount}`
-})
+const profitRateLabel = computed(() => formatDerivedRate(profitOverview.value.totalFeeAmount, profitOverview.value.totalBillAmount, activeUser.value?.feeRate))
+const profitPosRateLabel = computed(() => formatDerivedRate(profitOverview.value.totalPosCostAmount, profitOverview.value.totalBillAmount))
+
+function formatDerivedRate(amount: any, baseAmount: any, fallbackRate?: any) {
+  const base = toAmount(baseAmount)
+  if (base > 0) {
+    return `${formatRate((toAmount(amount) / base) * 100)}%`
+  }
+  return `${formatRate(fallbackRate ?? 0)}%`
+}
 
 function currentProfitScopeSnapshot() {
   return {
@@ -3441,10 +3436,9 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 }
 
 .profit-summary-block {
-  overflow-y: auto;
-  overflow-x: hidden;
-  gap: 6px;
-  padding-right: 2px;
+  overflow: hidden;
+  gap: 0;
+  padding: 10px 12px 12px;
 }
 
 .block-head {
@@ -3726,40 +3720,93 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   flex-shrink: 0;
 }
 
-.profit-kpi {
-  min-height: 58px;
-  padding: 7px 9px;
-  border-radius: 8px;
-  border: 1px solid rgba(219,226,234,.85);
-  background: linear-gradient(180deg, rgba(255,255,255,.99) 0%, rgba($primary,.03) 180%);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+.profit-ledger {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1.25fr) repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 
-.pk-label {
+.profit-cell {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid rgba(219,226,234,.82);
+  background: rgba(248,250,252,.88);
+  padding: 7px 10px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "label value"
+    "note note";
+  column-gap: 8px;
+  row-gap: 3px;
+}
+
+.profit-cell > * {
+  align-self: center;
+}
+
+.profit-cell.is-net {
+  grid-column: 1 / -1;
+  background: linear-gradient(180deg, rgba(255,255,255,.99) 0%, rgba($success,.08) 180%);
+  border-color: rgba($success,.34);
+  box-shadow: inset 3px 0 0 rgba($success,.72);
+  padding: 8px 12px;
+}
+
+.profit-cell.is-income {
+  background: rgba($success,.055);
+  border-color: rgba($success,.20);
+}
+
+.pl-label {
+  grid-area: label;
+  min-width: 0;
   overflow: hidden;
   color: $sub;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 800;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.pk-value {
-  margin-top: 3px;
+
+.pl-value {
+  grid-area: value;
+  min-width: 0;
   overflow: hidden;
-  font-size: 18px;
+  color: $ink;
+  font-size: 12.5px;
   font-weight: 900;
   letter-spacing: 0;
-  line-height: 1.05;
+  line-height: 1.1;
+  text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.pk-value.pos { color: $success; }
-.pk-value.neg { color: $danger; }
-.pk-sub {
-  margin-top: 3px;
+
+.profit-cell.is-net .pl-label {
+  color: $ink;
+  font-size: 12.5px;
+}
+
+.profit-cell.is-net .pl-value {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.pl-value.pos { color: #18905d; }
+.pl-value.neg { color: #d04444; }
+
+.pl-note {
+  grid-area: note;
+  min-width: 0;
   overflow: hidden;
   color: $faint;
   font-size: 10px;
@@ -3769,53 +3816,19 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   white-space: nowrap;
 }
 
-.profit-net-grid,
-.profit-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.profit-grid-3 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.profit-metric {
-  min-height: 36px;
-  border-radius: 8px;
-  border: 1px solid rgba(219,226,234,.75);
-  background: rgba(148,163,184,.10);
-  padding: 6px 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.pm-label {
-  overflow: hidden;
-  color: $sub;
-  font-size: 10.5px;
-  font-weight: 800;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 0 0 64px;
-}
-.pm-value {
-  flex: 1 1 auto;
-  font-size: 12px;
-  font-weight: 900;
-  color: $ink;
-  line-height: 1.2;
-  min-width: 0;
-  overflow: hidden;
+.profit-cell:not(.is-net) .pl-note {
   text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-.pm-value.pos { color: $success; }
-.pm-value.warn { color: $warning; }
-.pm-value.neg { color: $danger; }
+
+.profit-cell.is-net .pl-note {
+  color: $sub;
+  font-weight: 800;
+}
+
+.profit-cell.is-income .pl-label,
+.profit-cell.is-income .pl-note {
+  color: #4f8f75;
+}
 
 .font-mono {
   font-family: var(--font-mono), monospace;
@@ -4150,7 +4163,8 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   .mini-stats { gap: 6px; }
   .bill-item { gap: 6px; }
   .mini-stat { padding: 9px 9px 8px; }
-  .pk-value { font-size: 18px; }
+  .profit-cell { padding: 7px 8px; }
+  .profit-cell.is-net .pl-value { font-size: 18px; }
 }
 
 @media (max-width: 1280px) {
@@ -4167,7 +4181,8 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   .bill-amount-edit {
     grid-template-columns: 24px 8px minmax(0, 1fr);
   }
-  .profit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .profit-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .profit-ledger { gap: 6px; }
+  .pl-label { font-size: 10.5px; }
+  .pl-value { font-size: 12px; }
 }
 </style>

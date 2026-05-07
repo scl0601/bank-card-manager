@@ -34,6 +34,7 @@ import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -155,6 +156,9 @@ public class CardBillServiceImpl
         BeanUtils.copyProperties(dto, entity);
         entity.setBillAmount(scaleMoney(dto.getBillAmount()));
         entity.setFeePaid(Boolean.TRUE.equals(dto.getFeePaid()));
+        entity.setFeePaidAmount(scaleMoney(dto.getFeePaidAmount()));
+        entity.setFeePayMethod(normalizeFeePayMethod(dto.getFeePayMethod()));
+        entity.setFeePayTime(dto.getFeePayTime());
         entity.setVerified(Boolean.TRUE.equals(dto.getVerified()));
         entity.setExpenseVerified(Boolean.TRUE.equals(dto.getExpenseVerified()));
         applyOwnerInfo(entity, card.getUserId());
@@ -189,6 +193,15 @@ public class CardBillServiceImpl
         entity.setRemark(dto.getRemark());
         if (dto.getFeePaid() != null) {
             entity.setFeePaid(dto.getFeePaid());
+        }
+        if (dto.getFeePaidAmount() != null) {
+            entity.setFeePaidAmount(scaleMoney(dto.getFeePaidAmount()));
+        }
+        if (dto.getFeePayTime() != null) {
+            entity.setFeePayTime(dto.getFeePayTime());
+        }
+        if (dto.getFeePayMethod() != null) {
+            entity.setFeePayMethod(normalizeFeePayMethod(dto.getFeePayMethod()));
         }
         if (dto.getVerified() != null) {
             entity.setVerified(dto.getVerified());
@@ -454,6 +467,9 @@ public class CardBillServiceImpl
         entity.setFeeRate(normalizeFeeRate(feeRate));
         entity.setPosCostAmount(scaleMoney(dto.getPosCostAmount() != null ? dto.getPosCostAmount() : entity.getPosCostAmount()));
         entity.setOtherFeeAmount(scaleMoney(dto.getOtherFeeAmount() != null ? dto.getOtherFeeAmount() : entity.getOtherFeeAmount()));
+        if (StringUtils.hasText(dto.getFeePayMethod())) {
+            entity.setFeePayMethod(normalizeFeePayMethod(dto.getFeePayMethod()));
+        }
     }
 
     private void upsertBillsForRange(Long cardId, Long ownerId, Integer billDay, Integer repayDay, BigDecimal feeRate, YearMonth start, YearMonth end) {
@@ -487,6 +503,9 @@ public class CardBillServiceImpl
                 bill.setFeeRate(normalizedFeeRate);
                 bill.setFeeAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
                 bill.setFeePaid(false);
+                bill.setFeePaidAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+                bill.setFeePayMethod(null);
+                bill.setFeePayTime(null);
                 bill.setVerified(false);
                 bill.setExpenseVerified(false);
                 bill.setPosCostAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
@@ -608,6 +627,31 @@ public class CardBillServiceImpl
         BigDecimal otherFee = scaleMoney(entity.getOtherFeeAmount());
         entity.setOtherFeeAmount(otherFee);
         entity.setNetProfit(feeAmount.subtract(posCost).subtract(otherFee).setScale(2, RoundingMode.HALF_UP));
+        normalizeFeePayment(entity);
+    }
+
+    private void normalizeFeePayment(CardBill entity) {
+        BigDecimal feeAmount = scaleMoney(entity.getFeeAmount());
+        BigDecimal paidAmount = scaleMoney(entity.getFeePaidAmount());
+        if (paidAmount.compareTo(BigDecimal.ZERO) < 0) {
+            paidAmount = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        if (Boolean.TRUE.equals(entity.getFeePaid()) && paidAmount.compareTo(BigDecimal.ZERO) == 0 && feeAmount.compareTo(BigDecimal.ZERO) > 0) {
+            paidAmount = feeAmount;
+        }
+        entity.setFeePaidAmount(paidAmount);
+        boolean hasPaidAmount = paidAmount.compareTo(BigDecimal.ZERO) > 0;
+        boolean fullPaid = feeAmount.compareTo(BigDecimal.ZERO) > 0
+                ? paidAmount.compareTo(feeAmount) >= 0
+                : hasPaidAmount;
+        entity.setFeePaid(fullPaid);
+        if (paidAmount.compareTo(BigDecimal.ZERO) > 0 && entity.getFeePayTime() == null) {
+            entity.setFeePayTime(LocalDateTime.now());
+        }
+        if (paidAmount.compareTo(BigDecimal.ZERO) == 0) {
+            entity.setFeePayMethod(null);
+            entity.setFeePayTime(null);
+        }
     }
 
     private void refreshBillState(CardBill entity) {
@@ -696,6 +740,17 @@ public class CardBillServiceImpl
             throw new BusinessException(ResultCode.PARAM_ERROR, "账单费率必须为0-100之间的数字，例如1表示1%");
         }
         return feeRate.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private String normalizeFeePayMethod(String method) {
+        if (!StringUtils.hasText(method)) {
+            return null;
+        }
+        String normalized = method.trim().toLowerCase();
+        return switch (normalized) {
+            case "wechat", "alipay", "cash", "other" -> normalized;
+            default -> throw new BusinessException(ResultCode.PARAM_ERROR, "手续费支付方式只支持微信、支付宝、现金、其他");
+        };
     }
 
     private BigDecimal scaleMoney(BigDecimal value) {
