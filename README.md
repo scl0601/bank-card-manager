@@ -33,7 +33,7 @@
 
 | 服务 | 访问地址 | 状态 |
 |------|----------|------|
-| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202605061950](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202605061950) | ✅ 已上线 |
+| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202605072147](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=202605072147) | ✅ 已上线 |
 | **后端 API** | `https://bank-admin-backend-239413-10-1411764939.sh.run.tcloudbase.com` | ✅ 运行中 |
 
 ---
@@ -47,7 +47,7 @@
 
 ### 云托管服务配置
 - **服务名称**: bank-admin-backend
-- **当前线上版本**: bank-admin-backend-029 (部署中...)
+- **当前线上版本**: bank-admin-backend-030 (部署中...)
 - **服务类型**: 容器型 (Container)
 - **CPU**: 1 核
 - **内存**: 2 GB
@@ -142,6 +142,16 @@ npm run dev
 ---
 
 ## 更新日志
+
+### 2026-05-07 (21:47 更新)
+- **部署最新代码**: 银行卡管理页面 + 账单模块优化 (b2f1743)
+- **数据库补丁**:
+  - `card_bill` 表新增 `fee_paid_amount` 字段（手续费已支付金额）
+  - `card_bill` 表新增 `fee_pay_time` 字段（最近手续费支付时间）
+  - `card_bill` 表新增 `fee_pay_method` 字段（支付方式：wechat/alipay/cash/other）
+- 前端44个文件已上传到静态托管
+- 后端云托管 `bank-admin-backend` v030 部署中
+- 更新前端缓存刷新参数为 `?v=202605072147`
 
 ### 2026-05-06 (19:50 更新)
 - **部署最新代码**: 银行卡管理页面优化 (bf7ea76)
