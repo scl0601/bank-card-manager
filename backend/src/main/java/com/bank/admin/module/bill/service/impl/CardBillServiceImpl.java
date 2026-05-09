@@ -387,12 +387,9 @@ public class CardBillServiceImpl
         if (bill == null) {
             return;
         }
-        // 只刷新还款状态，不重新计算 billAmount
+        // 只刷新实际还款金额（不改变账单状态）
         refreshBillState(bill);
         updateById(bill);
-        if (bill.getStatus() != null && bill.getStatus() == 1) {
-            reminderTaskService.closeBillReminders(billId);
-        }
     }
 
     @Override
@@ -657,12 +654,9 @@ public class CardBillServiceImpl
     }
 
     private void refreshBillState(CardBill entity) {
-        // 根据还款明细自动计算实际还款金额
+        // 根据还款明细自动计算实际还款金额（不改变账单状态）
         BigDecimal totalIncome = calculateTotalIncomeFromDetails(entity.getId());
         entity.setActualPayAmount(totalIncome);
-
-        // 根据实际还款金额计算状态
-        entity.setStatus(resolveBillStatus(entity, LocalDate.now()));
     }
 
     /**
