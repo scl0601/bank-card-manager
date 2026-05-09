@@ -166,6 +166,10 @@ public class CardBillServiceImpl
         applyFeeAndRepayInfo(entity, dto, card);
         recalculateProfit(entity);
         refreshBillState(entity);
+        // 用户手动指定的状态优先于自动计算
+        if (dto.getStatus() != null) {
+            entity.setStatus(normalizeBillStatus(dto.getStatus()));
+        }
         super.save(entity);
         if (entity.getStatus() != null && entity.getStatus() == 1) {
             reminderTaskService.closeBillReminders(entity.getId());
@@ -248,18 +252,13 @@ public class CardBillServiceImpl
         if (expenseVerified != null) {
             entity.setExpenseVerified(expenseVerified);
         }
-        int status = resolveBillStatus(entity, LocalDate.now());
-        entity.setStatus(status);
+        // 核实操作不再自动改变账单状态，状态由用户手动管理
 
         LambdaUpdateWrapper<CardBill> wrapper = new LambdaUpdateWrapper<CardBill>()
                 .eq(CardBill::getId, id)
                 .set(verified != null, CardBill::getVerified, verified)
-                .set(expenseVerified != null, CardBill::getExpenseVerified, expenseVerified)
-                .set(CardBill::getStatus, status);
+                .set(expenseVerified != null, CardBill::getExpenseVerified, expenseVerified);
         update(wrapper);
-        if (status == 1) {
-            reminderTaskService.closeBillReminders(id);
-        }
     }
 
     @Override
@@ -685,9 +684,6 @@ public class CardBillServiceImpl
     }
 
     private int resolveBillStatus(CardBill entity, LocalDate today) {
-        if (Boolean.TRUE.equals(entity.getVerified()) && Boolean.TRUE.equals(entity.getExpenseVerified())) {
-            return 1; // 已还清
-        }
         BigDecimal billAmount = defaultZero(entity.getBillAmount());
         BigDecimal actualPayAmount = defaultZero(entity.getActualPayAmount());
         if (actualPayAmount.compareTo(BigDecimal.ZERO) > 0) {

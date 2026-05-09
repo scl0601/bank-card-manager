@@ -47,7 +47,7 @@
 
 ### 云托管服务配置
 - **服务名称**: bank-admin-backend
-- **当前线上版本**: bank-admin-backend-033 (运行中)
+- **当前线上版本**: bank-admin-backend-035 (部署中...)
 - **服务类型**: 容器型 (Container)
 - **CPU**: 1 核
 - **内存**: 2 GB
@@ -142,6 +142,20 @@ npm run dev
 ---
 
 ## 更新日志
+
+### 2026-05-10 (00:48 更新)
+- **彻底修复**: 账单明细保存失败 - 根因是 BaseEntity 缺少 `_openid` 字段 (c8c0197)
+- **根因链路分析**:
+  1. `bill_detail` 表有 `_openid NOT NULL` 约束
+  2. `BaseEntity` 没有 `openid` 字段 → `BillDetail` 继承后也没有
+  3. `MetaObjectHandlerConfig` 的 `hasGetter("openid")` 返回 false → 自动填充不执行
+  4. INSERT SQL 不包含 `_openid` 列 → 数据库 NOT NULL 报错
+- **修复方案（三管齐下）**:
+  1. `BaseEntity.java`: 新增 `@TableField(value="_openid", fill=FieldFill.INSERT)` 字段，所有实体继承
+  2. `MetaObjectHandlerConfig.java`: 简化为 `hasGetter("openid")` 时填充 `"system"` 默认值
+  3. 数据库: `ALTER TABLE bill_detail MODIFY _openid VARCHAR(64) DEFAULT 'system'`
+- 代码已推送到 GitHub
+- 后端云托管 v035 部署中
 
 ### 2026-05-10 (00:42 更新)
 - **修复**: 账单列表筛选月份改为按还款日筛选而非账单日 (3498edd)
