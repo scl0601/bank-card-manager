@@ -37,7 +37,7 @@
           class="app-search-item app-search-item-sm"
           type="month"
           value-format="YYYY-MM"
-          placeholder="筛选账单月份"
+          placeholder="筛选还款月份"
           :editable="false"
           clearable
         />
@@ -1014,9 +1014,9 @@ function resolveBillPageSize(params: any) {
 
 function syncBillMonthQuery() {
   const billMonth = String(billMonthFilter.value || '').trim()
-  query.startBillMonth = billMonth
-  query.endBillMonth = billMonth
-  query.repayMonth = ''
+  query.repayMonth = billMonth
+  query.startBillMonth = ''
+  query.endBillMonth = ''
   query.repayYear = undefined as any
 }
 
