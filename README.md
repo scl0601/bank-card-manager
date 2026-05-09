@@ -33,7 +33,7 @@
 
 | 服务 | 访问地址 | 状态 |
 |------|----------|------|
-| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=2026081257](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=2026081257) | ✅ 已上线 |
+| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=2026100042](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=2026100042) | ✅ 已上线 |
 | **后端 API** | `https://bank-admin-backend-239413-10-1411764939.sh.run.tcloudbase.com` | ✅ 运行中 |
 
 ---
@@ -47,7 +47,7 @@
 
 ### 云托管服务配置
 - **服务名称**: bank-admin-backend
-- **当前线上版本**: bank-admin-backend-031 (部署中...)
+- **当前线上版本**: bank-admin-backend-033 (运行中)
 - **服务类型**: 容器型 (Container)
 - **CPU**: 1 核
 - **内存**: 2 GB
@@ -142,6 +142,51 @@ npm run dev
 ---
 
 ## 更新日志
+
+### 2026-05-10 (00:42 更新)
+- **修复**: 账单列表筛选月份改为按还款日筛选而非账单日 (3498edd)
+- **修改文件**: `frontend/src/views/bill/BillList.vue`
+- **修改内容**:
+  1. 筛选器 placeholder 从 "筛选账单月份" 改为 "筛选还款月份"
+  2. `syncBillMonthQuery()` 逻辑：将值传给 `query.repayMonth`（后端按 `DATE_FORMAT(repay_date, '%Y-%m')` 查询），而非之前的 `startBillMonth/endBillMonth`
+- 后端已支持 `repayMonth` 参数，无需改后端代码
+- 代码已推送到 GitHub 远程仓库
+- 前端44个文件已上传到静态托管（纯前端改动，无需重新部署后端）
+- 更新前端缓存刷新参数为 `?v=2026100042`
+
+### 2026-05-10 (00:38 更新) - 补丁
+- **修复**: 修正 `ServletRequestAttributes` 的 import 路径
+  - 错误: `org.springframework.web.servlet.ServletRequestAttributes` (不存在)
+  - 正确: `org.springframework.web.context.request.ServletRequestAttributes` (来自 spring-web)
+- **部署**: 前端已上传 + 后端 v034 部署中（CloudRun 构建较慢，可能已排队）
+- **代码**: 已提交 (a9fec41) 并推送到 GitHub
+
+### 2026-05-10 (00:38 更新)
+- **修复**: 账单明细保存失败 - MetaObjectHandlerConfig 增加 `_openid` 自动填充 (7b5b36f)
+- **根因分析**:
+  - `bill_detail` 表有 `_openid NOT NULL` 约束
+  - `MetaObjectHandlerConfig` 的 `insertFill()` 没有处理 `_openid` 字段
+  - 新增明细时 INSERT 缺少 `_openid` 值，导致 SQL 报错保存失败
+- **修复方案**:
+  - 在 `insertFill()` 中增加 `_openid` 字段自动填充逻辑
+  - 优先从请求头 `x-wx-openid` 获取，无则填默认值 `"system"`
+  - 使用 `hasGetter("_openid")` 判断，仅对含该字段的实体生效
+- 代码已推送到 GitHub 远程仓库
+- 前端44个文件已上传到静态托管
+- 后端云托管 v033 已部署成功（状态 normal）
+- 更新前端缓存刷新参数为 `?v=2026100038`
+
+### 2026-05-10 (00:24 更新)
+- **部署最新代码**: 银行卡管理 + 账单模块优化 (3c7df35)
+- **问题修复**:
+  - `CardBillServiceImpl` 新增 `normalizeBillStatus()` 状态校验，防止非法 status 值导致保存失败
+  - 之前"账单新增明细一直保存不了"的原因：后端对状态值做了严格校验，前后端版本不一致时容易触发异常
+  - 本次部署已确保前后端代码同步
+- **前端变更**: BillList.vue 筛选区优化、状态徽章样式重构、CardUserList/ProfitStatsView/CardList UI调整
+- 无数据库变更（纯业务代码更新）
+- 前端44个文件已上传到静态托管
+- 后端云托管 `bank-admin-backend` v032 部署中
+- 更新前端缓存刷新参数为 `?v=2026100024`
 
 ### 2026-05-08 (12:57 更新)
 - **部署最新代码**: 银行卡管理页面 + 利润统计优化 (fbd729d)
