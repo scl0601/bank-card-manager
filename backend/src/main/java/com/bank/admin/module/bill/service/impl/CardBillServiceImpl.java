@@ -220,6 +220,9 @@ public class CardBillServiceImpl
         applyFeeAndRepayInfo(entity, dto, card);
         recalculateProfit(entity);
         refreshBillState(entity);
+        if (dto.getStatus() != null) {
+            entity.setStatus(normalizeBillStatus(dto.getStatus()));
+        }
         updateById(entity);
         if (entity.getStatus() != null && entity.getStatus() == 1) {
             reminderTaskService.closeBillReminders(entity.getId());
@@ -700,6 +703,13 @@ public class CardBillServiceImpl
             return 3; // 逾期
         }
         return 0; // 待还款
+    }
+
+    private int normalizeBillStatus(Integer status) {
+        if (status == null || status < 0 || status >= STATUS_DESC.length) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "账单状态不正确");
+        }
+        return status;
     }
 
     private void fillStatusDesc(CardBillVO vo) {

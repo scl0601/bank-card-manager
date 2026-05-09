@@ -53,14 +53,14 @@
           v-model="query.userId"
           class="app-search-item app-search-item-md profit-filter-item"
           :options="userFilterOptions"
-          placeholder="全部用户"
+          placeholder="全部洽谈人"
           clearable
           filterable
           :height="280"
           :item-height="30"
           popper-class="profit-filter-dropdown"
-          no-match-text="没有匹配用户"
-          no-data-text="暂无用户"
+          no-match-text="没有匹配洽谈人"
+          no-data-text="暂无洽谈人"
         />
         <el-select-v2
           v-model="query.cardId"
@@ -80,7 +80,7 @@
           class="app-search-item app-search-item-lg profit-filter-item"
           :options="viewFilterOptions"
           placeholder="统计视角"
-          :height="120"
+          :height="90"
           :item-height="30"
           popper-class="profit-filter-dropdown"
         />
@@ -201,109 +201,104 @@
       </div>
     </section>
 
-    <el-drawer v-model="profitEditorVisible" :title="profitEditorTitle" size="920px" destroy-on-close>
-      <div class="profit-editor">
-        <div v-if="profitEditorRows.length" class="profit-editor-list">
-          <div v-for="row in profitEditorRows" :key="row.id" class="profit-editor-card">
-            <div class="editor-card-head">
-              <div class="editor-bill-main">
-                <span class="editor-bill-title">{{ feeBillLabel(row) }}</span>
-                <span class="editor-bill-sub">{{ monthLabel(row.billMonth) }} · 还款日 {{ repayDateText(row.repayDate) }}</span>
-              </div>
-              <div class="editor-net" :class="draftNetProfit(row) >= 0 ? 'amount-income' : 'amount-cost'">
-                净利润 {{ formatMoney(draftNetProfit(row)) }}
-              </div>
+    <el-dialog
+      v-model="profitEditorVisible"
+      :title="profitEditorTitle"
+      width="980px"
+      class="profit-editor-dialog"
+      destroy-on-close
+    >
+      <div class="profit-editor" v-loading="profitEditorLoading">
+        <div v-if="profitEditorRows.length" class="profit-collect-panel">
+          <div class="collect-summary">
+            <div>
+              <span class="collect-label">统一收款对象</span>
+              <strong>{{ profitEditorScopeRow?.userName || '-' }}</strong>
+              <span>{{ profitEditorScopeRow?.monthLabel || '-' }}</span>
             </div>
-            <div class="editor-field-grid">
-              <div class="editor-field readonly-field">
-                <span>手续费</span>
-                <strong class="amount-income">{{ formatMoney(billFeeAmount(row)) }}</strong>
-              </div>
-              <label class="editor-field">
-                <span>已支付</span>
-                <el-input-number
-                  :model-value="profitDraftValue(row.id, 'feePaidAmount')"
-                  :min="0"
-                  :precision="2"
-                  :controls="false"
-                  size="small"
-                  class="editor-number-input"
-                  :disabled="savingProfitBillId === row.id"
-                  @update:model-value="(val: any) => updateProfitDraft(row.id, 'feePaidAmount', val)"
-                />
-              </label>
-              <label class="editor-field">
-                <span>支付方式</span>
-                <el-select
-                  :model-value="profitDraftValue(row.id, 'feePayMethod')"
-                  class="editor-method-select"
-                  placeholder="方式"
-                  clearable
-                  size="small"
-                  :disabled="savingProfitBillId === row.id"
-                  @update:model-value="(val: any) => updateProfitDraft(row.id, 'feePayMethod', val)"
-                >
-                  <el-option v-for="item in PAYMENT_METHOD_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
-                </el-select>
-              </label>
-              <label class="editor-field is-time">
-                <span>最近支付时间</span>
-                <el-date-picker
-                  :model-value="profitDraftValue(row.id, 'feePayTime')"
-                  class="editor-time-picker"
-                  type="datetime"
-                  value-format="YYYY-MM-DDTHH:mm:ss"
-                  placeholder="支付时间"
-                  size="small"
-                  :editable="false"
-                  clearable
-                  :disabled="savingProfitBillId === row.id"
-                  @update:model-value="(val: any) => updateProfitDraft(row.id, 'feePayTime', val)"
-                />
-              </label>
-              <label class="editor-field">
-                <span>其他费用</span>
-                <el-input-number
-                  :model-value="profitDraftValue(row.id, 'otherFeeAmount')"
-                  :min="0"
-                  :precision="2"
-                  :controls="false"
-                  size="small"
-                  class="editor-number-input"
-                  :disabled="savingProfitBillId === row.id"
-                  @update:model-value="(val: any) => updateProfitDraft(row.id, 'otherFeeAmount', val)"
-                />
-              </label>
-              <label class="editor-field">
-                <span>POS成本</span>
-                <el-input-number
-                  :model-value="profitDraftValue(row.id, 'posCostAmount')"
-                  :min="0"
-                  :precision="2"
-                  :controls="false"
-                  size="small"
-                  class="editor-number-input"
-                  :disabled="savingProfitBillId === row.id"
-                  @update:model-value="(val: any) => updateProfitDraft(row.id, 'posCostAmount', val)"
-                />
-              </label>
+            <div>
+              <span>账单 {{ profitEditorRows.length }} 条</span>
+              <span>应收 {{ formatMoney(profitEditorTotalFeeAmount) }}</span>
+              <span>其他费用 {{ formatMoney(profitCollectDraft.otherFeeAmount) }}</span>
+              <span>POS成本 {{ formatMoney(profitCollectDraft.posCostAmount) }}</span>
+              <span>剩余 {{ formatMoney(profitEditorRemainingFeeAmount) }}</span>
             </div>
-            <div class="editor-row-actions">
-              <el-button
-                type="primary"
+          </div>
+          <div class="collect-field-grid">
+            <label class="editor-field">
+              <span>本次统一收款</span>
+              <el-input-number
+                v-model="profitCollectDraft.feePaidAmount"
+                :min="0"
+                :max="profitEditorTotalFeeAmount"
+                :precision="2"
+                :controls="false"
                 size="small"
-                :loading="savingProfitBillId === row.id"
-                :disabled="!isProfitDraftChanged(row)"
-                @click="saveProfitBill(row)"
+                class="editor-number-input"
+                :disabled="savingProfitCollect"
+              />
+            </label>
+            <label class="editor-field">
+              <span>收款方式</span>
+              <el-select
+                v-model="profitCollectDraft.feePayMethod"
+                class="editor-method-select"
+                placeholder="方式"
+                clearable
+                size="small"
+                :disabled="savingProfitCollect"
               >
-                保存
-              </el-button>
+                <el-option v-for="item in PAYMENT_METHOD_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+              </el-select>
+            </label>
+            <label class="editor-field">
+              <span>统一其他费用</span>
+              <el-input-number
+                v-model="profitCollectDraft.otherFeeAmount"
+                :min="0"
+                :precision="2"
+                :controls="false"
+                size="small"
+                class="editor-number-input"
+                :disabled="savingProfitCollect"
+              />
+            </label>
+            <label class="editor-field">
+              <span>统一POS成本</span>
+              <el-input-number
+                v-model="profitCollectDraft.posCostAmount"
+                :min="0"
+                :precision="2"
+                :controls="false"
+                size="small"
+                class="editor-number-input"
+                :disabled="savingProfitCollect"
+              />
+            </label>
+            <label class="editor-field is-time">
+              <span>收款时间</span>
+              <el-date-picker
+                v-model="profitCollectDraft.feePayTime"
+                class="editor-time-picker"
+                type="datetime"
+                value-format="YYYY-MM-DDTHH:mm:ss"
+                placeholder="收款时间"
+                size="small"
+                :editable="false"
+                clearable
+                :disabled="savingProfitCollect"
+              />
+            </label>
+            <div class="collect-actions">
+              <el-button size="small" :disabled="savingProfitCollect" @click="fillFullCollectAmount">全额收款</el-button>
+              <el-button size="small" :disabled="savingProfitCollect" @click="clearCollectAmount">清空</el-button>
+              <el-button type="primary" size="small" :loading="savingProfitCollect" @click="saveProfitCollection">统一保存</el-button>
             </div>
           </div>
         </div>
         <el-empty v-else description="当前行暂无账单" :image-size="72" />
       </div>
-    </el-drawer>
+    </el-dialog>
   </div>
 </template>
 
@@ -404,6 +399,14 @@ interface ProfitDraft {
   posCostAmount: number
 }
 
+interface ProfitCollectDraft {
+  feePaidAmount: number
+  feePayMethod: string
+  feePayTime: string
+  otherFeeAmount: number
+  posCostAmount: number
+}
+
 interface FilterOption {
   label: string
   value: number | string
@@ -423,7 +426,6 @@ const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1)
 const monthFilterOptions: FilterOption[] = MONTH_OPTIONS.map((month) => ({ label: `${month}月`, value: month }))
 const viewFilterOptions: FilterOption[] = [
   { label: '每个用户12个月', value: 'userMonths' },
-  { label: '每张卡12个月', value: 'cardMonths' },
   { label: '每月所有用户', value: 'monthUsers' }
 ]
 const PAYMENT_METHOD_OPTIONS = [
@@ -442,10 +444,20 @@ const cardOptions = ref<CardOption[]>([])
 const billRows = ref<BillRow[]>([])
 const tableShellRef = ref<HTMLElement | null>(null)
 const profitEditorVisible = ref(false)
+const profitEditorLoading = ref(false)
 const profitEditorRows = ref<BillRow[]>([])
+const profitEditorScopeRow = ref<ProfitDetailRow | null>(null)
 const profitEditorBaseTitle = ref('收益编辑')
 const profitDraftMap = ref<Record<number, ProfitDraft>>({})
 const savingProfitBillId = ref<number | null>(null)
+const savingProfitCollect = ref(false)
+const profitCollectDraft = reactive<ProfitCollectDraft>({
+  feePaidAmount: 0,
+  feePayMethod: '',
+  feePayTime: '',
+  otherFeeAmount: 0,
+  posCostAmount: 0
+})
 
 const query = reactive({
   year: currentYear,
@@ -607,6 +619,9 @@ const summaryCards = computed(() => [
 ])
 
 const profitEditorTitle = computed(() => `${profitEditorBaseTitle.value} · ${currentScopeLabel.value}`)
+const profitEditorTotalFeeAmount = computed(() => roundMoney(profitEditorRows.value.reduce((sum, row) => sum + billFeeAmount(row), 0)))
+const profitEditorPaidAmount = computed(() => roundMoney(profitEditorRows.value.reduce((sum, row) => sum + billPaidAmount(row), 0)))
+const profitEditorRemainingFeeAmount = computed(() => Math.max(0, roundMoney(profitEditorTotalFeeAmount.value - toAmount(profitCollectDraft.feePaidAmount))))
 
 function currentQuerySnapshot(): ProfitQuery {
   return {
@@ -921,20 +936,11 @@ function buildHolderLabel(userId: number, cardId: number | undefined, bills: Bil
 }
 
 function buildCardInfoLabel(userId: number, cardId: number | undefined, cardCount: number, bills: BillRow[]) {
-  if (cardId) {
-    const card = cardOptions.value.find((item) => Number(item.id) === Number(cardId))
-    return cardInfoForCard(card) || summarizeNames(bills.map((bill) => `${bill.bankName || '-'} *${bill.cardNoLast4 || '-'}`), '指定银行卡')
-  }
-  const billCards = bills.map((bill) => `${bill.bankName || '-'} *${bill.cardNoLast4 || '-'}`)
-  const uniqueBillCards = Array.from(new Set(billCards.filter((label) => label && label !== '- *-')))
-  if (uniqueBillCards.length === 1) return uniqueBillCards[0]
-  if (uniqueBillCards.length === 2) return uniqueBillCards.join(' / ')
-  if (uniqueBillCards.length > 2) return `${uniqueBillCards.length}张卡`
-
-  const allCards = cardsForTopUser(userId)
-  if (allCards.length === 1) return cardInfoForCard(allCards[0])
-  if (allCards.length > 1) return `${allCards.length}张卡`
-  return cardCount > 0 ? `${cardCount}张卡` : '全部银行卡'
+  const billCardCount = distinctCount(bills.map((bill) => bill.cardId))
+  const scopedCardCount = cardId ? 1 : cardCount
+  const fallbackCardCount = cardId ? 1 : cardsForTopUser(userId).length
+  const count = scopedCardCount || billCardCount || fallbackCardCount
+  return count > 0 ? `${count}张卡` : '-'
 }
 
 function distinctCount(values: Array<number | undefined | null>) {
@@ -954,7 +960,6 @@ function applyRouteQuery() {
   if (userId > 0) query.userId = userId
   if (cardId > 0) {
     query.cardId = cardId
-    activeTab.value = 'cardMonths'
   } else if (month > 0) {
     activeTab.value = 'monthUsers'
   }
@@ -1044,16 +1049,46 @@ function resetQuery() {
   queueSearch()
 }
 
-function openProfitEditor(row: ProfitDetailRow) {
+async function openProfitEditor(row: ProfitDetailRow) {
   if (!row.bills.length) return
-  profitEditorBaseTitle.value = `${row.userName} · ${row.cardLabel && row.cardLabel !== '-' ? row.cardLabel + ' · ' : ''}${row.monthLabel}`
-  profitEditorRows.value = [...row.bills].sort((a, b) => {
+  profitEditorScopeRow.value = row
+  profitEditorBaseTitle.value = `${row.userName} · ${row.monthLabel} · 统一收款`
+  profitEditorRows.value = []
+  profitEditorVisible.value = true
+  profitEditorLoading.value = true
+  try {
+    const rows = await resolveProfitEditorRows(row)
+    profitEditorRows.value = sortProfitEditorRows(rows)
+    syncProfitDrafts(profitEditorRows.value)
+    syncProfitCollectDraft(profitEditorRows.value)
+  } catch (error: any) {
+    ElMessage.error(error?.response?.data?.message || error?.message || '加载洽谈人账单失败')
+  } finally {
+    profitEditorLoading.value = false
+  }
+}
+
+async function resolveProfitEditorRows(row: ProfitDetailRow) {
+  const localRows = billRows.value.filter((bill) => {
+    return Number(topUserForBill(bill)?.id || 0) === Number(row.userId)
+      && bill.billMonth === row.billMonth
+  })
+  if (!appliedQuery.cardId && localRows.length >= row.bills.length) {
+    return localRows
+  }
+  return fetchAllBillRows({
+    ownerId: row.userId,
+    billMonth: row.billMonth,
+    sortMode: 'monthAsc'
+  })
+}
+
+function sortProfitEditorRows(rows: BillRow[]) {
+  return [...rows].sort((a, b) => {
     const cardDelta = feeBillLabel(a).localeCompare(feeBillLabel(b), 'zh-CN')
     if (cardDelta !== 0) return cardDelta
     return Number(a.id) - Number(b.id)
   })
-  syncProfitDrafts(profitEditorRows.value)
-  profitEditorVisible.value = true
 }
 
 function syncProfitDrafts(rows: BillRow[]) {
@@ -1068,6 +1103,24 @@ function syncProfitDrafts(rows: BillRow[]) {
     }
   })
   profitDraftMap.value = next
+}
+
+function syncProfitCollectDraft(rows: BillRow[]) {
+  profitCollectDraft.feePaidAmount = roundMoney(rows.reduce((sum, row) => sum + billFeeAmount(row), 0))
+  profitCollectDraft.feePayMethod = sharedPaymentMethod(rows)
+  profitCollectDraft.feePayTime = normalizeDateTime(latestTime(rows.map((row) => row.feePayTime || '').filter(Boolean)))
+  profitCollectDraft.otherFeeAmount = roundMoney(rows.reduce((sum, row) => sum + toAmount(row.otherFeeAmount), 0))
+  profitCollectDraft.posCostAmount = roundMoney(rows.reduce((sum, row) => sum + toAmount(row.posCostAmount), 0))
+}
+
+function sharedPaymentMethod(rows: BillRow[]) {
+  const methods = Array.from(new Set(
+    rows
+      .filter((row) => billPaidAmount(row) > 0)
+      .map((row) => String(row.feePayMethod || '').trim())
+      .filter(Boolean)
+  ))
+  return methods.length === 1 ? methods[0] : ''
 }
 
 function profitDraftValue(id: number, field: keyof ProfitDraft) {
@@ -1101,37 +1154,116 @@ function draftNetProfit(row: BillRow) {
   return billFeeAmount(row) - toAmount(draft?.posCostAmount ?? row.posCostAmount) - toAmount(draft?.otherFeeAmount ?? row.otherFeeAmount)
 }
 
-async function saveProfitBill(row: BillRow) {
-  const draft = profitDraftMap.value[row.id]
-  if (!draft || savingProfitBillId.value === row.id) return
-  const feePaidAmount = toAmount(draft.feePaidAmount)
-  if (feePaidAmount > 0 && !draft.feePayMethod) {
-    ElMessage.warning('已支付金额大于0时请选择支付方式')
+function fillFullCollectAmount() {
+  profitCollectDraft.feePaidAmount = profitEditorTotalFeeAmount.value
+  if (!profitCollectDraft.feePayTime) {
+    profitCollectDraft.feePayTime = formatDateTimeForInput(new Date())
+  }
+}
+
+function clearCollectAmount() {
+  profitCollectDraft.feePaidAmount = 0
+  profitCollectDraft.feePayMethod = ''
+  profitCollectDraft.feePayTime = ''
+  profitCollectDraft.otherFeeAmount = 0
+  profitCollectDraft.posCostAmount = 0
+}
+
+function allocateAmountByFeeWeight(rows: BillRow[], amount: number, options: { capByFee?: boolean } = {}) {
+  let remaining = roundMoney(Math.max(0, amount))
+  const validRows = rows.filter((row) => Number(row.id) > 0)
+  const allocation = new Map<number, number>()
+  const totalWeight = validRows.reduce((sum, row) => sum + Math.max(0, billFeeAmount(row)), 0)
+
+  validRows.forEach((row, index) => {
+    const feeAmount = Math.max(0, billFeeAmount(row))
+    const isLast = index === validRows.length - 1
+    const rawValue = isLast
+      ? remaining
+      : totalWeight > 0
+        ? roundMoney((amount * feeAmount) / totalWeight)
+        : roundMoney(amount / validRows.length)
+    const nextValue = options.capByFee ? Math.min(feeAmount, rawValue) : rawValue
+    const value = roundMoney(Math.min(remaining, Math.max(0, nextValue)))
+    allocation.set(Number(row.id), value)
+    remaining = roundMoney(remaining - value)
+  })
+
+  if (remaining > 0.005 && validRows.length) {
+    for (const row of validRows) {
+      if (remaining <= 0.005) break
+      const id = Number(row.id)
+      const current = allocation.get(id) || 0
+      const room = options.capByFee ? roundMoney(billFeeAmount(row) - current) : remaining
+      if (room <= 0) continue
+      const extra = roundMoney(Math.min(room, remaining))
+      allocation.set(id, roundMoney(current + extra))
+      remaining = roundMoney(remaining - extra)
+    }
+  }
+
+  return allocation
+}
+
+async function saveProfitCollection() {
+  if (!profitEditorRows.value.length || savingProfitCollect.value) return
+  const feePaidAmount = toAmount(profitCollectDraft.feePaidAmount)
+  if (feePaidAmount > 0 && !profitCollectDraft.feePayMethod) {
+    ElMessage.warning('统一收款金额大于0时请选择收款方式')
     return
   }
 
+  savingProfitCollect.value = true
+  try {
+    const feePayTime = feePaidAmount > 0 ? (profitCollectDraft.feePayTime || formatDateTimeForInput(new Date())) : ''
+    const paidAllocation = allocateAmountByFeeWeight(profitEditorRows.value, Math.min(feePaidAmount, profitEditorTotalFeeAmount.value), { capByFee: true })
+    const otherFeeAllocation = allocateAmountByFeeWeight(profitEditorRows.value, toAmount(profitCollectDraft.otherFeeAmount))
+    const posCostAllocation = allocateAmountByFeeWeight(profitEditorRows.value, toAmount(profitCollectDraft.posCostAmount))
+    for (const row of profitEditorRows.value) {
+      const rowPaidAmount = paidAllocation.get(Number(row.id)) || 0
+      const payload = buildBillUpdatePayload(row, {
+        feePaidAmount: rowPaidAmount,
+        feePaid: isFeePaidFlag(billFeeAmount(row), rowPaidAmount),
+        feePayMethod: rowPaidAmount > 0 ? profitCollectDraft.feePayMethod : null,
+        feePayTime: rowPaidAmount > 0 ? feePayTime : null,
+        otherFeeAmount: otherFeeAllocation.get(Number(row.id)) || 0,
+        posCostAmount: posCostAllocation.get(Number(row.id)) || 0
+      })
+      await updateBillApi(payload)
+      applySavedProfitDraft(row, payload, { syncDrafts: false })
+    }
+    syncProfitDrafts(profitEditorRows.value)
+    syncProfitCollectDraft(profitEditorRows.value)
+    profitEditorVisible.value = false
+    ElMessage.success('洽谈人统一收款已保存')
+  } catch (error: any) {
+    ElMessage.error(error?.response?.data?.message || error?.message || '保存统一收款失败')
+  } finally {
+    savingProfitCollect.value = false
+  }
+}
+
+async function saveProfitBill(row: BillRow) {
+  const draft = profitDraftMap.value[row.id]
+  if (!draft || savingProfitBillId.value === row.id || savingProfitCollect.value) return
+
   savingProfitBillId.value = row.id
   try {
-    const feePayTime = feePaidAmount > 0 ? (draft.feePayTime || formatDateTimeForInput(new Date())) : ''
     const payload = buildBillUpdatePayload(row, {
-      feePaidAmount,
-      feePaid: isFeePaidFlag(billFeeAmount(row), feePaidAmount),
-      feePayMethod: feePaidAmount > 0 ? draft.feePayMethod : null,
-      feePayTime: feePaidAmount > 0 ? feePayTime : null,
       posCostAmount: toAmount(draft.posCostAmount),
       otherFeeAmount: toAmount(draft.otherFeeAmount)
     })
     await updateBillApi(payload)
     applySavedProfitDraft(row, payload)
-    ElMessage.success('收益信息已保存')
+    ElMessage.success('成本信息已保存')
   } catch (error: any) {
-    ElMessage.error(error?.response?.data?.message || error?.message || '保存收益信息失败')
+    ElMessage.error(error?.response?.data?.message || error?.message || '保存成本信息失败')
   } finally {
     savingProfitBillId.value = null
   }
 }
 
-function applySavedProfitDraft(row: BillRow, payload: Record<string, any>) {
+function applySavedProfitDraft(row: BillRow, payload: Record<string, any>, options: { syncDrafts?: boolean } = {}) {
   const target = billRows.value.find((bill) => Number(bill.id) === Number(row.id))
   const patch = {
     feePaidAmount: payload.feePaidAmount,
@@ -1144,7 +1276,10 @@ function applySavedProfitDraft(row: BillRow, payload: Record<string, any>) {
   }
   if (target) Object.assign(target, patch)
   Object.assign(row, patch)
-  syncProfitDrafts(profitEditorRows.value)
+  if (options.syncDrafts !== false) {
+    syncProfitDrafts(profitEditorRows.value)
+    syncProfitCollectDraft(profitEditorRows.value)
+  }
 }
 
 function buildBillUpdatePayload(row: BillRow, overrides: Record<string, any>) {
@@ -1269,6 +1404,10 @@ function formatDateTimeForInput(value: Date) {
 function toAmount(value: number | string | null | undefined) {
   const amount = Number(value ?? 0)
   return Number.isFinite(amount) ? amount : 0
+}
+
+function roundMoney(value: number | string | null | undefined) {
+  return Number(toAmount(value).toFixed(2))
 }
 
 function formatMoney(value: number | string | null | undefined) {
@@ -1913,6 +2052,104 @@ watch(userSortOrder, () => {
   flex-direction: column;
   gap: 8px;
   min-height: 260px;
+  max-height: 72vh;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+:global(.profit-editor-dialog .el-dialog__body) {
+  padding: 8px 16px 16px;
+}
+
+:global(.profit-editor-dialog) {
+  max-width: calc(100vw - 32px);
+}
+
+:global(.profit-editor-dialog .el-dialog__header) {
+  padding: 14px 16px 8px;
+  margin-right: 0;
+}
+
+.profit-collect-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(9, 88, 217, 0.18);
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #f4f8ff 120%);
+}
+
+.collect-summary {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.8fr);
+  gap: 10px;
+  min-width: 0;
+  color: #526074;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.collect-summary > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 1px solid #e5eaf1;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.collect-summary > div:last-child {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  white-space: normal;
+}
+
+.collect-summary strong {
+  color: #0958d9;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.collect-label {
+  color: #667085;
+}
+
+.collect-field-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.collect-field-grid .editor-field.is-time {
+  grid-column: auto;
+}
+
+.collect-field-grid .editor-field {
+  grid-template-columns: 96px minmax(0, 1fr);
+}
+
+.collect-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+  grid-column: 1 / -1;
+  min-width: 0;
+  min-height: 30px;
+  padding-top: 2px;
+}
+
+.collect-actions :deep(.el-button) {
+  min-width: 82px;
+  margin-left: 0;
+  padding: 0 12px;
 }
 
 .profit-editor-list {
@@ -2065,6 +2302,14 @@ watch(userSortOrder, () => {
   .profit-filter-grid {
     flex-wrap: wrap;
   }
+
+  .collect-field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .collect-actions {
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 1120px) {
@@ -2077,6 +2322,22 @@ watch(userSortOrder, () => {
 }
 
 @media (max-width: 960px) {
+  .collect-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .collect-summary > div:last-child {
+    justify-content: flex-start;
+  }
+
+  .collect-field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .collect-field-grid .editor-field.is-time {
+    grid-column: auto;
+  }
+
   .editor-field-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

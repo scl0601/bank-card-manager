@@ -20,15 +20,15 @@
         <div class="app-search-title">筛选</div>
         <el-input
           v-model="query.ownerName"
-          class="app-search-item app-search-item-md"
-          placeholder="请输入持卡人姓名模糊查询"
+          class="app-search-item app-search-item-sm"
+          placeholder="持卡人姓名"
           clearable
           maxlength="20"
         />
         <el-input
           v-model="query.cardName"
-          class="app-search-item app-search-item-lg"
-          placeholder="请输入名称或银行卡尾号查询"
+          class="app-search-item app-search-item-sm"
+          placeholder="银行名称或尾号"
           clearable
           maxlength="30"
         />
@@ -41,12 +41,14 @@
           :editable="false"
           clearable
         />
-        <el-select v-model="query.status" class="app-search-item app-search-item-sm" placeholder="请选择账单状态" clearable>
+        <el-select
+          v-model="query.status"
+          class="app-search-item app-search-item-sm"
+          placeholder="请选择账单状态"
+          clearable
+          @change="handleStatusFilterChange"
+        >
           <el-option v-for="item in BILL_STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
-        </el-select>
-        <el-select v-model="query.feePaid" class="app-search-item app-search-item-sm" placeholder="请选择手续费支付状态" clearable>
-          <el-option label="已支付" :value="true" />
-          <el-option label="未支付" :value="false" />
         </el-select>
         <div class="app-search-actions">
           <el-button v-if="detailModeMessage" link type="primary" @click="clearRouteFilters">查看全部</el-button>
@@ -114,7 +116,7 @@
           @size-change="handleSizeChange"
           @selection-change="handleBillSelectionChange"
         >
-      <el-table-column v-if="isAdmin" type="selection" width="42" align="center" reserve-selection />
+      <el-table-column v-if="isAdmin" type="selection" width="42" align="center" reserve-selection :selectable="isSelectableBillRow" />
       <el-table-column type="expand" width="1" class-name="expand-toggle-col" label-class-name="expand-toggle-col">
         <template #default="{ row }">
           <div class="expand-bill-content">
@@ -211,7 +213,7 @@
                         </div>
                         <div class="detail-action-col">
                           <el-button type="primary" link size="small" @click="openEditDetail(row, detail)">编辑</el-button>
-                          <el-popconfirm title="确认删除？" @confirm="handleDeleteDetail(detail.id)">
+                          <el-popconfirm title="确认删除？" @confirm="handleDeleteDetail(row.id, detail.id)">
                             <template #reference><el-button type="danger" link size="small">删</el-button></template>
                           </el-popconfirm>
                         </div>
@@ -284,7 +286,7 @@
                         </div>
                         <div class="detail-action-col">
                           <el-button type="primary" link size="small" @click="openEditDetail(row, detail)">编辑</el-button>
-                          <el-popconfirm title="确认删除？" @confirm="handleDeleteDetail(detail.id)">
+                          <el-popconfirm title="确认删除？" @confirm="handleDeleteDetail(row.id, detail.id)">
                             <template #reference><el-button type="danger" link size="small">删</el-button></template>
                           </el-popconfirm>
                         </div>
@@ -373,18 +375,28 @@
       </el-table-column>
       <el-table-column label="还款核实" width="78" align="center" header-align="center">
         <template #default="{ row }">
-          <StatusTag class="verify-tag" :value="row.verified ? 1 : 0" :label-map="VERIFY_STATUS_MAP" :type-map="VERIFY_STATUS_TAG_TYPE" size="small" />
+          <span class="bill-verify-cell">
+            <span class="bill-verify-badge" :class="billVerifyClass(row.verified)">
+              {{ billVerifyText(row.verified) }}
+            </span>
+          </span>
         </template>
       </el-table-column>
       <el-table-column label="消费核实" width="78" align="center" header-align="center">
         <template #default="{ row }">
-          <StatusTag class="verify-tag" :value="row.expenseVerified ? 1 : 0" :label-map="VERIFY_STATUS_MAP" :type-map="VERIFY_STATUS_TAG_TYPE" size="small" />
+          <span class="bill-verify-cell">
+            <span class="bill-verify-badge" :class="billVerifyClass(row.expenseVerified)">
+              {{ billVerifyText(row.expenseVerified) }}
+            </span>
+          </span>
         </template>
       </el-table-column>
       <el-table-column label="状态" width="78" align="center" header-align="center">
         <template #default="{ row }">
           <span class="bill-status-cell">
-            <StatusTag :value="row.status" :label-map="BILL_LIST_STATUS_MAP" :type-map="BILL_STATUS_TAG_TYPE" size="small" />
+            <span class="bill-status-badge" :class="billStatusClass(row.status)">
+              {{ billStatusText(row.status) }}
+            </span>
           </span>
         </template>
       </el-table-column>
@@ -423,7 +435,7 @@
       </el-table-column>
         </PageTable>
 
-        <div v-if="showBillPagination && total > 0" class="bill-pagination">
+        <div v-if="showBillPagination" class="bill-pagination">
           <div class="pagination-meta">
             <span>一共 {{ total }} 条</span>
             <span>第 {{ query.pageNum }} / {{ totalPages }} 页</span>
@@ -436,6 +448,7 @@
             :page-size="safeBillPageSize"
             :page-sizes="billPageSizeOptions"
             :total="total"
+            :disabled="total <= 0"
             layout="sizes, prev, pager, next, jumper"
             @current-change="handleCurrentChange"
             @size-change="handleSizeChange"
@@ -496,9 +509,6 @@
         <el-form-item label="还款日" prop="repayDay">
           <el-input-number v-model="createBillForm.repayDay" :min="1" :max="31" controls-position="right" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="手续费率" prop="feeRate">
-          <el-input-number v-model="createBillForm.feeRate" :min="0" :max="100" :precision="2" controls-position="right" style="width: 100%" />
-        </el-form-item>
         <template v-if="createBillForm.mode === 'month'">
           <el-form-item label="账单金额" prop="billAmount">
             <el-input-number v-model="createBillForm.billAmount" :min="0" :precision="2" controls-position="right" style="width: 100%" />
@@ -546,6 +556,15 @@
               style="width: 100%"
               @update:model-value="(val:any) => updateEditField(billEditRowId, 'repayDay', val)"
             />
+          </el-form-item>
+          <el-form-item label="账单状态">
+            <el-select
+              :model-value="editFormMap[billEditRowId]?.status"
+              style="width: 100%"
+              @update:model-value="(val:any) => updateEditField(billEditRowId, 'status', val)"
+            >
+              <el-option v-for="item in BILL_STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
           </el-form-item>
           <el-form-item label="备注">
             <el-input
@@ -601,7 +620,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, ArrowRight, UserFilled, CreditCard, Delete, RefreshRight, Edit, Plus, Back } from '@element-plus/icons-vue'
 import PageTable from '@/components/PageTable/index.vue'
-import StatusTag from '@/components/StatusTag/index.vue'
 import ExportButton from '@/components/ExportButton/index.vue'
 import BillDetailSkeleton from '@/components/BillDetailSkeleton.vue'
 import { usePageTable } from '@/composables/usePageTable'
@@ -617,6 +635,7 @@ import {
   batchDeleteBillsApi,
   exportBillApi,
   generateAnnualBillsApi,
+  syncBillScheduleApi,
   getDetailListApi as fetchDetailListApi,
   saveDetailApi,
   updateDetailApi,
@@ -636,6 +655,7 @@ import {
 
 interface BillRow {
   id: number
+  __placeholder?: boolean
   cardId: number
   ownerId?: number
   ownerName: string
@@ -668,6 +688,7 @@ interface EditFormItem {
   posCostAmount: number
   repayDay: number | null
   verified: boolean
+  status: number
   feeAmount: string
   netProfit: string
   remark: string
@@ -733,9 +754,9 @@ const DETAIL_PREFETCH_DELAY = 80
 const DETAIL_PREFETCH_CONCURRENCY = 2
 const DETAIL_PREFETCH_ANNUAL_LIMIT = 20
 const BILL_LIST_STATUS_MAP: Record<number, string> = {
-  0: '未还',
+  0: '待还款',
   1: '已还清',
-  2: '部分',
+  2: '部分还款',
   3: '逾期'
 }
 const VERIFY_STATUS_MAP: Record<number, string> = {
@@ -793,21 +814,26 @@ const {
     repayMonth: '',
     repayYear: undefined as any,
     sortMode: BILL_SORT_CURRENT_FIRST as BillSortMode,
-    status: undefined as any,
-    feePaid: undefined as any
+    status: undefined as any
   },
   autoSearch: false,
   beforeFetch: (params) => {
     params.pageSize = resolveBillPageSize(params)
     params.sortMode = resolveBillSortMode(params)
+    const status = normalizeBillStatusFilter(params.status)
+    if (status === undefined) {
+      delete params.status
+    } else {
+      params.status = status
+    }
     ;(params as any).current = params.pageNum
     ;(params as any).size = params.pageSize
     delete (params as any).pageNum
     delete (params as any).pageSize
   },
   afterFetch: () => {
+    appliedStatusFilter.value = normalizeBillStatusFilter(query.status)
     fetchBillOverview()
-    scheduleDetailPrefetch()
   }
 })
 
@@ -839,7 +865,6 @@ const createBillForm = reactive({
   year: String(currentYear + 1),
   billDay: null as number | null,
   repayDay: null as number | null,
-  feeRate: 0 as number | null,
   billAmount: 0,
   remark: ''
 })
@@ -864,7 +889,6 @@ const createBillRules = computed(() => ({
   cardId: [{ required: true, message: '请选择信用卡', trigger: 'change' }],
   billDay: [{ required: true, message: '请输入账单日', trigger: 'change' }],
   repayDay: [{ required: true, message: '请输入还款日', trigger: 'change' }],
-  feeRate: [{ required: true, message: '请输入手续费率', trigger: 'change' }],
   ...(createBillForm.mode === 'month'
     ? {
         billMonth: [{ required: true, message: '请选择账单月份', trigger: 'change' }],
@@ -877,6 +901,7 @@ const createBillRules = computed(() => ({
 const triggerBillSearch = createDebouncedTask(() => {
   submitBillSearch()
 }, 300)
+const appliedStatusFilter = ref<number | undefined>(undefined)
 let syncingBillFilters = false
 let skipRouteDrivenSearch = false
 
@@ -896,9 +921,9 @@ const detailModeMessage = computed(() => {
 
 const quickMenus = computed(() => [
   { key: 'all', label: '全部', value: undefined, count: billOverview.value.billCount, color: '#0958d9' },
-  { key: 'pending', label: '待还', value: 0, count: billOverview.value.pendingCount, color: '#d97706' },
-  { key: 'partial', label: '部分', value: 2, count: billOverview.value.partialCount, color: '#7c8799' },
-  { key: 'paid', label: '已还', value: 1, count: billOverview.value.repaidCount, color: '#2f9e44' },
+  { key: 'pending', label: '待还款', value: 0, count: billOverview.value.pendingCount, color: '#d97706' },
+  { key: 'partial', label: '部分还款', value: 2, count: billOverview.value.partialCount, color: '#7c8799' },
+  { key: 'paid', label: '已还清', value: 1, count: billOverview.value.repaidCount, color: '#2f9e44' },
   { key: 'overdue', label: '逾期', value: 3, count: billOverview.value.overdueCount, color: '#cf1322' }
 ])
 
@@ -1006,8 +1031,12 @@ function applyBillMonthRange(startBillMonth?: string | null, endBillMonth?: stri
 function submitBillSearch() {
   triggerBillSearch.cancel()
   syncBillMonthQuery()
-  currentExpandedRow.value = null
   handleSearch()
+}
+
+function handleStatusFilterChange() {
+  appliedStatusFilter.value = normalizeBillStatusFilter(query.status)
+  submitBillSearch()
 }
 
 function resolveMonthOrder(month: number) {
@@ -1051,10 +1080,86 @@ const sortedList = computed<BillRow[]>(() => {
   })
 })
 
-const tableDisplayList = computed<BillRow[]>(() => loading.value ? [] : sortedList.value)
+const tableDisplayList = computed<BillRow[]>(() => {
+  return padBillRows(filteredBillRows.value)
+})
+
+const filteredBillRows = computed<BillRow[]>(() => {
+  const status = appliedStatusFilter.value
+  if (status === undefined) {
+    return sortedList.value
+  }
+  return sortedList.value.filter(row => Number(row.status) === status)
+})
+
+function padBillRows(rows: BillRow[]) {
+  const minRows = Math.max(1, Number(safeBillPageSize.value || DEFAULT_BILL_PAGE_SIZE))
+  if (rows.length >= minRows) {
+    return rows
+  }
+  return [
+    ...rows,
+    ...Array.from({ length: minRows - rows.length }, (_, index) => createBillPlaceholderRow(index))
+  ]
+}
+
+function createBillPlaceholderRow(index: number): BillRow {
+  return {
+    id: -100000 - index,
+    __placeholder: true,
+    cardId: 0,
+    ownerName: '',
+    bankName: '',
+    cardNoLast4: '',
+    billMonth: '',
+    billDay: null,
+    repayDate: null,
+    billAmount: null,
+    actualPayAmount: null,
+    consumeAmount: null,
+    feeRate: null,
+    feeAmount: null,
+    feePaid: false,
+    posCostAmount: null,
+    otherFeeAmount: null,
+    netProfit: null,
+    status: 0,
+    verified: false,
+    expenseVerified: false,
+    remark: ''
+  }
+}
+
+function isBillPlaceholderRow(row: BillRow | null | undefined) {
+  return Boolean(row?.__placeholder)
+}
+
+function isSelectableBillRow(row: BillRow) {
+  return !isBillPlaceholderRow(row)
+}
 
 function billRowClassName({ row }: { row: BillRow }) {
+  if (isBillPlaceholderRow(row)) {
+    return 'bill-placeholder-row'
+  }
   return repayMonthOf(row) === currentMonth ? 'current-month-row' : ''
+}
+
+function billStatusText(status: unknown) {
+  return BILL_LIST_STATUS_MAP[Number(status)] || '-'
+}
+
+function billStatusClass(status: unknown) {
+  const value = Number(status)
+  return [0, 1, 2, 3].includes(value) ? `is-status-${value}` : 'is-status-unknown'
+}
+
+function billVerifyText(value: unknown) {
+  return Boolean(value) ? '已核实' : '未核实'
+}
+
+function billVerifyClass(value: unknown) {
+  return Boolean(value) ? 'is-verified' : 'is-unverified'
 }
 
 function repayMonthOf(row: BillRow | null | undefined) {
@@ -1082,7 +1187,10 @@ function handleSizeChange(pageSize: number) {
 }
 
 function applyQuickMenu(status?: number) {
-  query.status = status as any
+  const normalizedStatus = normalizeBillStatusFilter(status)
+  query.status = normalizedStatus === undefined ? undefined as any : normalizedStatus as any
+  appliedStatusFilter.value = normalizedStatus
+  submitBillSearch()
 }
 
 const { exporting, handleExport: doExport } = useExport({
@@ -1095,6 +1203,7 @@ function handleExport() {
 }
 
 function buildExportParams() {
+  const status = normalizeBillStatusFilter(query.status)
   return {
     cardId: query.cardId,
     cardIds: query.cardIds,
@@ -1106,8 +1215,7 @@ function buildExportParams() {
     repayMonth: query.repayMonth,
     repayYear: query.repayYear,
     sortMode: resolveBillSortMode(query),
-    status: query.status,
-    feePaid: query.feePaid
+    status
   }
 }
 
@@ -1147,7 +1255,14 @@ function toRouteNumber(value: unknown) {
 
 function toRouteBillStatus(value: unknown) {
   const target = Array.isArray(value) ? value[0] : value
-  const num = Number(target)
+  return normalizeBillStatusFilter(target)
+}
+
+function normalizeBillStatusFilter(value: unknown) {
+  if (value === '' || value === null || value === undefined) {
+    return undefined
+  }
+  const num = Number(value)
   return [0, 1, 2, 3].includes(num) ? num : undefined
 }
 
@@ -1277,7 +1392,6 @@ function resetCreateBillForm() {
     year: String(currentYear + 1),
     billDay: null,
     repayDay: null,
-    feeRate: 0,
     billAmount: 0,
     remark: ''
   })
@@ -1287,7 +1401,6 @@ function resetCreateBillForm() {
 function applyCreateCardDefaults(card: BankCardOption | null) {
   createBillForm.billDay = card?.billDay ?? null
   createBillForm.repayDay = card?.repayDay ?? null
-  createBillForm.feeRate = toNumber(card?.effectiveFeeRate)
 }
 
 async function openCreateBillDialog() {
@@ -1320,8 +1433,7 @@ function buildCreateBillBasePayload(card: BankCardOption) {
   return {
     cardId: card.id,
     billDay: createBillForm.billDay,
-    repayDay: createBillForm.repayDay,
-    feeRate: createBillForm.feeRate == null ? undefined : toNumber(createBillForm.feeRate)
+    repayDay: createBillForm.repayDay
   }
 }
 
@@ -1350,7 +1462,6 @@ function focusCreatedBills(cardId: number, startBillMonth: string, endBillMonth:
   query.ownerName = ''
   query.cardName = ''
   query.status = undefined as any
-  query.feePaid = undefined as any
   applyBillMonthRange(startBillMonth, endBillMonth)
   query.pageSize = defaultPageSizeForScope(query)
   currentExpandedRow.value = null
@@ -1417,7 +1528,7 @@ const savingId = ref<number | null>(null)
 const selectedBillRows = ref<BillRow[]>([])
 
 function handleBillSelectionChange(selection: BillRow[]) {
-  selectedBillRows.value = selection || []
+  selectedBillRows.value = (selection || []).filter(row => !isBillPlaceholderRow(row))
 }
 
 function clearBillSelection() {
@@ -1427,20 +1538,28 @@ function clearBillSelection() {
 
 function ensureEditForm(row: BillRow) {
   if (!editFormMap.value[row.id]) {
-    editFormMap.value[row.id] = {
-      id: row.id,
-      billAmount: toNumber(row.billAmount),
-      billDay: row.billDay ?? null,
-      posCostAmount: toNumber(row.posCostAmount),
-      repayDay: parseRepayDay(row.repayDate),
-      verified: Boolean(row.verified),
-      feeAmount: '0.00',
-      netProfit: '0.00',
-      remark: row.remark || ''
-    }
-    syncInlineAmounts(row.id)
+    editFormMap.value[row.id] = buildEditForm(row)
   }
   return editFormMap.value[row.id]
+}
+
+function buildEditForm(row: BillRow): EditFormItem {
+  const billAmount = toNumber(row.billAmount)
+  const posCostAmount = toNumber(row.posCostAmount)
+  const feeAmount = buildFeeAmount(billAmount, row.feeRate)
+  const netProfit = buildNetProfit(billAmount, row.feeRate, posCostAmount, toNumber(row.otherFeeAmount))
+  return {
+    id: row.id,
+    billAmount,
+    billDay: row.billDay ?? null,
+    posCostAmount,
+    repayDay: parseRepayDay(row.repayDate),
+    verified: Boolean(row.verified),
+    status: row.status,
+    feeAmount: feeAmount.toFixed(2),
+    netProfit: netProfit.toFixed(2),
+    remark: row.remark || ''
+  }
 }
 
 function syncInlineAmounts(billId: number) {
@@ -1518,9 +1637,56 @@ function buildDetailBucket(details: BillDetailRow[]): BillDetailBucket {
   }
 }
 
-function setBillDetails(billId: number, details: BillDetailRow[]) {
+function setBillDetails(billId: number, details: BillDetailRow[], options: { syncBillRow?: boolean } = {}) {
   detailListMap.value[billId] = details
   detailBucketMap.value[billId] = buildDetailBucket(details)
+  if (options.syncBillRow) {
+    syncBillRowFromDetails(billId, details)
+  }
+}
+
+function calculateDetailTypeTotal(details: BillDetailRow[], detailType: number) {
+  return details
+    .filter(item => Number(item.detailType) === Number(detailType))
+    .reduce((sum, item) => sum + toNumber(item.amount), 0)
+}
+
+function resolveBillStatusFromDetails(row: BillRow, actualPayAmount: number) {
+  if (Boolean(row.verified) && Boolean(row.expenseVerified)) {
+    return 1
+  }
+
+  const billAmount = toNumber(row.billAmount)
+  if (actualPayAmount > 0) {
+    if (billAmount <= 0 || actualPayAmount >= billAmount) {
+      return 1
+    }
+    if (isBillRepayOverdue(row)) {
+      return 3
+    }
+    return 2
+  }
+
+  if (isBillRepayOverdue(row) && billAmount > 0) {
+    return 3
+  }
+  return 0
+}
+
+function isBillRepayOverdue(row: BillRow) {
+  const repayDate = String(row.repayDate || '').slice(0, 10)
+  return /^\d{4}-\d{2}-\d{2}$/.test(repayDate) && repayDate < currentDateString()
+}
+
+function syncBillRowFromDetails(billId: number, details: BillDetailRow[]) {
+  const row = (list.value as BillRow[]).find(item => Number(item.id) === Number(billId))
+  if (!row) return
+
+  const actualPayAmount = Number(calculateDetailTypeTotal(details, DETAIL_TYPE_VALUE.INCOME).toFixed(2))
+  const consumeAmount = Number(calculateDetailTypeTotal(details, DETAIL_TYPE_VALUE.EXPENSE).toFixed(2))
+  row.actualPayAmount = actualPayAmount
+  row.consumeAmount = consumeAmount
+  row.status = resolveBillStatusFromDetails(row, actualPayAmount)
 }
 
 function getDetailPrefetchIds() {
@@ -1569,7 +1735,7 @@ function scheduleDetailPrefetch() {
   }, DETAIL_PREFETCH_DELAY)
 }
 
-async function loadDetails(billId: number, options: { force?: boolean; silent?: boolean } = {}) {
+async function loadDetails(billId: number, options: { force?: boolean; silent?: boolean; quiet?: boolean; syncBillRow?: boolean } = {}) {
   if (!options.force && detailLoadedMap.value[billId]) {
     resetDetailSelection(billId)
     return
@@ -1579,11 +1745,13 @@ async function loadDetails(billId: number, options: { force?: boolean; silent?: 
     return
   }
 
-  detailLoadingMap.value[billId] = true
+  if (!options.quiet) {
+    detailLoadingMap.value[billId] = true
+  }
   const request = (async () => {
     try {
       const res: any = await fetchDetailListApi(billId)
-      setBillDetails(billId, (res.data || []) as BillDetailRow[])
+      setBillDetails(billId, (res.data || []) as BillDetailRow[], { syncBillRow: options.syncBillRow })
       detailLoadedMap.value[billId] = true
       resetDetailSelection(billId)
     } catch (error) {
@@ -1594,7 +1762,9 @@ async function loadDetails(billId: number, options: { force?: boolean; silent?: 
         handleError(error, '加载明细列表')
       }
     } finally {
-      detailLoadingMap.value[billId] = false
+      if (!options.quiet) {
+        detailLoadingMap.value[billId] = false
+      }
       detailRequestMap.delete(billId)
       if (currentExpandedRow.value?.id === billId) {
         nextTick(scheduleBillTableLayout)
@@ -1744,9 +1914,9 @@ async function handleSaveDetail() {
     ElMessage.success('操作成功')
     detailDialogVisible.value = false
     if (currentBillRow.value) {
-      await loadDetails(currentBillRow.value.id, { force: true })
+      await loadDetails(currentBillRow.value.id, { force: true, silent: true, quiet: true, syncBillRow: true })
     }
-    await refreshBillDataAfterDetailChange()
+    refreshBillDataAfterDetailChange()
   } catch (error) {
     handleError(error, '保存明细')
   } finally {
@@ -1754,14 +1924,12 @@ async function handleSaveDetail() {
   }
 }
 
-async function handleDeleteDetail(id: number) {
+async function handleDeleteDetail(billId: number, id: number) {
   try {
     await deleteDetailApi(id)
     ElMessage.success('删除成功')
-    if (currentBillRow.value) {
-      await loadDetails(currentBillRow.value.id, { force: true })
-    }
-    await refreshBillDataAfterDetailChange()
+    await loadDetails(billId, { force: true, silent: true, quiet: true, syncBillRow: true })
+    refreshBillDataAfterDetailChange()
   } catch (error) {
     handleError(error, '删除明细')
   }
@@ -1780,8 +1948,8 @@ async function handleBatchDelete(billId: number) {
     selectedDetailsMap.value[billId] = []
     selectedIncomeDetailsMap.value[billId] = []
     selectedExpenseDetailsMap.value[billId] = []
-    await loadDetails(billId, { force: true })
-    await refreshBillDataAfterDetailChange()
+    await loadDetails(billId, { force: true, silent: true, quiet: true, syncBillRow: true })
+    refreshBillDataAfterDetailChange()
   } catch (error: any) {
     if (error !== 'cancel') {
       handleError(error, '批量删除明细')
@@ -1799,19 +1967,16 @@ async function handleBatchUpdateType(billId: number, detailType: number) {
     selectedDetailsMap.value[billId] = []
     selectedIncomeDetailsMap.value[billId] = []
     selectedExpenseDetailsMap.value[billId] = []
-    await loadDetails(billId, { force: true })
-    await refreshBillDataAfterDetailChange()
+    await loadDetails(billId, { force: true, silent: true, quiet: true, syncBillRow: true })
+    refreshBillDataAfterDetailChange()
   } catch (error) {
     handleError(error, '批量修改交易类型')
   }
 }
 
-async function refreshBillDataAfterDetailChange() {
-  await loadData()
-  clearBillSelection()
-  if (currentExpandedRow.value?.id) {
-    currentExpandedRow.value = sortedList.value.find(item => Number(item.id) === Number(currentExpandedRow.value?.id)) || currentExpandedRow.value
-  }
+function refreshBillDataAfterDetailChange() {
+  void fetchBillOverview()
+  nextTick(scheduleBillTableLayout)
 }
 
 async function handleDelete(id: number) {
@@ -1873,38 +2038,27 @@ function buildBillUpdatePayload(row: BillRow, form: EditFormItem, overrides: Rec
     expenseVerified: Boolean(row.expenseVerified),
     posCostAmount: toNumber(form.posCostAmount),
     otherFeeAmount: toNumber(row.otherFeeAmount),
-    status: row.status,
+    status: form.status,
     remark: form.remark || '',
     ...overrides
   }
 }
 
-function resolveLocalBillStatus(row: BillRow) {
-  if (Boolean(row.verified) && Boolean(row.expenseVerified)) {
-    return 1
-  }
-  const billAmount = toNumber(row.billAmount)
-  const actualPayAmount = toNumber(row.actualPayAmount)
-  if (actualPayAmount > 0) {
-    if (billAmount <= 0 || actualPayAmount >= billAmount) {
-      return 1
-    }
-    if (isRepayDateOverdue(row.repayDate)) {
-      return 3
-    }
-    return 2
-  }
-  return isRepayDateOverdue(row.repayDate) && billAmount > 0 ? 3 : 0
-}
+function applyLocalBillEdit(row: BillRow, form: EditFormItem) {
+  const billAmount = toNumber(form.billAmount)
+  const posCostAmount = toNumber(form.posCostAmount)
+  const feeAmount = buildFeeAmount(billAmount, row.feeRate)
+  const netProfit = buildNetProfit(billAmount, row.feeRate, posCostAmount, toNumber(row.otherFeeAmount))
 
-function isRepayDateOverdue(date: string | null | undefined) {
-  const value = String(date || '').slice(0, 10)
-  if (!value) return false
-  const repayDate = new Date(`${value}T00:00:00`)
-  if (Number.isNaN(repayDate.getTime())) return false
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return repayDate.getTime() < today.getTime()
+  row.billAmount = billAmount
+  row.billDay = form.billDay
+  row.repayDate = buildRepayDate(row.billMonth, form.repayDay) || row.repayDate
+  row.status = Number(form.status ?? row.status)
+  row.posCostAmount = posCostAmount
+  row.feeAmount = feeAmount
+  row.netProfit = netProfit
+  row.remark = form.remark || ''
+  editFormMap.value[row.id] = buildEditForm(row)
 }
 
 async function handleRepayVerifiedChange(row: BillRow, verified: boolean) {
@@ -1912,9 +2066,11 @@ async function handleRepayVerifiedChange(row: BillRow, verified: boolean) {
   const previousVerified = Boolean(row.verified)
   const previousFormVerified = Boolean(form.verified)
   const previousStatus = row.status
+  const previousFormStatus = form.status
   row.verified = verified
   form.verified = verified
-  row.status = resolveLocalBillStatus(row)
+  row.status = resolveBillStatusFromDetails(row, toNumber(row.actualPayAmount))
+  form.status = row.status
   try {
     await updateBillVerificationApi(row.id, {
       verified,
@@ -1924,15 +2080,19 @@ async function handleRepayVerifiedChange(row: BillRow, verified: boolean) {
     row.verified = previousVerified
     form.verified = previousFormVerified
     row.status = previousStatus
+    form.status = previousFormStatus
     handleError(error, '更新还款明细核实状态')
   }
 }
 
 async function handleExpenseVerifiedChange(row: BillRow, expenseVerified: boolean) {
+  const form = ensureEditForm(row)
   const previousExpenseVerified = Boolean(row.expenseVerified)
   const previousStatus = row.status
+  const previousFormStatus = form.status
   row.expenseVerified = expenseVerified
-  row.status = resolveLocalBillStatus(row)
+  row.status = resolveBillStatusFromDetails(row, toNumber(row.actualPayAmount))
+  form.status = row.status
   try {
     await updateBillVerificationApi(row.id, {
       verified: Boolean(row.verified),
@@ -1941,6 +2101,7 @@ async function handleExpenseVerifiedChange(row: BillRow, expenseVerified: boolea
   } catch (error) {
     row.expenseVerified = previousExpenseVerified
     row.status = previousStatus
+    form.status = previousFormStatus
     handleError(error, '更新消费明细核实状态')
   }
 }
@@ -1953,8 +2114,20 @@ async function handleInlineSave(row: BillRow) {
   try {
     await updateBillApi(buildBillUpdatePayload(row, form))
 
-    ElMessage.success(`保存成功，净利润 ¥${form.netProfit}`)
-    handleSearch()
+    const originalRepayDay = parseRepayDay(row.repayDate)
+    const billDayChanged = form.billDay !== row.billDay
+    const repayDayChanged = form.repayDay !== originalRepayDay
+    if (billDayChanged || repayDayChanged) {
+      const syncData: { newBillDay?: number; newRepayDay?: number } = {}
+      if (billDayChanged) syncData.newBillDay = form.billDay ?? undefined
+      if (repayDayChanged) syncData.newRepayDay = form.repayDay ?? undefined
+      syncBillScheduleApi(row.cardId, row.billMonth, syncData).catch(() => {})
+    }
+
+    applyLocalBillEdit(row, form)
+    ElMessage.success('保存成功')
+    void fetchBillOverview()
+    nextTick(scheduleBillTableLayout)
     saved = true
   } catch (error) {
     handleError(error, '保存账单')
@@ -1965,8 +2138,8 @@ async function handleInlineSave(row: BillRow) {
 }
 
 function openBillEdit(row: BillRow) {
+  editFormMap.value[row.id] = buildEditForm(row)
   billEditRow.value = row
-  ensureEditForm(row)
   billEditDialogVisible.value = true
 }
 
@@ -2071,6 +2244,17 @@ function buildNetProfit(amount: number, feeRate: number | null | undefined, posC
   return Number((buildFeeAmount(amount, feeRate) - posCostAmount - otherFeeAmount).toFixed(2))
 }
 
+function buildRepayDate(billMonth: string | null | undefined, repayDay: number | null | undefined) {
+  const parts = parseBillMonthParts(billMonth)
+  const day = Number(repayDay || 0)
+  if (!parts || day < 1) return ''
+  const repayMonthDate = new Date(parts.year, parts.month, 1)
+  const repayYear = repayMonthDate.getFullYear()
+  const repayMonth = repayMonthDate.getMonth() + 1
+  const lastDay = new Date(repayYear, repayMonth, 0).getDate()
+  return `${repayYear}-${String(repayMonth).padStart(2, '0')}-${String(Math.min(day, lastDay)).padStart(2, '0')}`
+}
+
 function parseRepayDay(repayDate: string | null | undefined) {
   if (!repayDate) return null
   const parts = String(repayDate).split('-')
@@ -2146,7 +2330,7 @@ watch(
 )
 
 watch(
-  () => [query.ownerName, query.cardName, query.status, query.feePaid, query.startBillMonth, query.endBillMonth, query.repayMonth, query.repayYear, query.sortMode],
+  () => [query.ownerName, query.cardName, query.status, query.startBillMonth, query.endBillMonth, query.repayMonth, query.repayYear, query.sortMode],
   () => {
     if (syncingBillFilters) return
     triggerBillSearch()
@@ -2201,6 +2385,7 @@ watch(
   --bill-font-size: 12px;
   --bill-small-font-size: 11px;
   --bill-title-size: 15px;
+  --bill-main-row-height: 34px;
   display: flex;
   flex-direction: column;
   gap: var(--bill-gap);
@@ -2321,10 +2506,13 @@ watch(
   align-items: stretch;
   flex-shrink: 0;
   gap: 6px 10px;
-  padding: 6px 8px;
+  padding: 4px;
 }
 
 .bill-search-panel .app-search-main {
+  display: grid;
+  grid-template-columns: auto repeat(4, minmax(0, 1fr)) auto;
+  align-items: center;
   gap: 6px;
 }
 
@@ -2333,13 +2521,29 @@ watch(
   gap: 6px;
 }
 
+.bill-search-panel .app-search-item,
+.bill-search-panel .app-search-item-sm {
+  width: 100%;
+  min-width: 0;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-search-panel :deep(.app-search-item),
+.bill-search-panel :deep(.app-search-item-sm),
+.bill-search-panel :deep(.el-date-editor.app-search-item-sm) {
+  width: 100% !important;
+  min-width: 0;
+}
+
 .bill-search-panel .app-search-title {
-  min-height: 28px;
-  font-size: 11px;
+  min-height: 30px;
+  font-size: 12px;
+  color: #667085;
 }
 
 .bill-search-panel .app-search-actions {
-  margin-left: auto;
+  margin-left: 0;
+  justify-content: flex-end;
 }
 
 .quick-menu-bar {
@@ -2459,22 +2663,22 @@ watch(
   background: linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(248,250,253,0.97) 100%);
   color: #55657b;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
   box-shadow: 0 6px 16px rgba(15,23,42,0.05);
 }
 
 .menu-item:hover {
-  transform: translateY(-1px);
+  transform: none;
   border-color: rgba(180, 206, 255, 0.92);
-  box-shadow: 0 10px 18px rgba(15,23,42,0.07);
+  box-shadow: 0 7px 14px rgba(15,23,42,0.06);
 }
 
 .menu-item.active {
-  transform: translateY(-1px);
+  transform: none;
   border-color: transparent;
   background: linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(234,242,255,0.95) 160%);
   color: #0958d9;
-  box-shadow: inset 0 0 0 1.5px rgba(180, 206, 255, 0.85), 0 12px 22px rgba(15,23,42,0.08);
+  box-shadow: inset 0 0 0 1.5px rgba(180, 206, 255, 0.85), 0 7px 14px rgba(15,23,42,0.06);
 }
 
 .menu-dot {
@@ -2509,7 +2713,8 @@ watch(
 }
 
 .bill-page-table {
-  flex: 1;
+  flex: 1 1 0;
+  height: 100%;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -2519,12 +2724,45 @@ watch(
   border-radius: 10px;
   box-shadow: none !important;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .bill-page-table.single-card-annual-table {
-  flex: 1;
+  flex: 1 1 0;
+  height: 100%;
   min-height: 0;
   overflow: hidden;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-page-table :deep(.el-table) {
+  flex: 1 1 0;
+  min-height: 0;
+  height: 100% !important;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-page-table :deep(.el-table__inner-wrapper) {
+  height: 100% !important;
+  min-height: 0;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-page-table :deep(.el-table__body-wrapper),
+.bill-page-table :deep(.el-scrollbar) {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-page-table :deep(.el-scrollbar),
+.bill-page-table :deep(.el-scrollbar__wrap) {
+  height: 100%;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-page-table :deep(.el-scrollbar__view) {
+  min-height: 100%;
 }
 
 /*noinspection CssUnusedSymbol*/
@@ -2540,6 +2778,14 @@ watch(
 .bill-page-table :deep(.el-table__inner-wrapper::before),
 .detail-section :deep(.el-table__inner-wrapper::before) {
   display: none;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-page-table :deep(.el-table__body),
+.bill-page-table :deep(.el-table__row),
+.bill-page-table :deep(.el-table__expanded-cell) {
+  animation: none !important;
+  transition: none !important;
 }
 
 /*noinspection CssUnusedSymbol*/
@@ -2625,7 +2871,35 @@ watch(
 
 /*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-table__body tr:not(.el-table__expanded-row) > td.el-table__cell) {
-  height: auto;
+  height: var(--bill-main-row-height) !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-page-table :deep(.el-table__body tr.el-table__row) {
+  height: var(--bill-main-row-height);
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-page-table :deep(.el-table__body tr.el-table__row > td.el-table__cell .cell) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(var(--bill-main-row-height) - 4px);
+  min-height: calc(var(--bill-main-row-height) - 4px);
+  overflow: hidden;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-page-table :deep(.el-table__body tr.bill-placeholder-row > td.el-table__cell) {
+  background: #fff !important;
+  pointer-events: none;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-page-table :deep(.el-table__body tr.bill-placeholder-row > td.el-table__cell .cell) {
+  visibility: hidden;
 }
 
 /*noinspection CssUnusedSymbol*/
@@ -2664,6 +2938,17 @@ watch(
   overflow-x: hidden !important;
   overflow-y: auto !important;
   overscroll-behavior: contain;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-page-table :deep(.el-loading-mask) {
+  background: rgba(255, 255, 255, 0.32);
+  transition: none !important;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-page-table :deep(.el-loading-spinner) {
+  display: none;
 }
 
 /*noinspection CssUnusedSymbol*/
@@ -2746,6 +3031,7 @@ watch(
   gap: 4px;
   width: 100%;
   min-width: 0;
+  overflow: hidden;
 }
 
 .owner-expand-btn {
@@ -2775,6 +3061,7 @@ watch(
 }
 
 .bill-status-cell,
+.bill-verify-cell,
 .fee-paid-tag,
 .verify-tag {
   display: inline-flex;
@@ -2784,7 +3071,68 @@ watch(
   min-width: 52px;
 }
 
+.bill-status-badge,
+.bill-verify-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  min-width: 52px;
+  min-height: 16px;
+  padding: 0 5px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: var(--bill-small-font-size);
+  line-height: 16px;
+  font-weight: 500;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.bill-verify-badge.is-unverified {
+  color: #b26a00;
+  background: #fdf6ec;
+  border-color: #faecd8;
+}
+
+.bill-verify-badge.is-verified {
+  color: #529b2e;
+  background: #f0f9eb;
+  border-color: #e1f3d8;
+}
+
+.bill-status-badge.is-status-0 {
+  color: #b26a00;
+  background: #fdf6ec;
+  border-color: #faecd8;
+}
+
+.bill-status-badge.is-status-1 {
+  color: #529b2e;
+  background: #f0f9eb;
+  border-color: #e1f3d8;
+}
+
+.bill-status-badge.is-status-2 {
+  color: #73767a;
+  background: #f4f4f5;
+  border-color: #e9e9eb;
+}
+
+.bill-status-badge.is-status-3 {
+  color: #c45656;
+  background: #fef0f0;
+  border-color: #fde2e2;
+}
+
+.bill-status-badge.is-status-unknown {
+  color: #909399;
+  background: #f4f4f5;
+  border-color: #e9e9eb;
+}
+
 .bill-status-cell :deep(.el-tag),
+.bill-verify-cell,
 .verify-tag,
 .fee-paid-tag {
   justify-content: center;
@@ -2823,10 +3171,10 @@ watch(
   font-weight: 600;
   color: #1f2a37;
   text-align: left;
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
-  word-break: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: normal;
 }
 
 .bank-cell {

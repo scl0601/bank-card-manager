@@ -335,30 +335,37 @@
             </div>
             <div class="bill-list" v-loading="recentBillsVisibleLoading">
               <template v-if="recentBills.length">
-                <div v-for="b in recentBills" :key="b.id" class="bill-item" :class="{ current: isCurrentRepayMonth(b) }">
-                  <div class="bill-group bill-owner-group">
-                    <div class="bill-main-cell" :title="b.ownerName || '未命名'">
-                      <span class="bill-field-label">名称</span>
-                      <strong>{{ b.ownerName || '未命名' }}</strong>
+                <div v-for="b in recentBills" :key="b.id" class="bill-item" :class="{ current: isCurrentBillMonth(b) }">
+                  <div class="li-left bill-info-left">
+                    <div class="li-icon bill-icon">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="16" y1="13" x2="8" y2="13" />
+                        <line x1="16" y1="17" x2="8" y2="17" />
+                      </svg>
                     </div>
-                    <div class="bill-main-cell" :title="displayBankName(b.bankName)">
-                      <span class="bill-field-label">银行</span>
-                      <strong>{{ displayBankName(b.bankName) }}</strong>
+                    <div class="li-main">
+                      <div class="bill-row-top">
+                        <span class="bill-owner-name" :title="b.ownerName || '未命名'">{{ b.ownerName || '未命名' }}</span>
+                        <i class="cig-sep"></i>
+                        <span class="bill-bank-name" :title="displayBankName(b.bankName)">{{ displayBankName(b.bankName) }}</span>
+                        <i class="cig-sep"></i>
+                        <span class="bill-last4 font-mono">尾号 {{ b.cardNoLast4 || '-' }}</span>
+                      </div>
+                      <div class="bill-row-sub">
+                        <span class="cig-label">账单月</span>
+                        <span class="bill-date">{{ b.billMonth || '—' }}</span>
+                        <span class="cig-sep-dot"></span>
+                        <span class="cig-label">还款日</span>
+                        <span class="bill-date">{{ fmtRepayDay(b.repayDate) }}</span>
+                        <span class="cig-sep-dot"></span>
+                        <StatusTag :value="b.status" :label-map="BILL_STATUS_MAP" :type-map="BILL_STATUS_TAG_TYPE" size="small" effect="light" />
+                      </div>
                     </div>
                   </div>
 
-                  <div class="bill-group bill-card-group">
-                    <span class="bill-chip bill-last4">
-                      <span>尾号</span>
-                      <b class="font-mono">{{ b.cardNoLast4 || '-' }}</b>
-                    </span>
-                    <span class="bill-chip bill-repay">
-                      <span>还款日</span>
-                      <b>{{ fmtRepayDayNumber(b.repayDate) }}</b>
-                    </span>
-                  </div>
-
-                  <div class="bill-group bill-amount-group">
+                  <div class="li-right bill-info-right">
                     <div class="bill-amount-edit">
                       <span class="bill-amount-title">账单</span>
                       <span class="bill-amount-symbol">¥</span>
@@ -375,9 +382,6 @@
                         @keyup.enter="saveBillAmount(b)"
                       />
                     </div>
-                  </div>
-
-                  <div class="bill-group bill-action-group">
                     <div class="bill-row-actions">
                       <el-button
                         type="primary"
@@ -391,9 +395,6 @@
                         保存
                       </el-button>
                       <el-button type="primary" link size="small" class="bill-repay-btn" @click="goRepayment(b)">还款</el-button>
-                    </div>
-                    <div class="bill-status">
-                      <StatusTag :value="b.status" :label-map="BILL_STATUS_MAP" :type-map="BILL_STATUS_TAG_TYPE" size="small" effect="light" />
                     </div>
                   </div>
                 </div>
@@ -423,38 +424,135 @@
             </div>
           </div>
           <div class="panel-body profit-summary-block" v-loading="profitVisibleLoading">
-            <div class="profit-ledger">
-              <div class="profit-cell is-net">
-                <span class="pl-label">净收入</span>
-                <span class="pl-value font-mono" :class="Number(profitOverview.expectedNetProfit || 0) >= 0 ? 'pos' : 'neg'">
-                  ¥{{ formatMoneySafe(profitOverview.expectedNetProfit) }}
-                </span>
-                <span class="pl-note">预计{{ profitScopeLabel }}净利润 = 手续费 - POS成本 - 其他费用</span>
+            <div class="profit-list">
+              <div class="profit-item is-income">
+                <div class="li-left profit-info-left">
+                  <div class="li-icon profit-icon income">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="12" y1="1" x2="12" y2="23" />
+                      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6" />
+                    </svg>
+                  </div>
+                  <div class="li-main">
+                    <div class="profit-row-top">
+                      <span class="profit-name">手续费</span>
+                      <i class="cig-sep"></i>
+                      <span class="profit-meta">费率 {{ profitRateLabel }}</span>
+                    </div>
+                    <div class="profit-row-sub">
+                      <span class="cig-label">已付</span>
+                      <span class="profit-date font-mono">¥{{ formatMoneySafe(profitOverview.paidFeeAmount) }}</span>
+                      <span class="cig-sep-dot"></span>
+                      <span class="cig-label">未付</span>
+                      <span class="profit-date font-mono">¥{{ formatMoneySafe(profitOverview.unpaidFeeAmount) }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="li-right profit-info-right">
+                  <span class="profit-value pos font-mono">¥{{ formatMoneySafe(profitOverview.totalFeeAmount) }}</span>
+                </div>
               </div>
-              <div class="profit-cell is-income">
-                <span class="pl-label">手续费</span>
-                <span class="pl-value pos font-mono">¥{{ formatMoneySafe(profitOverview.totalFeeAmount) }}</span>
-                <span class="pl-note">包含成本</span>
+
+              <div class="profit-item is-net">
+                <div class="li-left profit-info-left">
+                  <div class="li-icon profit-icon net">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="3 17 9 11 13 15 21 7" />
+                      <polyline points="14 7 21 7 21 14" />
+                    </svg>
+                  </div>
+                  <div class="li-main">
+                    <div class="profit-row-top">
+                      <span class="profit-name">净收入</span>
+                      <i class="cig-sep"></i>
+                      <span class="profit-meta">预计{{ profitScopeLabel }}净利润</span>
+                    </div>
+                    <div class="profit-row-sub">
+                      <span class="cig-label">公式</span>
+                      <span class="profit-date">手续费 - POS成本 - 其他费用</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="li-right profit-info-right">
+                  <span class="profit-value font-mono" :class="Number(profitOverview.expectedNetProfit || 0) >= 0 ? 'pos' : 'neg'">
+                    ¥{{ formatMoneySafe(profitOverview.expectedNetProfit) }}
+                  </span>
+                </div>
               </div>
-              <div class="profit-cell">
-                <span class="pl-label">账单金额</span>
-                <span class="pl-value font-mono">¥{{ formatMoneySafe(profitOverview.totalBillAmount) }}</span>
+
+              <div class="profit-item">
+                <div class="li-left profit-info-left">
+                  <div class="li-icon profit-icon bill">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="3" y="5" width="18" height="14" rx="2" />
+                      <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                  </div>
+                  <div class="li-main">
+                    <div class="profit-row-top">
+                      <span class="profit-name">账单金额</span>
+                      <i class="cig-sep"></i>
+                      <span class="profit-meta">{{ profitScopeLabel }}</span>
+                    </div>
+                    <div class="profit-row-sub">
+                      <span class="cig-label">银行卡</span>
+                      <span class="profit-date">{{ profitOverview.cardCount }} 张</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="li-right profit-info-right">
+                  <span class="profit-value font-mono">¥{{ formatMoneySafe(profitOverview.totalBillAmount) }}</span>
+                </div>
               </div>
-              <div class="profit-cell">
-                <span class="pl-label">费率</span>
-                <span class="pl-value font-mono">{{ profitRateLabel }}</span>
+
+              <div class="profit-item">
+                <div class="li-left profit-info-left">
+                  <div class="li-icon profit-icon cost">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 2v20" />
+                      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6" />
+                    </svg>
+                  </div>
+                  <div class="li-main">
+                    <div class="profit-row-top">
+                      <span class="profit-name">POS成本</span>
+                      <i class="cig-sep"></i>
+                      <span class="profit-meta">POS费率 {{ profitPosRateLabel }}</span>
+                    </div>
+                    <div class="profit-row-sub">
+                      <span class="cig-label">成本项</span>
+                      <span class="profit-date">刷卡通道成本</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="li-right profit-info-right">
+                  <span class="profit-value neg font-mono">¥{{ formatMoneySafe(profitOverview.totalPosCostAmount) }}</span>
+                </div>
               </div>
-              <div class="profit-cell">
-                <span class="pl-label">POS成本</span>
-                <span class="pl-value neg font-mono">¥{{ formatMoneySafe(profitOverview.totalPosCostAmount) }}</span>
-              </div>
-              <div class="profit-cell">
-                <span class="pl-label">POS费率</span>
-                <span class="pl-value font-mono">{{ profitPosRateLabel }}</span>
-              </div>
-              <div class="profit-cell">
-                <span class="pl-label">其他费用</span>
-                <span class="pl-value neg font-mono">¥{{ formatMoneySafe(profitOverview.totalOtherFeeAmount) }}</span>
+
+              <div class="profit-item">
+                <div class="li-left profit-info-left">
+                  <div class="li-icon profit-icon other">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="9" />
+                      <line x1="8" y1="12" x2="16" y2="12" />
+                    </svg>
+                  </div>
+                  <div class="li-main">
+                    <div class="profit-row-top">
+                      <span class="profit-name">其他费用</span>
+                      <i class="cig-sep"></i>
+                      <span class="profit-meta">附加成本</span>
+                    </div>
+                    <div class="profit-row-sub">
+                      <span class="cig-label">范围</span>
+                      <span class="profit-date">{{ profitScopeLabel }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="li-right profit-info-right">
+                  <span class="profit-value neg font-mono">¥{{ formatMoneySafe(profitOverview.totalOtherFeeAmount) }}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1226,7 +1324,7 @@ const scopedCardIds = computed(() => {
     .filter(id => Number.isFinite(id) && id > 0)
 })
 
-const selectedRepayMonth = computed(() => {
+const selectedBillMonth = computed(() => {
   return billFilter.month ? `${billFilter.year}-${String(billFilter.month).padStart(2, '0')}` : ''
 })
 
@@ -1243,10 +1341,10 @@ function buildBillQueryParams() {
     cardName: '',
     status: undefined
   }
-  if (selectedRepayMonth.value) {
-    params.repayMonth = selectedRepayMonth.value
+  if (selectedBillMonth.value) {
+    params.billMonth = selectedBillMonth.value
   } else {
-    params.repayYear = billFilter.year
+    params.year = billFilter.year
   }
   return params
 }
@@ -1329,18 +1427,13 @@ function fmtRepayDay(date: string | null | undefined) {
   return match ? fmtDayOfMonth(match[3]) : '—'
 }
 
-function fmtRepayDayNumber(date: string | null | undefined) {
-  const match = String(date || '').match(/(\d{4})-(\d{2})-(\d{2})/)
-  return match ? match[3] : '--'
-}
-
 function billRepayMonth(row: BillRow | null | undefined) {
   const match = String(row?.repayDate || '').match(/^(\d{4})-(\d{2})-/)
   return match ? `${match[1]}-${match[2]}` : ''
 }
 
-function isCurrentRepayMonth(row: BillRow) {
-  return billRepayMonth(row) === currentBillMonth
+function isCurrentBillMonth(row: BillRow) {
+  return String(row?.billMonth || '') === currentBillMonth
 }
 
 function fmtDayOfMonth(day: string | number | null | undefined) {
@@ -1421,7 +1514,7 @@ function openUserBillsPage() {
     query: {
       ownerId: String(billScopeOwnerId.value),
       cardIds: scopedCardIds.value.join(','),
-      repayYear: String(billFilter.year),
+      year: String(billFilter.year),
       sortMode: BILL_SORT_CURRENT_FIRST
     }
   })
@@ -1433,10 +1526,10 @@ function openFilteredBillsPage() {
     cardIds: scopedCardIds.value.join(','),
     sortMode: BILL_SORT_CURRENT_FIRST
   }
-  if (selectedRepayMonth.value) {
-    routeQuery.repayMonth = selectedRepayMonth.value
+  if (selectedBillMonth.value) {
+    routeQuery.billMonth = selectedBillMonth.value
   } else {
-    routeQuery.repayYear = String(billFilter.year)
+    routeQuery.year = String(billFilter.year)
   }
   if (billScopeOwnerId.value) {
     routeQuery.ownerId = String(billScopeOwnerId.value)
@@ -1445,7 +1538,7 @@ function openFilteredBillsPage() {
 }
 
 function goRepayment(b: BillRow) {
-  const repayMonth = billRepayMonth(b) || selectedRepayMonth.value || currentBillMonth
+  const repayMonth = billRepayMonth(b) || selectedBillMonth.value || currentBillMonth
   router.push({
     path: '/bills',
     query: { cardId: String(b.cardId), repayMonth }
@@ -1461,7 +1554,7 @@ function openCardBillsPage(card: any) {
     query: {
       ...(ownerId ? { ownerId: String(ownerId) } : {}),
       cardId: String(cardId),
-      repayYear: String(billFilter.year),
+      year: String(billFilter.year),
       sortMode: BILL_SORT_MONTH_ASC
     }
   })
@@ -1545,10 +1638,10 @@ function buildProfitQueryParams() {
     cardName: '',
     status: undefined
   }
-  if (selectedRepayMonth.value) {
-    params.repayMonth = selectedRepayMonth.value
+  if (selectedBillMonth.value) {
+    params.billMonth = selectedBillMonth.value
   } else {
-    params.repayYear = billFilter.year
+    params.year = billFilter.year
   }
   return params
 }
@@ -1695,7 +1788,7 @@ function goProfits() {
   const routeQuery: Record<string, string> = {
     year: String(billFilter.year)
   }
-  if (selectedRepayMonth.value && billFilter.month) {
+  if (selectedBillMonth.value && billFilter.month) {
     routeQuery.month = String(billFilter.month)
   }
   if (scopedCardIds.value.length === 1) {
@@ -3458,29 +3551,18 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 }
 
 .bill-item {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  padding: 6px 0;
-  min-height: 44px;
+  padding: 8px 10px;
+  min-height: 56px;
   min-width: 0;
   border: 1px solid rgba(219,226,234,.85);
   border-radius: 14px;
   background: $surface;
   transition: all .16s;
-}
-
-.bill-item > * {
-  align-self: center;
-}
-
-.bill-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  min-height: 30px;
-  padding: 0 10px;
 }
 
 .bill-item:hover {
@@ -3495,103 +3577,90 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   box-shadow: inset 0 0 0 2px rgba($warning,.20);
 }
 
-.bill-owner-group,
-.bill-card-group {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.bill-amount-group {
-  display: flex;
-}
-
-.bill-action-group {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 58px;
-  gap: 8px;
-}
-
-.bill-action-group > *,
-.bill-amount-group > * {
-  align-self: center;
-}
-
-.bill-main-cell,
-.bill-chip,
+.bill-info-left,
 .bill-amount-edit,
-.bill-row-actions,
-.bill-status {
+.bill-row-actions {
   min-width: 0;
 }
 
-.bill-main-cell {
+.bill-info-left {
+  align-items: center;
+}
+
+.bill-info-left .li-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+  min-height: 42px;
+}
+
+.bill-icon {
+  background: rgba($warning,.10);
+  color: $warning;
+  border-color: rgba($warning,.16);
+}
+
+.bill-row-top,
+.bill-row-sub {
   display: flex;
   align-items: center;
-  gap: 5px;
-  height: 28px;
+  gap: 0;
+  height: 20px;
+  min-width: 0;
   overflow: hidden;
-  line-height: 1;
-}
-
-.bill-field-label {
-  flex-shrink: 0;
-  overflow: hidden;
-  color: $faint;
-  font-size: 10.5px;
-  font-weight: 800;
-  line-height: 1;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 20px;
 }
 
-.bill-main-cell strong {
+.bill-row-sub :deep(.el-tag) {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  line-height: 16px;
+  padding: 0 5px;
+  flex-shrink: 0;
+}
+
+.bill-owner-name,
+.bill-bank-name {
   min-width: 0;
   overflow: hidden;
   color: $ink;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 800;
-  line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex-shrink: 1;
 }
 
-.bill-main-cell:nth-child(2) strong {
+.bill-bank-name {
   color: $ink2;
+  font-weight: 700;
 }
 
-.bill-chip {
+.bill-last4,
+.bill-date {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: $ink2;
+  flex-shrink: 0;
+}
+
+.bill-info-right {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 4px;
-  height: 28px;
-  padding: 0;
-  color: $ink2;
-  font-size: 11.5px;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.bill-chip span {
-  color: $sub;
-  font-weight: 800;
-}
-
-.bill-chip b {
-  min-width: 0;
-  overflow: hidden;
-  color: $ink2;
-  font-size: 11.5px;
-  font-weight: 900;
-  text-overflow: ellipsis;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+  min-height: 42px;
 }
 
 .bill-amount-edit {
   display: grid;
   grid-template-columns: 26px 8px minmax(0, 1fr);
   gap: 4px;
-  width: 100%;
+  width: 158px;
   height: 28px;
 }
 
@@ -3641,6 +3710,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px;
+  width: 84px;
   height: 28px;
 }
 
@@ -3678,13 +3748,6 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   gap: 4px;
 }
 
-.bill-status {
-  display: flex;
-  min-height: 28px;
-  align-items: center;
-  justify-content: center;
-}
-
 .scope-switch { display: flex; align-items: center; gap: 6px; }
 
 .scope-toggle {
@@ -3720,115 +3783,166 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   flex-shrink: 0;
 }
 
-.profit-ledger {
+.profit-list {
   flex: 1;
   min-height: 0;
   min-width: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: minmax(0, 1.25fr) repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, .55) transparent;
 }
 
-.profit-cell {
+.profit-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.profit-list::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, .55);
+  border-radius: 999px;
+}
+
+.profit-item {
+  box-sizing: border-box;
   min-width: 0;
-  min-height: 0;
+  min-height: 56px;
   overflow: hidden;
-  border-radius: 8px;
-  border: 1px solid rgba(219,226,234,.82);
-  background: rgba(248,250,252,.88);
-  padding: 7px 10px;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) auto;
-  grid-template-areas:
-    "label value"
-    "note note";
-  column-gap: 8px;
-  row-gap: 3px;
+  border-radius: 14px;
+  border: 1px solid rgba(219,226,234,.85);
+  background: $surface;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  transition: all .16s;
 }
 
-.profit-cell > * {
-  align-self: center;
+.profit-item:hover {
+  border-color: rgba($primary,.22);
+  box-shadow: 0 10px 18px rgba(15,23,42,.06);
+  transform: translateY(-1px);
 }
 
-.profit-cell.is-net {
-  grid-column: 1 / -1;
-  background: linear-gradient(180deg, rgba(255,255,255,.99) 0%, rgba($success,.08) 180%);
-  border-color: rgba($success,.34);
-  box-shadow: inset 3px 0 0 rgba($success,.72);
-  padding: 8px 12px;
-}
-
-.profit-cell.is-income {
-  background: rgba($success,.055);
+.profit-item.is-income {
   border-color: rgba($success,.20);
+  background: linear-gradient(180deg, rgba(255,255,255,.99) 0%, rgba($success,.06) 140%);
 }
 
-.pl-label {
-  grid-area: label;
+.profit-item.is-net {
+  border-color: rgba($primary,.20);
+  background: linear-gradient(180deg, rgba(255,255,255,.99) 0%, rgba($primary,.05) 140%);
+}
+
+.profit-info-left,
+.profit-info-right {
+  min-width: 0;
+}
+
+.profit-info-left {
+  align-items: center;
+}
+
+.profit-info-left .li-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+  min-height: 42px;
+}
+
+.profit-icon {
+  background: rgba(148,163,184,.10);
+  color: $ink2;
+  border-color: rgba(148,163,184,.18);
+}
+
+.profit-icon.income,
+.profit-icon.net {
+  background: rgba($success,.10);
+  color: $success;
+  border-color: rgba($success,.18);
+}
+
+.profit-icon.bill {
+  background: rgba($primary,.10);
+  color: $primary;
+  border-color: rgba($primary,.16);
+}
+
+.profit-icon.cost,
+.profit-icon.other {
+  background: rgba($danger,.08);
+  color: $danger;
+  border-color: rgba($danger,.14);
+}
+
+.profit-row-top,
+.profit-row-sub {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 20px;
   min-width: 0;
   overflow: hidden;
-  color: $sub;
-  font-size: 11px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.profit-name {
+  color: $ink;
+  font-size: 13px;
   font-weight: 800;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.pl-value {
-  grid-area: value;
+.profit-meta {
   min-width: 0;
   overflow: hidden;
-  color: $ink;
-  font-size: 12.5px;
-  font-weight: 900;
-  letter-spacing: 0;
-  line-height: 1.1;
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.profit-cell.is-net .pl-label {
-  color: $ink;
-  font-size: 12.5px;
-}
-
-.profit-cell.is-net .pl-value {
-  font-size: 22px;
-  line-height: 1;
-}
-
-.pl-value.pos { color: #18905d; }
-.pl-value.neg { color: #d04444; }
-
-.pl-note {
-  grid-area: note;
-  min-width: 0;
-  overflow: hidden;
-  color: $faint;
-  font-size: 10px;
+  color: $ink2;
+  font-size: 13px;
   font-weight: 700;
-  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.profit-cell:not(.is-net) .pl-note {
-  text-align: right;
-}
-
-.profit-cell.is-net .pl-note {
-  color: $sub;
+.profit-date {
+  min-width: 0;
+  overflow: hidden;
+  color: $ink2;
+  font-size: 11.5px;
   font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.profit-cell.is-income .pl-label,
-.profit-cell.is-income .pl-note {
-  color: #4f8f75;
+.profit-info-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  min-height: 42px;
+  max-width: 48%;
 }
+
+.profit-value {
+  min-width: 0;
+  overflow: hidden;
+  color: $ink;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profit-value.pos { color: #18905d; }
+.profit-value.neg { color: #d04444; }
 
 .font-mono {
   font-family: var(--font-mono), monospace;
@@ -4163,26 +4277,23 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   .mini-stats { gap: 6px; }
   .bill-item { gap: 6px; }
   .mini-stat { padding: 9px 9px 8px; }
-  .profit-cell { padding: 7px 8px; }
-  .profit-cell.is-net .pl-value { font-size: 18px; }
+  .profit-item { gap: 8px; padding: 8px 9px; }
+  .profit-value { font-size: 15px; }
 }
 
 @media (max-width: 1280px) {
   .metrics-grid { min-width: 160px; }
   .metric-box { padding: 6px 7px; }
-  .bill-group {
-    gap: 6px;
-    padding: 0 8px;
-  }
-  .bill-action-group {
-    grid-template-columns: minmax(0, 1fr) 54px;
-    gap: 6px;
-  }
+  .bill-item { gap: 6px; padding: 8px 9px; }
+  .bill-info-right { gap: 6px; }
   .bill-amount-edit {
     grid-template-columns: 24px 8px minmax(0, 1fr);
+    width: 142px;
   }
-  .profit-ledger { gap: 6px; }
-  .pl-label { font-size: 10.5px; }
-  .pl-value { font-size: 12px; }
+  .bill-row-actions { width: 76px; }
+  .profit-list { gap: 6px; }
+  .profit-name,
+  .profit-meta { font-size: 12.5px; }
+  .profit-value { font-size: 14px; }
 }
 </style>

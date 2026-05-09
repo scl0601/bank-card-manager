@@ -49,7 +49,10 @@
     <div class="workspace-grid">
       <section class="data-panel card-shell">
         <div class="panel-head data-head">
-          <div class="panel-title">用户列表</div>
+          <div class="panel-title data-title">
+            <span>用户数据区</span>
+            <span class="data-title-count">{{ filteredTotal }} 条</span>
+          </div>
           <div class="data-head-actions">
             <el-button type="primary" class="action-btn" :icon="Plus" @click="openAddTopUser">新增用户</el-button>
           </div>
@@ -79,6 +82,7 @@
           <el-table
             v-else-if="treeData.length"
             ref="tableRef"
+            class="user-page-table"
             :data="treeData"
             row-key="id"
             border
@@ -90,7 +94,7 @@
             :cell-style="{ padding: '0' }"
             @expand-change="onExpandChange"
           >
-            <el-table-column prop="name" label="姓名/角色">
+            <el-table-column prop="name" label="姓名/角色" min-width="160" header-align="center">
               <template #header>
                 <div class="sortable-header" @click="toggleNameSort">
                   <span>姓名/角色</span>
@@ -102,8 +106,6 @@
               </template>
               <template #default="{ row }">
                 <div class="user-cell">
-                  <el-tag v-if="!row.parentId" type="warning" size="small" effect="light" class="role-tag">洽谈人</el-tag>
-                  <el-tag v-else type="info" size="small" effect="plain" class="role-tag">名下持卡人</el-tag>
                   <div class="avatar-wrap" :class="{ 'avatar-child': !!row.parentId }">
                     <el-icon v-if="!row.parentId" :size="16"><UserFilled /></el-icon>
                     <el-icon v-else :size="15"><User /></el-icon>
@@ -112,12 +114,17 @@
                     <div class="name-row">
                       <span class="name-text">{{ row.name }}</span>
                     </div>
+                    <div class="user-sub-row">
+                      <el-tag v-if="!row.parentId" type="warning" size="small" effect="light" class="role-tag">洽谈人</el-tag>
+                      <el-tag v-else type="info" size="small" effect="plain" class="role-tag">名下持卡人</el-tag>
+                      <span v-if="row.parentId" class="user-parent-text">{{ row.parentName || '未指定' }}</span>
+                    </div>
                   </div>
                 </div>
               </template>
             </el-table-column>
 
-            <el-table-column prop="phone" label="联系电话" align="center">
+            <el-table-column prop="phone" label="联系电话" min-width="112" align="center" header-align="center">
               <template #default="{ row }">
                 <span class="plain-cell phone-cell">
                   <span class="phone-cell-inner">
@@ -130,7 +137,7 @@
               </template>
             </el-table-column>
 
-            <el-table-column label="归属洽谈人" align="center">
+            <el-table-column label="归属洽谈人" min-width="108" align="center" header-align="center">
               <template #default="{ row }">
                 <span class="plain-cell relation-cell">
                   {{ row.parentId ? (row.parentName || '未指定') : '本人' }}
@@ -138,7 +145,7 @@
               </template>
             </el-table-column>
 
-            <el-table-column label="费率" align="center">
+            <el-table-column label="费率" min-width="112" align="center" header-align="center">
               <template #default="{ row }">
                 <div class="fee-cell">
                   <template v-if="editingFeeId === row.id && !row.parentId">
@@ -173,7 +180,7 @@
               </template>
             </el-table-column>
 
-            <el-table-column prop="cardCount" label="卡数" align="center">
+            <el-table-column prop="cardCount" label="卡数" min-width="68" align="center" header-align="center">
               <template #default="{ row }">
                 <div class="card-count-cell">
                   <el-badge v-if="row.cardCount > 0" :value="row.cardCount" :max="99" type="primary" class="count-badge" />
@@ -182,7 +189,7 @@
               </template>
             </el-table-column>
 
-            <el-table-column prop="status" label="状态" align="center">
+            <el-table-column prop="status" label="状态" min-width="78" align="center" header-align="center">
               <template #default="{ row }">
                 <div class="status-cell">
                   <el-tag :type="row.status === 0 ? 'success' : 'danger'" size="small" effect="light">
@@ -193,7 +200,7 @@
               </template>
             </el-table-column>
 
-            <el-table-column prop="createTime" label="创建时间" align="center">
+            <el-table-column prop="createTime" label="创建时间" min-width="128" align="center" header-align="center">
               <template #default="{ row }">
                 <span class="plain-cell time-cell">
                   <el-icon :size="12"><Clock /></el-icon>{{ formatTime(row.createTime) || '—' }}
@@ -201,27 +208,28 @@
               </template>
             </el-table-column>
 
-            <el-table-column prop="remark" label="备注" align="center" show-overflow-tooltip>
+            <el-table-column prop="remark" label="备注" min-width="168" align="center" header-align="center" show-overflow-tooltip>
               <template #default="{ row }">
                 <span class="plain-cell remark-cell">{{ row.remark || '—' }}</span>
               </template>
             </el-table-column>
 
-            <el-table-column label="操作" align="center">
+            <el-table-column label="操作" min-width="132" align="center" header-align="center">
               <template #default="{ row }">
                 <div class="action-cell">
                   <el-button
                     v-if="!row.parentId"
                     type="success"
                     link
-                    class="action-icon-btn"
+                    class="action-icon-btn action-add"
                     title="添加名下持卡人"
                     @click="openAddChild(row)"
                   >
                     <el-icon :size="16"><CirclePlus /></el-icon>
                   </el-button>
+                  <span v-else class="action-icon-placeholder"></span>
 
-                  <el-button type="primary" link class="action-icon-btn" title="编辑" @click="openEditUser(row)">
+                  <el-button type="primary" link class="action-icon-btn action-edit" title="编辑" @click="openEditUser(row)">
                     <el-icon :size="16"><EditPen /></el-icon>
                   </el-button>
 
@@ -236,7 +244,7 @@
                       <el-button
                         :type="row.status === 0 ? 'warning' : 'success'"
                         link
-                        class="action-icon-btn"
+                        class="action-icon-btn action-toggle"
                         :title="row.status === 0 ? '停用' : '启用'"
                       >
                         <el-icon :size="16"><component :is="row.status === 0 ? CircleClose : CircleCheck" /></el-icon>
@@ -252,7 +260,7 @@
                     @confirm="handleDeleteUser(row.id)"
                   >
                     <template #reference>
-                      <el-button type="danger" link class="action-icon-btn" title="删除">
+                      <el-button type="danger" link class="action-icon-btn action-delete" title="删除">
                         <el-icon :size="16"><Delete /></el-icon>
                       </el-button>
                     </template>
@@ -410,11 +418,15 @@ interface CardUserViewCache {
 
 type QuickMenuKey = 'all' | 'main' | 'child' | 'active' | 'disabled' | 'withCard' | 'noCard'
 
-const DEFAULT_PAGE_SIZE = 10
-const USER_HEADER_HEIGHT = 20
+const DEFAULT_PAGE_SIZE = 12
+const MIN_AUTO_PAGE_SIZE = 6
+const USER_HEADER_HEIGHT = 28
 const USER_ROW_HEIGHT = 42
+const USER_TABLE_VERTICAL_PADDING = 8
+const USER_TABLE_LAYOUT_GUARD = 10
+const USER_TABLE_BORDER_GUARD = 2
 const USER_FONT_SIZE = 12
-const USER_AVATAR_SIZE = 18
+const USER_AVATAR_SIZE = 24
 const VIEW_CACHE_TTL = 30 * 1000
 const VIEW_CACHE_KEY = 'card-user-list-cache-v1'
 
@@ -547,22 +559,39 @@ const visibleRowIndexMap = computed(() => {
   return indexMap
 })
 const showTableSkeleton = computed(() => loading.value && !dataReady.value && treeData.value.length === 0)
-const tableHeight = computed(() => '100%')
+const tableAvailableHeight = computed(() => Math.max(Math.floor(tableWrapHeight.value - USER_TABLE_VERTICAL_PADDING), 0))
+const tableBodyCapacityHeight = computed(() => Math.max(tableAvailableHeight.value - USER_HEADER_HEIGHT - USER_TABLE_LAYOUT_GUARD, 0))
+const tableRowCapacity = computed(() => {
+  if (!tableBodyCapacityHeight.value) return DEFAULT_PAGE_SIZE
+  return Math.max(MIN_AUTO_PAGE_SIZE, Math.floor(tableBodyCapacityHeight.value / USER_ROW_HEIGHT))
+})
+const effectiveRowHeight = computed(() => {
+  if (!tableAvailableHeight.value) return USER_ROW_HEIGHT
+  const rows = Math.max(tableRowCapacity.value, 1)
+  const availableBodyHeight = Math.max(tableAvailableHeight.value - USER_HEADER_HEIGHT - USER_TABLE_BORDER_GUARD, USER_ROW_HEIGHT)
+  const fittedHeight = Math.floor((availableBodyHeight / rows) * 100) / 100
+  return Math.max(USER_ROW_HEIGHT, Math.min(USER_ROW_HEIGHT + 4, fittedHeight))
+})
+const tableHeight = computed(() => {
+  if (!tableAvailableHeight.value) return '100%'
+  const visibleRows = Math.max(1, Math.min(visibleRowCount.value, tableRowCapacity.value))
+  const height = USER_HEADER_HEIGHT + visibleRows * effectiveRowHeight.value + USER_TABLE_BORDER_GUARD
+  return `${Math.min(tableAvailableHeight.value, height)}px`
+})
 const pageSizeOptions = computed(() => Array.from(new Set([10, autoPageSize.value, 15, 20, 30].filter((size) => size > 0))).sort((a, b) => a - b))
 const tableStyleVars = computed(() => {
   return {
     '--user-header-height': `${USER_HEADER_HEIGHT}px`,
-    '--user-row-height': `${USER_ROW_HEIGHT}px`,
+    '--user-row-height': `${effectiveRowHeight.value}px`,
     '--user-font-size': `${USER_FONT_SIZE}px`,
     '--user-avatar-size': `${USER_AVATAR_SIZE}px`,
-    '--user-line-height': '1.1'
+    '--user-line-height': '1.2'
   }
 })
 
 function calculateAutoPageSize() {
   if (!tableWrapHeight.value || expandAll.value) return DEFAULT_PAGE_SIZE
-  const availableHeight = Math.max(tableWrapHeight.value - USER_HEADER_HEIGHT - 2, USER_ROW_HEIGHT * DEFAULT_PAGE_SIZE)
-  return Math.max(DEFAULT_PAGE_SIZE, Math.floor(availableHeight / USER_ROW_HEIGHT))
+  return tableRowCapacity.value
 }
 
 function syncAutoPageSize() {
@@ -1130,7 +1159,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 .card-user-page {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--user-gap);
   margin: 0;
   width: 100%;
   height: 100%;
@@ -1139,30 +1168,33 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   background: #f5f7fb;
   overflow: hidden;
   box-sizing: border-box;
-  --user-header-height: 22px;
-  --user-row-height: 24px;
-  --user-font-size: 10px;
-  --user-avatar-size: 18px;
-  --user-line-height: 1.1;
+  --user-gap: 6px;
+  --user-title-size: 15px;
+  --user-small-font-size: 11px;
+  --user-header-height: 28px;
+  --user-row-height: 42px;
+  --user-font-size: 12px;
+  --user-avatar-size: 24px;
+  --user-line-height: 1.2;
 }
 
 .card-shell {
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid #dbe2ea;
-  border-radius: 10px;
-  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.035);
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
 }
 
 .page-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 4px;
-  padding: 4px 6px;
+  gap: var(--user-gap);
+  padding: 6px 8px;
   background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,253,0.98) 100%);
   border: 1px solid #dbe2ea;
-  border-radius: 10px;
-  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.03);
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.03);
   flex-shrink: 0;
 }
 
@@ -1171,8 +1203,17 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   min-width: 0;
 }
 
+.user-cell .user-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
 .header-title {
-  font-size: 14px;
+  font-size: var(--user-title-size);
   line-height: 1.1;
   font-weight: 700;
   color: #1f2a37;
@@ -1181,7 +1222,14 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+}
+
+/*noinspection CssUnusedSymbol*/
+.header-actions :deep(.el-button) {
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 8px;
 }
 
 .user-search-panel {
@@ -1190,7 +1238,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   align-items: stretch;
   flex-shrink: 0;
   gap: 6px 10px;
-  padding: 6px 8px;
+  padding: 4px;
 }
 
 .user-search-panel .app-search-main {
@@ -1204,8 +1252,9 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 }
 
 .user-search-panel .app-search-title {
-  min-height: 28px;
-  font-size: 11px;
+  min-height: 30px;
+  font-size: 12px;
+  color: #667085;
 }
 
 .user-search-panel .app-search-item-xl {
@@ -1251,17 +1300,17 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 }
 
 .action-btn {
-  height: 34px;
-  padding: 0 14px;
-  border-radius: 10px;
-  font-size: 13px;
-  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.06);
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 8px;
+  font-size: 12px;
+  box-shadow: none;
 }
 
 .workspace-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 4px;
+  gap: var(--user-gap);
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -1282,16 +1331,34 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 4px;
-  margin-bottom: 4px;
+  gap: 5px;
+  margin-bottom: 6px;
   flex-shrink: 0;
 }
 
 .panel-title {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   color: #1f2a37;
-  line-height: 1.1;
+  line-height: 1.15;
+}
+
+.data-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.data-title-count {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(9, 88, 217, 0.08);
+  color: #0958d9;
+  font-size: 10.5px;
+  font-weight: 700;
 }
 
 .panel-desc {
@@ -1314,7 +1381,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 
 .menu-item {
   display: grid;
-  grid-template-columns: 8px 1fr auto;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
   align-items: center;
   gap: 6px;
   width: 100%;
@@ -1383,11 +1450,15 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 .user-table-wrap {
   flex: 1;
   min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 4px 6px;
+  box-sizing: border-box;
   border: 1px solid #e5eaf1;
-  border-radius: 8px;
+  border-radius: 10px;
   background: #fff;
+  box-shadow: none;
   scrollbar-width: thin;
   scrollbar-color: #cdd6e3 transparent;
   scroll-behavior: smooth;
@@ -1396,8 +1467,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 .user-table-wrap.expanded {
   flex: 1;
   min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .user-table-wrap::-webkit-scrollbar {
@@ -1417,9 +1487,9 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 .user-table-skeleton {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   height: 100%;
-  padding: 10px 12px;
+  padding: 6px;
   box-sizing: border-box;
 }
 
@@ -1432,7 +1502,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 }
 
 .user-skeleton-row {
-  height: 34px;
+  height: var(--user-row-height);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -1458,118 +1528,152 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 
 /*noinspection CssUnusedSymbol*/
 .user-pagination :deep(.el-pagination) {
-  --el-pagination-button-height: 20px;
-  --el-pagination-button-width: 20px;
-  font-size: 10px;
+  --el-pagination-button-height: 22px;
+  --el-pagination-button-width: 22px;
+  font-size: var(--user-small-font-size);
+  transform: scale(0.92);
+  transform-origin: right center;
 }
 
 /*noinspection CssUnusedSymbol*/
-:deep(.el-table) {
+.user-pagination :deep(.el-pagination .btn-prev),
+.user-pagination :deep(.el-pagination .btn-next),
+.user-pagination :deep(.el-pagination .el-pager li) {
+  min-width: 22px;
+  height: 22px;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-table-wrap :deep(.el-table) {
   --el-table-border-color: #e5eaf1;
+  flex: 1 1 auto;
+  width: 100%;
   font-size: var(--user-font-size);
-  overflow: visible !important;
+  overflow: hidden !important;
 }
 
 /*noinspection CssUnusedSymbol*/
-:deep(.el-table__inner-wrapper),
-:deep(.el-table__header-wrapper),
-:deep(.el-table__body-wrapper),
-:deep(.el-scrollbar),
-:deep(.el-scrollbar__wrap),
-:deep(.el-scrollbar__view) {
-  overflow: visible !important;
+.user-table-wrap :deep(.el-table__inner-wrapper::before) {
+  display: none;
 }
 
 /*noinspection CssUnusedSymbol*/
-:deep(.el-table__body),
-:deep(.el-table__header) {
+.user-table-wrap :deep(.el-table__inner-wrapper),
+.user-table-wrap :deep(.el-table__header-wrapper) {
+  overflow: hidden !important;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-table-wrap :deep(.el-table__body-wrapper),
+.user-table-wrap :deep(.el-scrollbar__wrap) {
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-table-wrap :deep(.el-table__body),
+.user-table-wrap :deep(.el-table__header) {
   width: 100% !important;
   table-layout: fixed !important;
 }
 
 /*noinspection CssUnusedSymbol*/
-:deep(.el-table .cell) {
+.user-table-wrap :deep(.el-table .cell) {
   display: flex;
   align-items: center;
   justify-content: center;
   min-width: 0;
   width: 100%;
   height: 100%;
-  padding: 0 2px;
-  line-height: var(--user-line-height);
+  padding: 1px 4px;
+  line-height: 1.2;
   white-space: normal;
-  word-break: break-all;
-  overflow: visible;
-  text-overflow: clip;
+  word-break: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /*noinspection CssUnusedSymbol*/
-:deep(.el-table .el-icon) {
+.user-table-wrap :deep(.el-table .el-icon) {
   width: max(6px, min(12px, var(--user-font-size))) !important;
   height: max(6px, min(12px, var(--user-font-size))) !important;
   font-size: max(6px, min(12px, var(--user-font-size))) !important;
 }
 
 /*noinspection CssUnusedSymbol*/
-:deep(.el-table .el-button) {
+.user-table-wrap :deep(.el-table .el-button) {
   min-height: 0;
   line-height: 1;
 }
 
 /*noinspection CssUnusedSymbol*/
-:deep(.el-table .el-button > span) {
+.user-table-wrap :deep(.el-table .el-button > span) {
   gap: 0;
 }
 
 /*noinspection CssUnusedSymbol*/
-:deep(.el-table th.el-table__cell) {
+.user-table-wrap :deep(.el-table th.el-table__cell) {
   height: var(--user-header-height) !important;
-  font-size: max(8px, calc(var(--user-font-size) + 1px));
+  padding: 0 2px !important;
+  box-sizing: border-box;
+  background: #f7f9fc !important;
+  color: #5b6472;
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: middle;
 }
 
 /*noinspection CssUnusedSymbol*/
-:deep(.el-table td.el-table__cell) {
+.user-table-wrap :deep(.el-table td.el-table__cell) {
   height: var(--user-row-height) !important;
-  padding: 0 !important;
+  padding: 0 2px !important;
+  box-sizing: border-box;
+  vertical-align: middle;
 }
 
 /*noinspection CssUnusedSymbol*/
-:deep(.el-table__row) {
+.user-table-wrap :deep(.el-table__row) {
   height: var(--user-row-height) !important;
 }
 
 /*noinspection CssUnusedSymbol*/
-:deep(.el-table__cell .el-table__expand-icon) {
+.user-table-wrap :deep(.el-table__cell .el-table__expand-icon) {
   margin-right: 1px;
 }
 
 /*noinspection CssUnusedSymbol*/
-:deep(.el-table__indent) {
-  padding-left: 24px !important;
+.user-table-wrap :deep(.el-table__indent) {
+  padding-left: 18px !important;
 }
 
 /*noinspection CssUnusedSymbol*/
-:deep(.el-scrollbar__bar) {
+.user-table-wrap :deep(.el-scrollbar__bar) {
   display: none !important;
 }
 
 /*noinspection CssUnusedSymbol*/
-:deep(.el-table__body tr.row-even > td.el-table__cell) {
+.user-table-wrap :deep(.el-table__body tr.row-even > td.el-table__cell) {
   background: #ffffff;
 }
 
 /*noinspection CssUnusedSymbol*/
-:deep(.el-table__body tr.row-odd > td.el-table__cell) {
+.user-table-wrap :deep(.el-table__body tr.row-odd > td.el-table__cell) {
   background: #f8fafc;
 }
 
 /*noinspection CssUnusedSymbol*/
-:deep(.row-disabled) {
+.user-table-wrap :deep(.el-table__body tr:hover > td.el-table__cell) {
+  background: #eef5ff !important;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-table-wrap :deep(.row-disabled) {
   opacity: 0.62;
 }
 
 /*noinspection CssUnusedSymbol*/
-:deep(.el-table__body tr.row-disabled > td.el-table__cell) {
+.user-table-wrap :deep(.el-table__body tr.row-disabled > td.el-table__cell) {
   background: #f2f4f7 !important;
 }
 
@@ -1577,10 +1681,10 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 3px;
+  gap: 7px;
   width: 100%;
   min-width: 0;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .sortable-header {
@@ -1621,13 +1725,19 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 .avatar-wrap {
   width: var(--user-avatar-size);
   height: var(--user-avatar-size);
-  border-radius: 5px;
+  border-radius: 7px;
   background: linear-gradient(135deg, #e6f0ff 0%, #cfe0ff 100%);
   color: #0958d9;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+.avatar-wrap :deep(.el-icon) {
+  width: 14px !important;
+  height: 14px !important;
+  font-size: 14px !important;
 }
 
 .avatar-child {
@@ -1638,25 +1748,50 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 .name-row {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 2px;
   min-width: 0;
-  flex-wrap: wrap;
-  overflow: visible;
+  overflow: hidden;
+  line-height: 1.2;
 }
 
 .role-tag {
   flex-shrink: 0;
-  margin-right: 4px;
+  height: 16px;
+  padding: 0 5px;
+  font-size: 10px;
+  line-height: 14px;
 }
 
 .name-text {
-  max-width: none;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   font-size: max(8px, calc(var(--user-font-size) + 1px));
-  font-weight: 600;
+  font-weight: 700;
   color: #1f2a37;
-  white-space: normal;
-  word-break: break-all;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-sub-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+  line-height: 16px;
+}
+
+.user-parent-text {
+  min-width: 0;
+  overflow: hidden;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .plain-cell {
@@ -1669,9 +1804,10 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   font-size: var(--user-font-size);
   line-height: var(--user-line-height);
   color: #667085;
-  white-space: normal;
-  word-break: break-all;
-  overflow: visible;
+  white-space: nowrap;
+  word-break: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .remark-cell {
@@ -1764,8 +1900,11 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   background: #f3f5f8;
   color: #526074;
   border: 1px solid #e5eaf1;
-  white-space: normal;
+  max-width: 100%;
+  white-space: nowrap;
   word-break: keep-all;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .fee-badge.has-rate {
@@ -1829,16 +1968,61 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 }
 
 .action-cell {
-  gap: 0;
-  flex-wrap: wrap;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+.action-icon-btn,
+.action-icon-placeholder {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+}
+
+.action-icon-placeholder {
+  display: inline-block;
 }
 
 .action-icon-btn {
-  width: 24px;
-  height: 24px;
   padding: 0;
   margin-left: 0 !important;
   min-height: 0;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: rgba(148, 163, 184, 0.08);
+  transition: all .15s ease;
+}
+
+.action-icon-btn :deep(.el-icon) {
+  width: 14px !important;
+  height: 14px !important;
+  font-size: 14px !important;
+}
+
+.action-icon-btn.action-add {
+  color: #2f9e44;
+  background: rgba(47, 158, 68, 0.08);
+}
+
+.action-icon-btn.action-edit {
+  color: #0958d9;
+  background: rgba(9, 88, 217, 0.08);
+}
+
+.action-icon-btn.action-toggle {
+  color: #d97706;
+  background: rgba(217, 119, 6, 0.08);
+}
+
+.action-icon-btn.action-delete {
+  color: #cf1322;
+  background: rgba(207, 19, 34, 0.08);
+}
+
+.action-icon-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(9, 88, 217, 0.16);
+  box-shadow: 0 6px 12px rgba(15, 23, 42, 0.08);
 }
 
 .no-data {
