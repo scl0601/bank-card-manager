@@ -6,6 +6,8 @@ import org.apache.ibatis.reflection.MetaObject;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.servlet.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
 
@@ -24,6 +26,26 @@ public class MetaObjectHandlerConfig implements MetaObjectHandler {
         this.strictInsertFill(metaObject, "updateTime", LocalDateTime.class, now);
         this.strictInsertFill(metaObject, "createBy", String.class, username);
         this.strictInsertFill(metaObject, "updateBy", String.class, username);
+        // _openid 自动填充（bill_detail 等表有 NOT NULL 约束）
+        if (metaObject.hasGetter("_openid")) {
+            String openid = currentOpenid();
+            if (openid != null) {
+                this.strictInsertFill(metaObject, "_openid", String.class, openid);
+            } else {
+                // 无 openid 上下文时填默认值，避免 NOT NULL 约束报错
+                this.strictInsertFill(metaObject, "_openid", String.class, "system");
+            }
+        }
+    }
+
+    private String currentOpenid() {
+        try {
+            var attr = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attr != null && attr.getRequest() != null) {
+                return attr.getRequest().getHeader("x-wx-openid");
+            }
+        } catch (Exception ignored) {}
+        return null;
     }
 
     @Override
