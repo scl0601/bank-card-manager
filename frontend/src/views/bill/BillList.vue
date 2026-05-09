@@ -1686,7 +1686,7 @@ function syncBillRowFromDetails(billId: number, details: BillDetailRow[]) {
   const consumeAmount = Number(calculateDetailTypeTotal(details, DETAIL_TYPE_VALUE.EXPENSE).toFixed(2))
   row.actualPayAmount = actualPayAmount
   row.consumeAmount = consumeAmount
-  row.status = resolveBillStatusFromDetails(row, actualPayAmount)
+  // 只同步金额，不改变账单状态（状态由用户手动管理）
 }
 
 function getDetailPrefetchIds() {
@@ -2065,12 +2065,9 @@ async function handleRepayVerifiedChange(row: BillRow, verified: boolean) {
   const form = ensureEditForm(row)
   const previousVerified = Boolean(row.verified)
   const previousFormVerified = Boolean(form.verified)
-  const previousStatus = row.status
-  const previousFormStatus = form.status
   row.verified = verified
   form.verified = verified
-  row.status = resolveBillStatusFromDetails(row, toNumber(row.actualPayAmount))
-  form.status = row.status
+  // 核实操作不再自动改变账单状态，状态由用户手动管理
   try {
     await updateBillVerificationApi(row.id, {
       verified,
@@ -2079,8 +2076,6 @@ async function handleRepayVerifiedChange(row: BillRow, verified: boolean) {
   } catch (error) {
     row.verified = previousVerified
     form.verified = previousFormVerified
-    row.status = previousStatus
-    form.status = previousFormStatus
     handleError(error, '更新还款明细核实状态')
   }
 }
@@ -2088,11 +2083,8 @@ async function handleRepayVerifiedChange(row: BillRow, verified: boolean) {
 async function handleExpenseVerifiedChange(row: BillRow, expenseVerified: boolean) {
   const form = ensureEditForm(row)
   const previousExpenseVerified = Boolean(row.expenseVerified)
-  const previousStatus = row.status
-  const previousFormStatus = form.status
   row.expenseVerified = expenseVerified
-  row.status = resolveBillStatusFromDetails(row, toNumber(row.actualPayAmount))
-  form.status = row.status
+  // 核实操作不再自动改变账单状态，状态由用户手动管理
   try {
     await updateBillVerificationApi(row.id, {
       verified: Boolean(row.verified),
@@ -2100,8 +2092,6 @@ async function handleExpenseVerifiedChange(row: BillRow, expenseVerified: boolea
     })
   } catch (error) {
     row.expenseVerified = previousExpenseVerified
-    row.status = previousStatus
-    form.status = previousFormStatus
     handleError(error, '更新消费明细核实状态')
   }
 }

@@ -47,7 +47,7 @@
 
 ### 云托管服务配置
 - **服务名称**: bank-admin-backend
-- **当前线上版本**: bank-admin-backend-035 (部署中...)
+- **当前线上版本**: bank-admin-backend-036 (运行中) / v037 部署中
 - **服务类型**: 容器型 (Container)
 - **CPU**: 1 核
 - **内存**: 2 GB
@@ -142,6 +142,23 @@ npm run dev
 ---
 
 ## 更新日志
+
+### 2026-05-10 (01:11 更新)
+- **彻底修复**: 账单状态改为完全手动管理 (14addb8)
+- **问题背景**: 用户反馈账单状态被自动覆盖（保存明细、核实操作都会改状态），与本地代码逻辑不一致
+- **根因链路**:
+  1. `save()` 新增账单时：`refreshBillState()` → `setStatus(resolveBillStatus())` 自动覆盖用户值
+  2. `updateVerification()` 核实时：调用 `resolveBillStatus()` + `setStatus()` 联动改状态
+  3. `resolveBillStatus()` 首行：`verified && expenseVerified → 直接返回已还清` 误判
+  4. `refreshBillAmountFromDetails()` 保存明细时：→ `refreshBillState()` → 再次覆盖状态
+- **修复方案（4处修改）**：
+  1. `save()`: 增加 `dto.getStatus()` 覆盖保护，用户手动值优先
+  2. `updateVerification()`: 去掉 `resolveBillStatus` + `setStatus`，核实只改 `verified/expenseVerified`
+  3. `resolveBillStatus()`: 去掉首行"双核实→已还清"的自动判断
+  4. `refreshBillState()`: **去掉 `entity.setStatus(...)` 行**，只计算实际还款金额
+  5. `refreshBillAmountFromDetails()`: 去掉 `closeBillReminders` 联动
+- 代码已推送到 GitHub
+- 后端云托管 v037 部署中
 
 ### 2026-05-10 (00:48 更新)
 - **彻底修复**: 账单明细保存失败 - 根因是 BaseEntity 缺少 `_openid` 字段 (c8c0197)
