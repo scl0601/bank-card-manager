@@ -26,15 +26,9 @@ public class MetaObjectHandlerConfig implements MetaObjectHandler {
         this.strictInsertFill(metaObject, "updateTime", LocalDateTime.class, now);
         this.strictInsertFill(metaObject, "createBy", String.class, username);
         this.strictInsertFill(metaObject, "updateBy", String.class, username);
-        // _openid 自动填充（bill_detail 等表有 NOT NULL 约束）
-        if (metaObject.hasGetter("_openid")) {
-            String openid = currentOpenid();
-            if (openid != null) {
-                this.strictInsertFill(metaObject, "_openid", String.class, openid);
-            } else {
-                // 无 openid 上下文时填默认值，避免 NOT NULL 约束报错
-                this.strictInsertFill(metaObject, "_openid", String.class, "system");
-            }
+        // openid 自动填充（bill_detail 等表有 NOT NULL 约束）
+        if (metaObject.hasGetter("openid")) {
+            this.strictInsertFill(metaObject, "openid", String.class, "system");
         }
     }
 

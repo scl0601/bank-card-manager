@@ -14,6 +14,10 @@ public class BaseEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** 微信小程序 open_id（部分表有 NOT NULL 约束） */
+    @TableField(value = "_openid", fill = FieldFill.INSERT)
+    private String openid;
+
     /** 逻辑删除：0正常 1已删除 */
     @TableLogic
     private Integer isDeleted;
