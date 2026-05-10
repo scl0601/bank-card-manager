@@ -28,6 +28,7 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         ensurePatchHistoryTable();
+        ensureSysUserOpenidColumn();
         ensureCardUserModelCompatibility();
         ensureBankCardUserIdColumn();
         ensureBankCardColumns();
@@ -38,6 +39,8 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
         ensureBillDetailTable();
         migrateLegacyFeeRateData();
         alignFeeRateColumns();
+        ensureSpecialChannelTables();
+        ensureCommonOpenidColumns();
     }
 
     private void ensurePatchHistoryTable() {
@@ -70,6 +73,10 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
                         syncedBankCards
                 )
         );
+    }
+
+    private void ensureSysUserOpenidColumn() {
+        ensureOpenidColumnIfTableExists("bank_sys_user");
     }
 
     private void ensureCardUserTable() {
@@ -470,6 +477,215 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
         if (columnExists("card_bill", "fee_rate")) {
             jdbcTemplate.execute("ALTER TABLE `card_bill` MODIFY COLUMN `fee_rate` DECIMAL(8,2) DEFAULT 0.00 COMMENT 'fee rate percent (1 means 1 percent)'");
         }
+    }
+
+    private void ensureSpecialChannelTables() {
+        jdbcTemplate.execute(sql(
+                "CREATE TABLE IF NOT EXISTS `special_user_config` (",
+                "    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'primary key',",
+                "    `user_id` BIGINT NOT NULL COMMENT 'card_user id for special channel',",
+                "    `status` TINYINT NOT NULL DEFAULT 0 COMMENT '0 active, 1 disabled',",
+                "    `remark` VARCHAR(500) DEFAULT NULL COMMENT 'remark',",
+                "    `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,",
+                "    `create_by` VARCHAR(64) DEFAULT NULL,",
+                "    `create_time` DATETIME DEFAULT NULL,",
+                "    `update_by` VARCHAR(64) DEFAULT NULL,",
+                "    `update_time` DATETIME DEFAULT NULL,",
+                "    `_openid` VARCHAR(64) NOT NULL DEFAULT '',",
+                "    PRIMARY KEY (`id`),",
+                "    KEY `idx_user_id` (`user_id`),",
+                "    KEY `idx_status` (`status`)",
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='special channel user config'"
+        ));
+
+        jdbcTemplate.execute(sql(
+                "CREATE TABLE IF NOT EXISTS `special_bank_card` (",
+                "    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'primary key',",
+                "    `user_id` BIGINT NOT NULL COMMENT 'card_user id',",
+                "    `bank_name` VARCHAR(64) NOT NULL COMMENT 'bank name',",
+                "    `card_no_last4` CHAR(4) NOT NULL COMMENT 'card last 4 digits',",
+                "    `total_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'card total limit amount',",
+                "    `status` TINYINT NOT NULL DEFAULT 0 COMMENT '0 active, 1 disabled',",
+                "    `remark` VARCHAR(500) DEFAULT NULL COMMENT 'remark',",
+                "    `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,",
+                "    `create_by` VARCHAR(64) DEFAULT NULL,",
+                "    `create_time` DATETIME DEFAULT NULL,",
+                "    `update_by` VARCHAR(64) DEFAULT NULL,",
+                "    `update_time` DATETIME DEFAULT NULL,",
+                "    `_openid` VARCHAR(64) NOT NULL DEFAULT '',",
+                "    PRIMARY KEY (`id`),",
+                "    KEY `idx_user_id` (`user_id`),",
+                "    KEY `idx_status` (`status`),",
+                "    KEY `idx_bank_card` (`bank_name`, `card_no_last4`)",
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='special channel bank cards'"
+        ));
+
+        jdbcTemplate.execute(sql(
+                "CREATE TABLE IF NOT EXISTS `special_card_bill` (",
+                "    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'primary key',",
+                "    `card_id` BIGINT NOT NULL COMMENT 'special_bank_card id',",
+                "    `user_id` BIGINT NOT NULL COMMENT 'card_user id snapshot',",
+                "    `bill_month` VARCHAR(7) NOT NULL COMMENT 'yyyy-MM',",
+                "    `bill_year` INT NOT NULL COMMENT 'bill year',",
+                "    `bill_month_no` TINYINT NOT NULL COMMENT 'bill month number',",
+                "    `monthly_total_bill_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'monthly total bill amount to repay',",
+                "    `bill_day` TINYINT DEFAULT NULL COMMENT 'bill day',",
+                "    `repayment_day` TINYINT DEFAULT NULL COMMENT 'repayment day',",
+                "    `bill_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'bill amount',",
+                "    `bill_amount_verified` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'bill amount verified',",
+                "    `xiaohuan_repay_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'xiaohuan repayment amount',",
+                "    `xiaohuan_repay_verified` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'xiaohuan repayment verified',",
+                "    `customer_repay_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'customer repayment amount',",
+                "    `customer_repay_verified` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'customer repayment verified',",
+                "    `xiaohuan_consume_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'xiaohuan consume amount',",
+                "    `xiaohuan_consume_verified` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'xiaohuan consume verified',",
+                "    `customer_need_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'customer requested amount',",
+                "    `customer_need_verified` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'customer requested amount verified',",
+                "    `customer_consume_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'customer consume amount',",
+                "    `customer_consume_verified` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'customer consume verified',",
+                "    `diff_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'repay minus consume',",
+                "    `balance` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'manual monthly balance',",
+                "    `fee_rate` DECIMAL(8,2) NOT NULL DEFAULT 0.00 COMMENT 'fee rate percent snapshot',",
+                "    `repayment_fee` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'bill_amount * fee_rate',",
+                "    `consume_fee` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'consume total amount * fee_rate',",
+                "    `interest_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'interest amount',",
+                "    `late_fee_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'late fee amount',",
+                "    `installment_fee_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'installment fee amount',",
+                "    `profit_total_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'profit stats total amount',",
+                "    `remark` VARCHAR(500) DEFAULT NULL COMMENT 'remark',",
+                "    `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,",
+                "    `create_by` VARCHAR(64) DEFAULT NULL,",
+                "    `create_time` DATETIME DEFAULT NULL,",
+                "    `update_by` VARCHAR(64) DEFAULT NULL,",
+                "    `update_time` DATETIME DEFAULT NULL,",
+                "    `_openid` VARCHAR(64) NOT NULL DEFAULT '',",
+                "    PRIMARY KEY (`id`),",
+                "    UNIQUE KEY `uk_card_month` (`card_id`, `bill_month`),",
+                "    KEY `idx_user_id` (`user_id`),",
+                "    KEY `idx_bill_year_month` (`bill_year`, `bill_month_no`),",
+                "    KEY `idx_bill_month` (`bill_month`)",
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='special channel monthly bills'"
+        ));
+
+        ensureSpecialBillColumns();
+    }
+
+    private void ensureSpecialBillColumns() {
+        ensureColumnExists(
+                "special_card_bill",
+                "monthly_total_bill_amount",
+                "ALTER TABLE `special_card_bill` ADD COLUMN `monthly_total_bill_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'monthly total bill amount to repay' AFTER `bill_month_no`"
+        );
+        ensureColumnExists(
+                "special_card_bill",
+                "bill_day",
+                "ALTER TABLE `special_card_bill` ADD COLUMN `bill_day` TINYINT DEFAULT NULL COMMENT 'bill day' AFTER `monthly_total_bill_amount`"
+        );
+        ensureColumnExists(
+                "special_card_bill",
+                "repayment_day",
+                "ALTER TABLE `special_card_bill` ADD COLUMN `repayment_day` TINYINT DEFAULT NULL COMMENT 'repayment day' AFTER `bill_day`"
+        );
+        ensureColumnExists(
+                "special_card_bill",
+                "bill_amount_verified",
+                "ALTER TABLE `special_card_bill` ADD COLUMN `bill_amount_verified` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'bill amount verified' AFTER `bill_amount`"
+        );
+        ensureColumnExists(
+                "special_card_bill",
+                "xiaohuan_repay_verified",
+                "ALTER TABLE `special_card_bill` ADD COLUMN `xiaohuan_repay_verified` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'xiaohuan repayment verified' AFTER `xiaohuan_repay_amount`"
+        );
+        ensureColumnExists(
+                "special_card_bill",
+                "customer_repay_amount",
+                "ALTER TABLE `special_card_bill` ADD COLUMN `customer_repay_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'customer repayment amount' AFTER `xiaohuan_repay_verified`"
+        );
+        ensureColumnExists(
+                "special_card_bill",
+                "customer_repay_verified",
+                "ALTER TABLE `special_card_bill` ADD COLUMN `customer_repay_verified` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'customer repayment verified' AFTER `customer_repay_amount`"
+        );
+        ensureColumnExists(
+                "special_card_bill",
+                "xiaohuan_consume_verified",
+                "ALTER TABLE `special_card_bill` ADD COLUMN `xiaohuan_consume_verified` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'xiaohuan consume verified' AFTER `xiaohuan_consume_amount`"
+        );
+        ensureColumnExists(
+                "special_card_bill",
+                "customer_need_amount",
+                "ALTER TABLE `special_card_bill` ADD COLUMN `customer_need_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'customer requested amount' AFTER `xiaohuan_consume_verified`"
+        );
+        ensureColumnExists(
+                "special_card_bill",
+                "customer_need_verified",
+                "ALTER TABLE `special_card_bill` ADD COLUMN `customer_need_verified` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'customer requested amount verified' AFTER `customer_need_amount`"
+        );
+        ensureColumnExists(
+                "special_card_bill",
+                "customer_consume_amount",
+                "ALTER TABLE `special_card_bill` ADD COLUMN `customer_consume_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'customer consume amount' AFTER `customer_need_verified`"
+        );
+        ensureColumnExists(
+                "special_card_bill",
+                "customer_consume_verified",
+                "ALTER TABLE `special_card_bill` ADD COLUMN `customer_consume_verified` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'customer consume verified' AFTER `customer_consume_amount`"
+        );
+        ensureColumnExists(
+                "special_card_bill",
+                "interest_amount",
+                "ALTER TABLE `special_card_bill` ADD COLUMN `interest_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'interest amount' AFTER `consume_fee`"
+        );
+        ensureColumnExists(
+                "special_card_bill",
+                "late_fee_amount",
+                "ALTER TABLE `special_card_bill` ADD COLUMN `late_fee_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'late fee amount' AFTER `interest_amount`"
+        );
+        ensureColumnExists(
+                "special_card_bill",
+                "installment_fee_amount",
+                "ALTER TABLE `special_card_bill` ADD COLUMN `installment_fee_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'installment fee amount' AFTER `late_fee_amount`"
+        );
+        ensureColumnExists(
+                "special_card_bill",
+                "profit_total_amount",
+                "ALTER TABLE `special_card_bill` ADD COLUMN `profit_total_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'profit stats total amount' AFTER `installment_fee_amount`"
+        );
+    }
+
+    private void ensureCommonOpenidColumns() {
+        String[] baseEntityTables = {
+                "bank_sys_user",
+                "card_user",
+                "bank_card",
+                "card_bill",
+                "bill_detail",
+                "card_transaction",
+                "reminder_task",
+                "book_category",
+                "personal_book",
+                "calendar_event",
+                "user_feedback",
+                "user_feedback_attachment",
+                "user_feedback_process_log",
+                "special_user_config",
+                "special_bank_card",
+                "special_card_bill"
+        };
+        for (String tableName : baseEntityTables) {
+            ensureOpenidColumnIfTableExists(tableName);
+        }
+    }
+
+    private void ensureOpenidColumnIfTableExists(String tableName) {
+        if (!tableExists(tableName)) {
+            return;
+        }
+        ensureColumnExists(
+                tableName,
+                "_openid",
+                "ALTER TABLE `" + tableName + "` ADD COLUMN `_openid` VARCHAR(64) NOT NULL DEFAULT '' COMMENT 'cloudbase openid'"
+        );
     }
 
     private boolean isPatchApplied(String patchKey) {

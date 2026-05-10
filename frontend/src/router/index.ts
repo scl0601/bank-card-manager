@@ -60,6 +60,12 @@ const router = createRouter({
           meta: { title: '收益统计', icon: 'TrendCharts' }
         },
         {
+          path: 'special',
+          name: 'SpecialChannel',
+          component: () => import('@/views/special/SpecialChannelView.vue'),
+          meta: { title: '特殊通道', icon: 'Connection' }
+        },
+        {
           path: 'reminders',
           name: 'Reminders',
           component: () => import('@/views/reminder/ReminderList.vue'),

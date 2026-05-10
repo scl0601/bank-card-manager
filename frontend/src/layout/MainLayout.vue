@@ -53,7 +53,7 @@
       <!-- 主内容 -->
       <main class="content-area" :class="{ 'dense-content-area': isDenseRoute }">
         <router-view v-slot="{ Component, route }">
-          <keep-alive :include="['Dashboard','Cards','CardUsers','Transactions','Books','Bills','ProfitStats','Reminders','Feedbacks','Calendar','Logs']">
+          <keep-alive :include="['Dashboard','Cards','CardUsers','Transactions','Books','Bills','ProfitStats','SpecialChannel','Reminders','Feedbacks','Calendar','Logs']">
             <component :is="Component" :key="route.name || route.path" />
           </keep-alive>
         </router-view>
@@ -83,6 +83,7 @@ const menuItems = [
   { path: '/cards',        title: '卡务管理',   icon: 'CreditCard' },
   { path: '/bills',        title: '账单信息',   icon: 'Document' },
   { path: '/profits',      title: '收益统计',   icon: 'TrendCharts' },
+  { path: '/special',      title: '特殊通道',   icon: 'Connection' },
   { path: '/transactions', title: '流水管理',   icon: 'List' },
   { path: '/books',        title: '个人记账',   icon: 'Wallet' },
   { path: '/reminders',    title: '提醒中心',   icon: 'Bell' },
@@ -93,7 +94,7 @@ const menuItems = [
 
 
 const activeMenu = computed(() => route.path)
-const denseRouteNames = new Set(['Cards', 'CardUsers', 'Bills', 'ProfitStats'])
+const denseRouteNames = new Set(['Cards', 'CardUsers', 'Bills', 'ProfitStats', 'SpecialChannel'])
 const isDenseRoute = computed(() => denseRouteNames.has(String(route.name || '')))
 const currentTitle = computed(() =>
   menuItems.find(m => m.path === route.path)?.title || ''
@@ -206,7 +207,8 @@ async function handleCommand(cmd: string) {
 .content-area.dense-content-area :deep(.cards-page),
 .content-area.dense-content-area :deep(.card-user-page),
 .content-area.dense-content-area :deep(.bill-page),
-.content-area.dense-content-area :deep(.profit-page) {
+.content-area.dense-content-area :deep(.profit-page),
+.content-area.dense-content-area :deep(.special-page) {
   flex: 1;
   min-height: 0;
 }
