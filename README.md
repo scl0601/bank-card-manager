@@ -33,7 +33,7 @@
 
 | 服务 | 访问地址 | 状态 |
 |------|----------|------|
-| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=2026100042](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=2026100042) | ✅ 已上线 |
+| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=2026100043](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=2026100043) | ✅ 已上线 |
 | **后端 API** | `https://bank-admin-backend-239413-10-1411764939.sh.run.tcloudbase.com` | ✅ 运行中 |
 
 ---
@@ -47,7 +47,7 @@
 
 ### 云托管服务配置
 - **服务名称**: bank-admin-backend
-- **当前线上版本**: bank-admin-backend-036 (运行中) / v037 部署中
+- **当前线上版本**: bank-admin-backend-037 (运行中)
 - **服务类型**: 容器型 (Container)
 - **CPU**: 1 核
 - **内存**: 2 GB
@@ -142,6 +142,17 @@ npm run dev
 ---
 
 ## 更新日志
+
+### 2026-05-10 (01:18 更新)
+- **根因修复**: 前端 `BillList.vue` 中 3 处自动改账单状态的代码 (43ef091)
+- **真正的问题**: 后端之前已修复不联动，但**前端仍在本地自动计算并覆盖状态显示**
+- **前端修改（3处）**:
+  1. `handleRepayVerifiedChange()`: 去掉 `row.status = resolveBillStatusFromDetails(...)`
+  2. `handleExpenseVerifiedChange()`: 去掉 `row.status = resolveBillStatusFromDetails(...)`  
+  3. `syncBillRowFromDetails()`: 去掉 `row.status = resolveBillStatusFromDetails(...)`
+- 状态现在完全由用户手动管理，前后端一致
+- 前端44个文件已上传到静态托管
+- 更新缓存刷新参数为 `?v=2026100043`
 
 ### 2026-05-10 (01:11 更新)
 - **彻底修复**: 账单状态改为完全手动管理 (14addb8)
