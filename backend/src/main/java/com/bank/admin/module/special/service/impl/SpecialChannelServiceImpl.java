@@ -115,7 +115,9 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
         CardUser user = cardUserMapper.selectById(userId);
         BigDecimal feeRate = resolveEffectiveFeeRate(userId);
         return cards.stream()
-                .map(card -> toCardVO(card, user, feeRate, billCountMap.getOrDefault(card.getId(), 0L)))
+                .map(card -> toCardVO(card, user, feeRate, billCountMap.getOrDefault(card.getId(), 0L), loadCardDayTemplate(card.getId())))
+                .sorted(Comparator.comparing(SpecialCardVO::getRepaymentDay, Comparator.nullsLast(Integer::compareTo))
+                        .thenComparing(SpecialCardVO::getId, Comparator.nullsLast(Long::compareTo)))
                 .toList();
     }
 
@@ -132,7 +134,7 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
         SpecialBankCard card = new SpecialBankCard();
         fillCard(card, dto, targetUserId);
         specialBankCardMapper.insert(card);
-        generateFixedRangeBills(card.getId(), targetUserId);
+        generateFixedRangeBills(card.getId(), targetUserId, normalizeDay(dto.getBillDay()), normalizeDay(dto.getRepaymentDay()));
         return card.getId();
     }
 
@@ -156,6 +158,7 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
         if (userChanged) {
             syncCardBillsUserAndRate(card.getId(), targetUserId);
         }
+        syncCardBillDays(card.getId(), dto.getBillDay(), dto.getRepaymentDay());
     }
 
     @Override
@@ -337,6 +340,8 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
         if (totalAmount.compareTo(BigDecimal.ZERO) < 0) {
             throw new BusinessException(ResultCode.PARAM_ERROR, "总金额不能为负数");
         }
+        normalizeDay(dto.getBillDay());
+        normalizeDay(dto.getRepaymentDay());
         Long targetUserId = dto.getUserId() != null ? dto.getUserId() : resolveConfiguredUserId();
         if (targetUserId != null) {
             Long duplicateCount = specialBankCardMapper.selectCount(new LambdaQueryWrapper<SpecialBankCard>()
@@ -355,11 +360,12 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
         card.setBankName(dto.getBankName().trim());
         card.setCardNoLast4(dto.getCardNoLast4().trim());
         card.setTotalAmount(scaleMoney(dto.getTotalAmount()));
+        card.setExpireDate(dto.getExpireDate());
         card.setStatus(dto.getStatus() == null ? 0 : dto.getStatus());
         card.setRemark(dto.getRemark());
     }
 
-    private void generateFixedRangeBills(Long cardId, Long userId) {
+    private void generateFixedRangeBills(Long cardId, Long userId, Integer billDay, Integer repaymentDay) {
         BigDecimal feeRate = resolveEffectiveFeeRate(userId);
         List<SpecialCardBill> existingBills = specialCardBillMapper.selectList(new LambdaQueryWrapper<SpecialCardBill>()
                 .eq(SpecialCardBill::getCardId, cardId));
@@ -382,8 +388,8 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
                 bill.setBillYear(year);
                 bill.setBillMonthNo(month);
                 bill.setMonthlyTotalBillAmount(moneyZero());
-                bill.setBillDay(null);
-                bill.setRepaymentDay(null);
+                bill.setBillDay(billDay);
+                bill.setRepaymentDay(repaymentDay);
                 bill.setBillAmount(moneyZero());
                 bill.setBillAmountVerified(false);
                 bill.setXiaohuanRepayAmount(moneyZero());
@@ -410,6 +416,18 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
         }
         for (SpecialCardBill bill : toInsert) {
             specialCardBillMapper.insert(bill);
+        }
+    }
+
+    private void syncCardBillDays(Long cardId, Integer billDay, Integer repaymentDay) {
+        Integer normalizedBillDay = normalizeDay(billDay);
+        Integer normalizedRepaymentDay = normalizeDay(repaymentDay);
+        List<SpecialCardBill> bills = specialCardBillMapper.selectList(new LambdaQueryWrapper<SpecialCardBill>()
+                .eq(SpecialCardBill::getCardId, cardId));
+        for (SpecialCardBill bill : bills) {
+            bill.setBillDay(normalizedBillDay);
+            bill.setRepaymentDay(normalizedRepaymentDay);
+            specialCardBillMapper.updateById(bill);
         }
     }
 
@@ -466,6 +484,7 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
                 .in(SpecialCardBill::getCardId, cardIds)
                 .eq(query.getYear() != null, SpecialCardBill::getBillYear, query.getYear())
                 .eq(query.getMonth() != null, SpecialCardBill::getBillMonthNo, query.getMonth())
+                .orderByAsc(SpecialCardBill::getRepaymentDay)
                 .orderByAsc(SpecialCardBill::getBillYear)
                 .orderByAsc(SpecialCardBill::getBillMonthNo)
                 .orderByAsc(SpecialCardBill::getCardId));
@@ -494,6 +513,8 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
                     vo.setBillDay(bill.getBillDay());
                     vo.setRepaymentDay(bill.getRepaymentDay());
                     vo.setTotalAmount(scaleMoney(bill.getBillAmount()));
+                    vo.setXiaohuanRepayAmount(scaleMoney(bill.getXiaohuanRepayAmount()));
+                    vo.setXiaohuanConsumeAmount(scaleMoney(bill.getXiaohuanConsumeAmount()));
                     vo.setRepaymentFee(scaleMoney(bill.getRepaymentFee()));
                     vo.setConsumeFee(scaleMoney(bill.getConsumeFee()));
                     vo.setInterestAmount(scaleMoney(bill.getInterestAmount()));
@@ -506,7 +527,8 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
                     }
                     return vo;
                 })
-                .sorted(Comparator.comparing(SpecialProfitRowVO::getBillYear, Comparator.nullsLast(Integer::compareTo))
+                .sorted(Comparator.comparing(SpecialProfitRowVO::getRepaymentDay, Comparator.nullsLast(Integer::compareTo))
+                        .thenComparing(SpecialProfitRowVO::getBillYear, Comparator.nullsLast(Integer::compareTo))
                         .thenComparing(SpecialProfitRowVO::getBillMonthNo, Comparator.nullsLast(Integer::compareTo))
                         .thenComparing(SpecialProfitRowVO::getCardId, Comparator.nullsLast(Long::compareTo)))
                 .toList();
@@ -633,8 +655,7 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
         bill.setInterestAmount(interestAmount);
         bill.setLateFeeAmount(lateFeeAmount);
         bill.setInstallmentFeeAmount(installmentFeeAmount);
-        bill.setProfitTotalAmount(billAmount
-                .add(bill.getRepaymentFee())
+        bill.setProfitTotalAmount(bill.getRepaymentFee()
                 .add(bill.getConsumeFee())
                 .add(interestAmount)
                 .add(lateFeeAmount)
@@ -685,14 +706,31 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
                 .collect(Collectors.toMap(CardUser::getId, user -> user, (left, right) -> left));
     }
 
-    private SpecialCardVO toCardVO(SpecialBankCard card, CardUser user, BigDecimal feeRate, Long billCount) {
+    private SpecialCardVO toCardVO(SpecialBankCard card, CardUser user, BigDecimal feeRate, Long billCount, SpecialCardBill dayTemplate) {
         SpecialCardVO vo = new SpecialCardVO();
         BeanUtils.copyProperties(card, vo);
         vo.setUserName(user == null ? null : user.getName());
         vo.setFeeRate(feeRate);
         vo.setStatusDesc(Objects.equals(card.getStatus(), 1) ? "停用" : "正常");
         vo.setBillCount(billCount);
+        if (dayTemplate != null) {
+            vo.setBillDay(dayTemplate.getBillDay());
+            vo.setRepaymentDay(dayTemplate.getRepaymentDay());
+        }
         return vo;
+    }
+
+    private SpecialCardBill loadCardDayTemplate(Long cardId) {
+        List<SpecialCardBill> bills = specialCardBillMapper.selectList(new LambdaQueryWrapper<SpecialCardBill>()
+                .eq(SpecialCardBill::getCardId, cardId)
+                .and(wrapper -> wrapper
+                        .isNotNull(SpecialCardBill::getBillDay)
+                        .or()
+                        .isNotNull(SpecialCardBill::getRepaymentDay))
+                .orderByDesc(SpecialCardBill::getBillYear)
+                .orderByDesc(SpecialCardBill::getBillMonthNo)
+                .last("LIMIT 1"));
+        return bills.isEmpty() ? null : bills.get(0);
     }
 
     private SpecialBillVO toBillVO(SpecialCardBill bill, SpecialBankCard card, Map<Long, CardUser> userMap) {

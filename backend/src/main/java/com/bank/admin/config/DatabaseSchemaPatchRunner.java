@@ -505,6 +505,7 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
                 "    `bank_name` VARCHAR(64) NOT NULL COMMENT 'bank name',",
                 "    `card_no_last4` CHAR(4) NOT NULL COMMENT 'card last 4 digits',",
                 "    `total_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'card total limit amount',",
+                "    `expire_date` VARCHAR(32) DEFAULT NULL COMMENT 'expire date text as entered by user',",
                 "    `status` TINYINT NOT NULL DEFAULT 0 COMMENT '0 active, 1 disabled',",
                 "    `remark` VARCHAR(500) DEFAULT NULL COMMENT 'remark',",
                 "    `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,",
@@ -567,7 +568,16 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='special channel monthly bills'"
         ));
 
+        ensureSpecialCardColumns();
         ensureSpecialBillColumns();
+    }
+
+    private void ensureSpecialCardColumns() {
+        ensureColumnExists(
+                "special_bank_card",
+                "expire_date",
+                "ALTER TABLE `special_bank_card` ADD COLUMN `expire_date` VARCHAR(32) DEFAULT NULL COMMENT 'expire date text as entered by user' AFTER `total_amount`"
+        );
     }
 
     private void ensureSpecialBillColumns() {

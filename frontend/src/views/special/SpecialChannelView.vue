@@ -40,7 +40,7 @@
               <strong>{{ cards.length }}</strong>
             </div>
             <div class="stat-item">
-              <span>总额度</span>
+              <span>卡片额度</span>
               <strong>{{ formatMoney(totalCardAmount) }}</strong>
             </div>
             <div class="stat-item">
@@ -53,27 +53,49 @@
           </el-button>
         </section>
 
-        <section v-loading="cardLoading" class="special-card-grid">
+        <section v-loading="cardLoading" class="special-card-grid" :style="cardGridStyle">
           <article v-for="card in cards" :key="card.id" class="bank-card-tile" :class="{ disabled: card.status === 1 }">
             <div class="tile-head">
               <div class="bank-mark">
                 <el-icon><CreditCard /></el-icon>
               </div>
               <div class="tile-title">
-                <strong>{{ card.bankName }}</strong>
-                <span>尾号 {{ card.cardNoLast4 }}</span>
+                <strong>{{ card.bankName || '-' }}</strong>
+                <span>尾号 {{ card.cardNoLast4 || '-' }}</span>
               </div>
               <el-tag size="small" :type="card.status === 1 ? 'info' : 'success'" effect="light">
                 {{ card.statusDesc || statusText(card.status) }}
               </el-tag>
             </div>
             <div class="tile-amount">
-              <span>总金额</span>
+              <span>卡片额度</span>
               <strong>{{ formatMoney(card.totalAmount) }}</strong>
             </div>
-            <div class="tile-meta">
-              <span>账单 {{ card.billCount || 0 }} 条</span>
-              <span>费率 {{ formatRate(card.feeRate) }}%</span>
+            <div class="tile-info-grid">
+              <div class="tile-info-item">
+                <span>账单日</span>
+                <strong :class="{ empty: !card.billDay }">{{ formatDayOfMonth(card.billDay) }}</strong>
+              </div>
+              <div class="tile-info-item">
+                <span>还款日</span>
+                <strong :class="{ empty: !card.repaymentDay }">{{ formatDayOfMonth(card.repaymentDay) }}</strong>
+              </div>
+              <div class="tile-info-item">
+                <span>有效期</span>
+                <strong :class="{ empty: !card.expireDate }">{{ card.expireDate || '-' }}</strong>
+              </div>
+              <div class="tile-info-item">
+                <span>账单数</span>
+                <strong>{{ card.billCount || 0 }} 条</strong>
+              </div>
+              <div class="tile-info-item">
+                <span>费率</span>
+                <strong>{{ formatRate(card.feeRate) }}%</strong>
+              </div>
+              <div class="tile-info-item">
+                <span>类型</span>
+                <strong>特殊卡</strong>
+              </div>
             </div>
             <div v-if="card.remark" class="tile-remark" :title="card.remark">{{ card.remark }}</div>
             <div class="tile-actions">
@@ -87,10 +109,13 @@
 
       <el-tab-pane label="特殊账单" name="bills">
         <section class="filter-line">
-          <el-select v-model="billQuery.year" class="filter-item" placeholder="年份">
+          <el-select v-model="billQuery.year" class="filter-item" placeholder="年份" clearable>
             <el-option v-for="year in yearOptions" :key="year" :label="`${year}年`" :value="year" />
           </el-select>
-          <el-select v-model="billQuery.cardId" class="filter-card" placeholder="银行卡" filterable>
+          <el-select v-model="billQuery.month" class="filter-item" placeholder="月份" clearable>
+            <el-option v-for="month in monthOptions" :key="month" :label="`${month}月`" :value="month" />
+          </el-select>
+          <el-select v-model="billQuery.cardId" class="filter-card" placeholder="银行卡" clearable filterable>
             <el-option v-for="card in cards" :key="card.id" :label="cardLabel(card)" :value="card.id" />
           </el-select>
           <el-select v-model="deleteBeforeYear" class="filter-item" placeholder="保留起始年">
@@ -111,126 +136,158 @@
 
         <section class="bill-table-shell">
           <el-table
+            ref="billTableRef"
             v-loading="billLoading"
-            :data="billRows"
+            :data="billTableRows"
             border
             stripe
             size="small"
-            row-key="id"
-            show-summary
-            :summary-method="billSummaryMethod"
+            :row-key="billRowKey"
+            :row-class-name="billRowClassName"
             table-layout="fixed"
+            height="100%"
           >
-            <el-table-column prop="billYear" label="年" width="42" align="center" />
-            <el-table-column prop="billMonthNo" label="月" width="36" align="center" />
+            <el-table-column prop="billYear" label="年" width="42" align="center">
+              <template #default="{ row }">
+                <span v-if="row.__summary" class="summary-label">合计</span>
+                <span v-else>{{ row.billYear }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="billMonthNo" label="月" width="36" align="center">
+              <template #default="{ row }">
+                <span v-if="!row.__summary">{{ row.billMonthNo }}</span>
+              </template>
+            </el-table-column>
             <el-table-column label="银行" width="82" show-overflow-tooltip>
               <template #default="{ row }">
-                <span class="strong-cell">{{ row.bankName }} / {{ row.cardNoLast4 }}</span>
+                <span v-if="!row.__summary" class="strong-cell">{{ row.bankName }} / {{ row.cardNoLast4 }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="totalAmount" label="卡片额度" align="right">
               <template #default="{ row }">
-                <span class="money-text">{{ formatMoney(row.totalAmount) }}</span>
+                <span v-if="!row.__summary" class="money-text">{{ formatMoney(row.totalAmount) }}</span>
               </template>
             </el-table-column>
             <el-table-column label="账单日" width="46" align="center">
               <template #default="{ row }">
-                <el-input-number v-model="row.billDay" class="day-input" size="small" :min="1" :max="31" :precision="0" :controls="false" :disabled="!canEdit" />
+                <el-input-number v-if="!row.__summary" v-model="row.billDay" class="day-input" size="small" :min="1" :max="31" :precision="0" :controls="false" :disabled="!canEdit" />
               </template>
             </el-table-column>
             <el-table-column label="还款日" width="46" align="center">
               <template #default="{ row }">
-                <el-input-number v-model="row.repaymentDay" class="day-input" size="small" :min="1" :max="31" :precision="0" :controls="false" :disabled="!canEdit" />
+                <el-input-number v-if="!row.__summary" v-model="row.repaymentDay" class="day-input" size="small" :min="1" :max="31" :precision="0" :controls="false" :disabled="!canEdit" />
               </template>
             </el-table-column>
-            <el-table-column prop="billAmount" label="每月账单金额" align="right">
+            <el-table-column prop="billAmount" label="账单金额" align="right">
               <template #default="{ row }">
-                <div class="amount-verify-cell">
-                  <el-input-number v-model="row.billAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" />
+                <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.billAmount) }}</span>
+                <div v-else class="amount-verify-cell">
+                  <el-input-number v-model="row.billAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
                   <el-switch v-model="row.billAmountVerified" size="small" :disabled="!canEdit" />
                 </div>
               </template>
             </el-table-column>
             <el-table-column prop="xiaohuanRepayAmount" label="小焕还款" align="right">
               <template #default="{ row }">
-                <div class="amount-verify-cell">
-                  <el-input-number v-model="row.xiaohuanRepayAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" />
+                <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.xiaohuanRepayAmount) }}</span>
+                <div v-else class="amount-verify-cell">
+                  <el-input-number v-model="row.xiaohuanRepayAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
                   <el-switch v-model="row.xiaohuanRepayVerified" size="small" :disabled="!canEdit" />
-                </div>
-              </template>
-            </el-table-column>
-            <el-table-column prop="customerRepayAmount" label="客户还款" align="right">
-              <template #default="{ row }">
-                <div class="amount-verify-cell">
-                  <el-input-number v-model="row.customerRepayAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" />
-                  <el-switch v-model="row.customerRepayVerified" size="small" :disabled="!canEdit" />
                 </div>
               </template>
             </el-table-column>
             <el-table-column prop="xiaohuanConsumeAmount" label="小焕消费" align="right">
               <template #default="{ row }">
-                <div class="amount-verify-cell">
-                  <el-input-number v-model="row.xiaohuanConsumeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" />
+                <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.xiaohuanConsumeAmount) }}</span>
+                <div v-else class="amount-verify-cell">
+                  <el-input-number v-model="row.xiaohuanConsumeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
                   <el-switch v-model="row.xiaohuanConsumeVerified" size="small" :disabled="!canEdit" />
-                </div>
-              </template>
-            </el-table-column>
-            <el-table-column prop="customerNeedAmount" label="客户需要" align="right">
-              <template #default="{ row }">
-                <div class="amount-verify-cell">
-                  <el-input-number v-model="row.customerNeedAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" />
-                  <el-switch v-model="row.customerNeedVerified" size="small" :disabled="!canEdit" />
-                </div>
-              </template>
-            </el-table-column>
-            <el-table-column prop="customerConsumeAmount" label="客户消费" align="right">
-              <template #default="{ row }">
-                <div class="amount-verify-cell">
-                  <el-input-number v-model="row.customerConsumeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" />
-                  <el-switch v-model="row.customerConsumeVerified" size="small" :disabled="!canEdit" />
                 </div>
               </template>
             </el-table-column>
             <el-table-column prop="diffAmount" label="差额" width="70" align="right">
               <template #default="{ row }">
-                <span class="money-text" :class="calcDiff(row) >= 0 ? 'amount-income' : 'amount-cost'">
-                  {{ formatMoney(calcDiff(row)) }}
+                <span class="money-text" :class="billDiffValue(row) >= 0 ? 'amount-income' : 'amount-cost'">
+                  {{ formatMoney(billDiffValue(row)) }}
                 </span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="customerNeedAmount" label="客户需要" align="right">
+              <template #default="{ row }">
+                <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.customerNeedAmount) }}</span>
+                <div v-else class="amount-verify-cell">
+                  <el-input-number v-model="row.customerNeedAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
+                  <el-switch v-model="row.customerNeedVerified" size="small" :disabled="!canEdit" />
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column prop="customerRepayAmount" label="客户还款" align="right">
+              <template #default="{ row }">
+                <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.customerRepayAmount) }}</span>
+                <div v-else class="amount-verify-cell">
+                  <el-input-number v-model="row.customerRepayAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
+                  <el-switch v-model="row.customerRepayVerified" size="small" :disabled="!canEdit" />
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column prop="customerConsumeAmount" label="客户消费" align="right">
+              <template #default="{ row }">
+                <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.customerConsumeAmount) }}</span>
+                <div v-else class="amount-verify-cell">
+                  <el-input-number v-model="row.customerConsumeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
+                  <el-switch v-model="row.customerConsumeVerified" size="small" :disabled="!canEdit" />
+                </div>
               </template>
             </el-table-column>
             <el-table-column prop="balance" label="余额" width="74" align="right">
               <template #default="{ row }">
-                <el-input-number v-model="row.balance" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" />
+                <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.balance) }}</span>
+                <el-input-number v-else v-model="row.balance" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
               </template>
             </el-table-column>
             <el-table-column prop="interestAmount" label="利息" width="62" align="right">
               <template #default="{ row }">
-                <el-input-number v-model="row.interestAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" />
+                <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.interestAmount) }}</span>
+                <el-input-number v-else v-model="row.interestAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
               </template>
             </el-table-column>
             <el-table-column prop="lateFeeAmount" label="滞纳金" width="62" align="right">
               <template #default="{ row }">
-                <el-input-number v-model="row.lateFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" />
+                <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.lateFeeAmount) }}</span>
+                <el-input-number v-else v-model="row.lateFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
               </template>
             </el-table-column>
             <el-table-column prop="installmentFeeAmount" label="分期费" width="62" align="right">
               <template #default="{ row }">
-                <el-input-number v-model="row.installmentFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" />
+                <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.installmentFeeAmount) }}</span>
+                <el-input-number v-else v-model="row.installmentFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
               </template>
             </el-table-column>
             <el-table-column label="备注" width="76">
               <template #default="{ row }">
-                <el-input v-model="row.remark" size="small" maxlength="500" clearable :disabled="!canEdit" />
+                <el-input v-if="!row.__summary" v-model="row.remark" size="small" maxlength="500" clearable :disabled="!canEdit" />
               </template>
             </el-table-column>
             <el-table-column label="操作" width="50" align="center">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" :disabled="!canEdit" :loading="savingBillId === row.id" @click="saveBill(row)">
+                <el-button v-if="!row.__summary" type="primary" link size="small" :disabled="!canEdit" :loading="savingBillId === row.id" @click="saveBill(row)">
                   保存
                 </el-button>
               </template>
             </el-table-column>
           </el-table>
+          <div class="bill-pagination">
+            <span class="pagination-meta">共 {{ billTotal }} 条</span>
+            <el-pagination
+              v-model:current-page="billQuery.current"
+              v-model:page-size="billQuery.size"
+              :total="billTotal"
+              :page-sizes="billPageSizeOptions"
+              small
+              background
+              layout="sizes, prev, pager, next"
+            />
+          </div>
         </section>
       </el-tab-pane>
 
@@ -251,7 +308,7 @@
 
         <section class="profit-summary-grid" v-loading="profitLoading">
           <div v-for="item in profitSummaryCards" :key="item.label" class="profit-summary-item">
-            <span>{{ item.label }}</span>
+              <span>{{ item.label === '每月账单金额' ? '账单总金额' : item.label }}</span>
             <strong :class="item.className">{{ item.value }}</strong>
           </div>
         </section>
@@ -268,13 +325,19 @@
               <el-table-column label="银行" min-width="120" show-overflow-tooltip>
                 <template #default="{ row }">{{ row.bankName }} / {{ row.cardNoLast4 }}</template>
               </el-table-column>
-              <el-table-column label="每月账单金额" min-width="100" align="right">
-                <template #default="{ row }">{{ formatMoney(row.totalAmount) }}</template>
-              </el-table-column>
               <el-table-column prop="billDay" label="账单日" width="64" align="center" />
               <el-table-column prop="repaymentDay" label="还款日" width="64" align="center" />
+              <el-table-column label="账单金额" min-width="100" align="right">
+                <template #default="{ row }">{{ formatMoney(row.totalAmount) }}</template>
+              </el-table-column>
+              <el-table-column label="小焕还款" min-width="100" align="right">
+                <template #default="{ row }">{{ formatMoney(row.xiaohuanRepayAmount) }}</template>
+              </el-table-column>
               <el-table-column label="还款手续费" min-width="100" align="right">
                 <template #default="{ row }">{{ formatMoney(row.repaymentFee) }}</template>
+              </el-table-column>
+              <el-table-column label="小焕消费" min-width="100" align="right">
+                <template #default="{ row }">{{ formatMoney(row.xiaohuanConsumeAmount) }}</template>
               </el-table-column>
               <el-table-column label="消费手续费" min-width="100" align="right">
                 <template #default="{ row }">{{ formatMoney(row.consumeFee) }}</template>
@@ -332,8 +395,17 @@
         <el-form-item label="卡号后四位" prop="cardNoLast4">
           <el-input v-model="cardForm.cardNoLast4" maxlength="4" placeholder="请输入4位数字" />
         </el-form-item>
-        <el-form-item label="总金额" prop="totalAmount">
-          <el-input-number v-model="cardForm.totalAmount" class="full-input" :min="0" :precision="2" :controls="false" />
+        <el-form-item label="卡片额度" prop="totalAmount">
+          <el-input-number v-model="cardForm.totalAmount" class="full-input" :min="0" :precision="2" :controls="false" placeholder="请输入卡片额度" />
+        </el-form-item>
+        <el-form-item label="账单日">
+          <el-input-number v-model="cardForm.billDay" class="full-input" :min="1" :max="31" :precision="0" controls-position="right" placeholder="每月账单日" />
+        </el-form-item>
+        <el-form-item label="还款日">
+          <el-input-number v-model="cardForm.repaymentDay" class="full-input" :min="1" :max="31" :precision="0" controls-position="right" placeholder="每月还款日" />
+        </el-form-item>
+        <el-form-item label="有效期">
+          <el-input v-model="cardForm.expireDate" maxlength="32" placeholder="如：06/28" />
         </el-form-item>
         <el-form-item label="状态">
           <el-radio-group v-model="cardForm.status">
@@ -356,7 +428,7 @@
 <script setup lang="ts">
 defineOptions({ name: 'SpecialChannel' })
 
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { CreditCard, Plus, RefreshRight } from '@element-plus/icons-vue'
 import { getUserTreeApi } from '@/api/card'
@@ -411,6 +483,9 @@ interface SpecialCard {
   bankName: string
   cardNoLast4: string
   totalAmount?: number | string | null
+  expireDate?: string | null
+  billDay?: number | null
+  repaymentDay?: number | null
   status?: number
   statusDesc?: string
   remark?: string
@@ -451,6 +526,7 @@ interface SpecialBill {
   installmentFeeAmount?: number | null
   profitTotalAmount?: number | null
   remark?: string | null
+  __summary?: boolean
 }
 
 interface ProfitOverview {
@@ -503,15 +579,19 @@ const savingProfitBillId = ref<number>()
 const deletingHistoryBills = ref(false)
 const cardDialogVisible = ref(false)
 const cardFormRef = ref<FormInstance>()
+const billTableRef = ref<any>()
 
 const yearOptions = [2020, 2021, 2022, 2023, 2024, 2025, 2026]
 const deleteBeforeYearOptions = [2021, 2022, 2023, 2024, 2025, 2026, 2027]
 const monthOptions = Array.from({ length: 12 }, (_, index) => index + 1)
+const billListSize = 20
+const billPageSizeOptions = [20, 50, 100]
 
 const billQuery = reactive({
   current: 1,
-  size: 12,
-  year: 2026 as number | undefined,
+  size: billListSize,
+  year: new Date().getFullYear() as number | undefined,
+  month: new Date().getMonth() + 1 as number | undefined,
   cardId: undefined as number | undefined
 })
 const billTotal = ref(0)
@@ -534,6 +614,9 @@ const cardForm = reactive({
   bankName: '',
   cardNoLast4: '',
   totalAmount: 0,
+  expireDate: '',
+  billDay: undefined as number | undefined,
+  repaymentDay: undefined as number | undefined,
   status: 0,
   remark: ''
 })
@@ -552,12 +635,24 @@ const userOptions = computed<SelectOption[]>(() => flattenUsers(users.value))
 const cardDialogTitle = computed(() => (cardForm.id ? '编辑特殊银行卡' : '新增特殊银行卡'))
 const totalCardAmount = computed(() => cards.value.reduce((sum, card) => sum + toNumber(card.totalAmount), 0))
 const totalBillCount = computed(() => cards.value.reduce((sum, card) => sum + Number(card.billCount || 0), 0))
+const cardGridColumns = computed(() => {
+  const count = Math.max(cards.value.length, 1)
+  if (count <= 2) return count
+  if (count <= 4) return 2
+  if (count <= 6) return 3
+  return 4
+})
+const cardGridStyle = computed(() => ({
+  '--card-grid-columns': String(cardGridColumns.value)
+}))
 const selectedBillCard = computed(() => cards.value.find(card => Number(card.id) === Number(billQuery.cardId)))
 const annualBillHint = computed(() => {
   if (!cards.value.length) return '新增银行卡后自动生成2020-2026年度账单'
   const card = selectedBillCard.value
-  const year = billQuery.year || '全年'
-  return card ? `${cardLabel(card)} · ${year} 年 12 个月` : '请选择银行卡'
+  const year = billQuery.year ? `${billQuery.year}年` : '全部年份'
+  const month = billQuery.month ? `${billQuery.month}月` : '全部月份'
+  const scope = card ? cardLabel(card) : '全部银行卡'
+  return `${scope} · ${year} · ${month}`
 })
 
 const profitSummaryCards = computed(() => {
@@ -585,6 +680,58 @@ const profitPaginationText = computed(() => {
   return `每页 ${profitPage.size} 条，共 ${profitTotal.value} 条`
 })
 
+const billSummaryTotals = computed<Record<string, number>>(() => {
+  return billRows.value.reduce((totals, row) => {
+    totals.billAmount += toNumber(row.billAmount)
+    totals.xiaohuanRepayAmount += toNumber(row.xiaohuanRepayAmount)
+    totals.customerRepayAmount += toNumber(row.customerRepayAmount)
+    totals.xiaohuanConsumeAmount += toNumber(row.xiaohuanConsumeAmount)
+    totals.customerNeedAmount += toNumber(row.customerNeedAmount)
+    totals.customerConsumeAmount += toNumber(row.customerConsumeAmount)
+    totals.diffAmount += calcDiff(row)
+    totals.balance += toNumber(row.balance)
+    totals.interestAmount += toNumber(row.interestAmount)
+    totals.lateFeeAmount += toNumber(row.lateFeeAmount)
+    totals.installmentFeeAmount += toNumber(row.installmentFeeAmount)
+    return totals
+  }, {
+    billAmount: 0,
+    xiaohuanRepayAmount: 0,
+    customerRepayAmount: 0,
+    xiaohuanConsumeAmount: 0,
+    customerNeedAmount: 0,
+    customerConsumeAmount: 0,
+    diffAmount: 0,
+    balance: 0,
+    interestAmount: 0,
+    lateFeeAmount: 0,
+    installmentFeeAmount: 0
+  })
+})
+
+const billSummaryRow = computed<SpecialBill>(() => ({
+  id: -1,
+  cardId: -1,
+  billMonth: '',
+  __summary: true,
+  billAmount: billSummaryTotals.value.billAmount,
+  xiaohuanRepayAmount: billSummaryTotals.value.xiaohuanRepayAmount,
+  customerRepayAmount: billSummaryTotals.value.customerRepayAmount,
+  xiaohuanConsumeAmount: billSummaryTotals.value.xiaohuanConsumeAmount,
+  customerNeedAmount: billSummaryTotals.value.customerNeedAmount,
+  customerConsumeAmount: billSummaryTotals.value.customerConsumeAmount,
+  diffAmount: billSummaryTotals.value.diffAmount,
+  balance: billSummaryTotals.value.balance,
+  interestAmount: billSummaryTotals.value.interestAmount,
+  lateFeeAmount: billSummaryTotals.value.lateFeeAmount,
+  installmentFeeAmount: billSummaryTotals.value.installmentFeeAmount
+}))
+
+const billTableRows = computed<SpecialBill[]>(() => {
+  if (!billRows.value.length) return []
+  return [...billRows.value, billSummaryRow.value]
+})
+
 onMounted(async () => {
   await refreshAll()
 })
@@ -599,9 +746,16 @@ watch(activeTab, async (tab) => {
 })
 
 watch(
-  () => [billQuery.year, billQuery.cardId],
+  () => [billQuery.year, billQuery.month, billQuery.cardId],
   () => {
     billQuery.current = 1
+    queueBillFetch()
+  }
+)
+
+watch(
+  () => [billQuery.current, billQuery.size],
+  () => {
     queueBillFetch()
   }
 )
@@ -612,6 +766,24 @@ watch(
     profitPage.current = 1
     queueProfitFetch()
   }
+)
+
+watch(
+  () => [billTotal.value, billQuery.size],
+  () => {
+    const maxPage = Math.max(1, Math.ceil(billTotal.value / billQuery.size))
+    if (billQuery.current > maxPage) {
+      billQuery.current = maxPage
+    }
+  }
+)
+
+watch(
+  billSummaryTotals,
+  () => {
+    nextTick(() => billTableRef.value?.doLayout?.())
+  },
+  { deep: true }
 )
 
 watch(
@@ -632,7 +804,7 @@ function queueBillFetch() {
   window.clearTimeout(billFetchTimer)
   billFetchTimer = window.setTimeout(() => {
     fetchBills()
-  }, 120)
+  }, 250)
 }
 
 function queueProfitFetch() {
@@ -643,12 +815,16 @@ function queueProfitFetch() {
   }, 120)
 }
 
+function refreshBillSummary() {
+  billRows.value = [...billRows.value]
+  nextTick(() => billTableRef.value?.doLayout?.())
+}
+
 async function refreshAll() {
   await fetchUsers()
   await fetchConfig()
   await fetchCards()
-  await fetchBills()
-  await fetchProfitStats()
+  await refreshActiveTabData()
 }
 
 async function fetchUsers() {
@@ -670,8 +846,7 @@ async function saveConfig() {
     Object.assign(config, res.data || {})
     ElMessage.success('特殊用户配置已保存')
     await fetchCards()
-    await fetchBills()
-    await fetchProfitStats()
+    await refreshActiveTabData()
   } finally {
     savingConfig.value = false
   }
@@ -687,7 +862,7 @@ async function fetchCards() {
   cardLoading.value = true
   try {
     const res = await getSpecialCardsApi()
-    cards.value = res.data || []
+    cards.value = sortCardsByRepaymentDay(res.data || [])
     normalizeSelectedCardFilters()
   } finally {
     cardLoading.value = false
@@ -701,8 +876,8 @@ function normalizeSelectedCardFilters() {
     profitQuery.cardId = undefined
     return
   }
-  if (!billQuery.cardId || !cardIds.has(Number(billQuery.cardId))) {
-    billQuery.cardId = cards.value[0].id
+  if (billQuery.cardId && !cardIds.has(Number(billQuery.cardId))) {
+    billQuery.cardId = undefined
   }
   if (profitQuery.cardId && !cardIds.has(Number(profitQuery.cardId))) {
     profitQuery.cardId = undefined
@@ -719,6 +894,9 @@ function openEditCard(card: SpecialCard) {
   cardForm.bankName = card.bankName || ''
   cardForm.cardNoLast4 = card.cardNoLast4 || ''
   cardForm.totalAmount = toNumber(card.totalAmount)
+  cardForm.expireDate = card.expireDate || ''
+  cardForm.billDay = card.billDay || undefined
+  cardForm.repaymentDay = card.repaymentDay || undefined
   cardForm.status = card.status ?? 0
   cardForm.remark = card.remark || ''
   cardDialogVisible.value = true
@@ -734,6 +912,9 @@ async function submitCard() {
       bankName: cardForm.bankName,
       cardNoLast4: cardForm.cardNoLast4,
       totalAmount: cardForm.totalAmount,
+      expireDate: cardForm.expireDate,
+      billDay: cardForm.billDay,
+      repaymentDay: cardForm.repaymentDay,
       status: cardForm.status,
       remark: cardForm.remark
     }
@@ -746,8 +927,7 @@ async function submitCard() {
     }
     cardDialogVisible.value = false
     await fetchCards()
-    await fetchBills()
-    await fetchProfitStats()
+    await refreshActiveTabData()
   } finally {
     savingCard.value = false
   }
@@ -762,8 +942,7 @@ async function deleteCard(card: SpecialCard) {
   await deleteSpecialCardApi(card.id)
   ElMessage.success('银行卡已删除')
   await fetchCards()
-  await fetchBills()
-  await fetchProfitStats()
+  await refreshActiveTabData()
 }
 
 function resetCardForm() {
@@ -771,12 +950,15 @@ function resetCardForm() {
   cardForm.bankName = ''
   cardForm.cardNoLast4 = ''
   cardForm.totalAmount = 0
+  cardForm.expireDate = ''
+  cardForm.billDay = undefined
+  cardForm.repaymentDay = undefined
   cardForm.status = 0
   cardForm.remark = ''
 }
 
 async function fetchBills() {
-  if (!config.userId || !billQuery.cardId) {
+  if (!config.userId) {
     billRows.value = []
     billTotal.value = 0
     return
@@ -785,11 +967,12 @@ async function fetchBills() {
   try {
     const res = await getSpecialBillPageApi({
       current: billQuery.current,
-      size: 12,
+      size: billQuery.size,
       year: billQuery.year,
+      month: billQuery.month,
       cardId: billQuery.cardId
     })
-    billRows.value = res.data?.records || []
+    billRows.value = sortRowsByRepaymentDay(res.data?.records || [])
     billTotal.value = res.data?.total || 0
   } finally {
     billLoading.value = false
@@ -798,9 +981,10 @@ async function fetchBills() {
 
 async function resetBillQuery() {
   billQuery.current = 1
-  billQuery.size = 12
-  billQuery.year = 2026
-  billQuery.cardId = cards.value[0]?.id
+  billQuery.size = billListSize
+  billQuery.year = new Date().getFullYear()
+  billQuery.month = new Date().getMonth() + 1
+  billQuery.cardId = undefined
   await fetchBills()
 }
 
@@ -825,7 +1009,6 @@ async function deleteHistoryBills() {
     ElMessage.success(`已删除 ${res.data || 0} 条账单`)
     await fetchCards()
     await fetchBills()
-    await fetchProfitStats()
   } finally {
     deletingHistoryBills.value = false
   }
@@ -857,8 +1040,7 @@ async function saveBill(row: SpecialBill) {
       remark: row.remark
     })
     ElMessage.success('账单已保存')
-    await fetchBills()
-    await fetchProfitStats()
+    refreshBillSummary()
   } finally {
     savingBillId.value = undefined
   }
@@ -876,7 +1058,11 @@ async function fetchProfitStats() {
       month: profitQuery.month,
       cardId: profitQuery.cardId
     })
-    Object.assign(profitStats, res.data || { overview: {}, rows: [], cardStats: [], monthStats: [] })
+    const data = res.data || { overview: {}, rows: [], cardStats: [], monthStats: [] }
+    Object.assign(profitStats, {
+      ...data,
+      rows: sortRowsByRepaymentDay(data.rows || [])
+    })
   } finally {
     profitLoading.value = false
   }
@@ -893,9 +1079,17 @@ async function saveProfitExtras(row: any) {
     })
     ElMessage.success('收益费用已保存')
     await fetchProfitStats()
-    await fetchBills()
   } finally {
     savingProfitBillId.value = undefined
+  }
+}
+
+async function refreshActiveTabData() {
+  if (activeTab.value === 'bills') {
+    await fetchBills()
+  }
+  if (activeTab.value === 'profit') {
+    await fetchProfitStats()
   }
 }
 
@@ -928,8 +1122,50 @@ function statusText(status?: number) {
   return status === 1 ? '停用' : '正常'
 }
 
+function sortCardsByRepaymentDay(list: SpecialCard[]) {
+  return sortRowsByRepaymentDay(list)
+}
+
+function sortRowsByRepaymentDay<T extends Record<string, any>>(list: T[]) {
+  return [...list].sort(compareRepaymentDay)
+}
+
+function compareRepaymentDay(a: Record<string, any>, b: Record<string, any>) {
+  const dayDiff = repaymentDaySortValue(a) - repaymentDaySortValue(b)
+  if (dayDiff !== 0) return dayDiff
+  const yearDiff = toNumber(a.billYear) - toNumber(b.billYear)
+  if (yearDiff !== 0) return yearDiff
+  const monthDiff = toNumber(a.billMonthNo) - toNumber(b.billMonthNo)
+  if (monthDiff !== 0) return monthDiff
+  const cardDiff = toNumber(a.cardId ?? a.id) - toNumber(b.cardId ?? b.id)
+  if (cardDiff !== 0) return cardDiff
+  return String(a.bankName || '').localeCompare(String(b.bankName || ''), 'zh-CN')
+}
+
+function repaymentDaySortValue(row: Record<string, any>) {
+  const day = Number(row.repaymentDay)
+  return Number.isFinite(day) && day > 0 ? Math.trunc(day) : 999
+}
+
+function formatDayOfMonth(day: number | string | null | undefined) {
+  const value = Number(day)
+  return Number.isFinite(value) && value > 0 ? `${Math.trunc(value)}日` : '-'
+}
+
 function calcDiff(row: SpecialBill) {
   return roundMoney(toNumber(row.xiaohuanRepayAmount) - toNumber(row.xiaohuanConsumeAmount))
+}
+
+function billDiffValue(row: SpecialBill) {
+  return row.__summary ? toNumber(row.diffAmount) : calcDiff(row)
+}
+
+function billRowKey(row: SpecialBill) {
+  return row.__summary ? 'summary' : row.id
+}
+
+function billRowClassName({ row }: { row: SpecialBill }) {
+  return row.__summary ? 'bill-summary-row' : ''
 }
 
 function calcRepaymentFee(row: SpecialBill) {
@@ -942,7 +1178,6 @@ function calcConsumeFee(row: SpecialBill) {
 
 function calcProfitTotal(row: any) {
   return roundMoney(
-    toNumber(row.totalAmount) +
     toNumber(row.repaymentFee) +
     toNumber(row.consumeFee) +
     toNumber(row.interestAmount) +
@@ -971,31 +1206,6 @@ function formatRate(value: number | string | null | undefined) {
   return toNumber(value).toFixed(2)
 }
 
-function billSummaryMethod({ columns, data }: { columns: any[]; data: SpecialBill[] }) {
-  const sumFields = new Set([
-    'billAmount',
-    'xiaohuanRepayAmount',
-    'customerRepayAmount',
-    'xiaohuanConsumeAmount',
-    'customerNeedAmount',
-    'customerConsumeAmount',
-    'diffAmount',
-    'balance',
-    'interestAmount',
-    'lateFeeAmount',
-    'installmentFeeAmount'
-  ])
-  return columns.map((column, index) => {
-    if (index === 0) return '合计'
-    const property = column.property
-    if (!sumFields.has(property)) return ''
-    const total = data.reduce((sum, row) => {
-      if (property === 'diffAmount') return sum + calcDiff(row)
-      return sum + toNumber((row as any)[property])
-    }, 0)
-    return formatMoney(total)
-  })
-}
 </script>
 
 <style scoped>
@@ -1104,8 +1314,8 @@ function billSummaryMethod({ columns, data }: { columns: any[]; data: SpecialBil
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 52px;
-  padding: 8px 10px;
+  min-height: 44px;
+  padding: 6px 8px;
   flex-shrink: 0;
 }
 
@@ -1152,25 +1362,26 @@ function billSummaryMethod({ columns, data }: { columns: any[]; data: SpecialBil
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-auto-rows: minmax(150px, auto);
-  align-content: start;
-  gap: 10px;
-  overflow-y: auto;
+  grid-template-columns: repeat(var(--card-grid-columns, 3), minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  align-content: stretch;
+  gap: 8px;
+  overflow: hidden;
   padding: 2px;
 }
 
 .bank-card-tile {
   min-width: 0;
-  min-height: 150px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px;
+  gap: 7px;
+  padding: 9px;
   border: 1px solid #dbe2ea;
   border-radius: 8px;
   background: #fff;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
 }
 
 .bank-card-tile.disabled {
@@ -1179,14 +1390,16 @@ function billSummaryMethod({ columns, data }: { columns: any[]; data: SpecialBil
 
 .tile-head {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
-  gap: 8px;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
   align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  flex-shrink: 0;
 }
 
 .bank-mark {
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1211,15 +1424,15 @@ function billSummaryMethod({ columns, data }: { columns: any[]; data: SpecialBil
 
 .tile-title strong {
   color: #1f2a37;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
+  line-height: 1.2;
 }
 
-.tile-title span,
-.tile-meta,
-.tile-remark {
+.tile-title span {
+  margin-top: 2px;
   color: #667085;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -1228,14 +1441,16 @@ function billSummaryMethod({ columns, data }: { columns: any[]; data: SpecialBil
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  padding: 10px;
+  min-height: 35px;
+  padding: 7px 8px;
   border-radius: 8px;
   background: #f5f8fc;
+  flex-shrink: 0;
 }
 
 .tile-amount span {
   color: #7c8799;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -1244,23 +1459,72 @@ function billSummaryMethod({ columns, data }: { columns: any[]; data: SpecialBil
   overflow: hidden;
   color: #1f2a37;
   font-family: var(--font-mono);
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.tile-meta,
-.tile-actions {
+.tile-info-grid {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  flex: 1;
+}
+
+.tile-info-item {
+  min-width: 0;
+  min-height: 34px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 5px 6px;
+  border: 1px solid #e5eaf1;
+  border-radius: 7px;
+  background: #fbfcfe;
+}
+
+.tile-info-item span {
+  overflow: hidden;
+  color: #7c8799;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile-info-item strong {
+  overflow: hidden;
+  color: #1f2a37;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile-info-item strong.empty {
+  color: #98a2b3;
+  font-weight: 700;
+}
+
+.tile-remark {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .tile-actions {
-  margin-top: auto;
+  display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 6px;
+  margin-top: auto;
+  flex-shrink: 0;
 }
 
 .filter-line {
@@ -1292,13 +1556,16 @@ function billSummaryMethod({ columns, data }: { columns: any[]; data: SpecialBil
 }
 
 .bill-table-shell {
-  flex: 0 0 auto;
+  flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   padding: 4px;
 }
 
 .bill-table-shell :deep(.el-table) {
+  flex: 1;
   width: 100% !important;
   font-size: 11px;
 }
@@ -1315,6 +1582,15 @@ function billSummaryMethod({ columns, data }: { columns: any[]; data: SpecialBil
 
 .bill-table-shell :deep(.el-table__row) {
   height: 28px;
+}
+
+.bill-table-shell :deep(.bill-summary-row) {
+  background: #f8fafc;
+  font-weight: 800;
+}
+
+.bill-table-shell :deep(.bill-summary-row td.el-table__cell) {
+  border-top: 1px solid #cbd5e1;
 }
 
 .bill-table-shell :deep(.el-table .cell),
@@ -1384,6 +1660,11 @@ function billSummaryMethod({ columns, data }: { columns: any[]; data: SpecialBil
   color: #1f2a37;
 }
 
+.summary-label,
+.summary-number {
+  font-weight: 800;
+}
+
 .profit-summary-grid {
   display: grid;
   grid-template-columns: repeat(9, minmax(0, 1fr));
@@ -1447,6 +1728,17 @@ function billSummaryMethod({ columns, data }: { columns: any[]; data: SpecialBil
   flex-shrink: 0;
 }
 
+.bill-pagination {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+  flex-shrink: 0;
+}
+
+.bill-pagination :deep(.el-pagination),
 .profit-pagination :deep(.el-pagination) {
   --el-pagination-button-height: 20px;
   --el-pagination-button-width: 20px;
@@ -1466,21 +1758,13 @@ function billSummaryMethod({ columns, data }: { columns: any[]; data: SpecialBil
 }
 
 @media (max-width: 1360px) {
-  .special-card-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .profit-tables {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
 @media (max-width: 980px) {
-  .special-header {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
+  .special-header,
   .config-bar,
   .card-toolbar {
     align-items: stretch;
@@ -1493,9 +1777,20 @@ function billSummaryMethod({ columns, data }: { columns: any[]; data: SpecialBil
   }
 
   .stat-strip,
-  .profit-summary-grid,
+  .profit-summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .special-card-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tile-info-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tile-actions :deep(.el-button) {
+    margin-left: 0;
   }
 }
 </style>

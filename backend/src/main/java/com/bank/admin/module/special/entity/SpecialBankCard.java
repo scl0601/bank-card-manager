@@ -27,6 +27,9 @@ public class SpecialBankCard extends BaseEntity {
     /** 总金额：卡片总额度 */
     private BigDecimal totalAmount;
 
+    /** 有效期截止（原样保存用户输入，如 06/28） */
+    private String expireDate;
+
     /** 0正常 1停用 */
     private Integer status;
 

@@ -14,6 +14,9 @@ public class SpecialCardVO {
     private String bankName;
     private String cardNoLast4;
     private BigDecimal totalAmount;
+    private String expireDate;
+    private Integer billDay;
+    private Integer repaymentDay;
     private Integer status;
     private String statusDesc;
     private String remark;

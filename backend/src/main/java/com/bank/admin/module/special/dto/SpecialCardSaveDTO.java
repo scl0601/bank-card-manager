@@ -27,6 +27,15 @@ public class SpecialCardSaveDTO {
     @Schema(description = "总金额：卡片总额度")
     private BigDecimal totalAmount;
 
+    @Schema(description = "有效期截止（原样保存用户输入，如 06/28）")
+    private String expireDate;
+
+    @Schema(description = "账单日")
+    private Integer billDay;
+
+    @Schema(description = "还款日")
+    private Integer repaymentDay;
+
     @Schema(description = "状态：0正常 1停用")
     private Integer status;
 

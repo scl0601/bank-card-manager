@@ -13,6 +13,8 @@ public class SpecialProfitRowVO {
     private String bankName;
     private String cardNoLast4;
     private BigDecimal totalAmount;
+    private BigDecimal xiaohuanRepayAmount;
+    private BigDecimal xiaohuanConsumeAmount;
     private Integer billDay;
     private Integer repaymentDay;
     private BigDecimal repaymentFee;
