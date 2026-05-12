@@ -1,6 +1,8 @@
 # 银行卡管理后台系统
 
-一个企业级内部使用的银行卡管理后台系统，用于管理持卡人、银行卡、流水、账单等信息。
+## 项目简介
+
+内部使用的银行卡管理系统，用于管理持卡人、银行卡、流水、账单等信息。
 
 ## 技术栈
 
@@ -8,347 +10,119 @@
 - Vue 3 + TypeScript
 - Vite 5
 - Element Plus
-- Pinia (状态管理)
-- Vue Router (路由)
-- Axios (HTTP请求)
-- ECharts (图表)
+- Pinia + Vue Router
+- ECharts
+- Axios
 
 ### 后端
-- Java 17 / Spring Boot 3.3
-- Spring Security (安全认证)
-- MyBatis-Plus (ORM)
-- MySQL 8 (数据库)
-- Hibernate Validator (参数校验)
-- Knife4j / OpenAPI (接口文档)
-
-### 部署环境
-- **CloudBase**: 腾讯云开发平台
-- **静态托管**: 前端部署到 CloudBase 静态网站托管
-- **云托管**: 后端部署到 CloudBase 云托管容器
-- **数据库**: 腾讯云 CynosDB MySQL
-
----
-
-## 🌐 外网访问地址
-
-| 服务 | 访问地址 | 状态 |
-|------|----------|------|
-| **前端应用** | [https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=2026100043](https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/?v=2026100043) | ✅ 已上线 |
-| **后端 API** | `https://bank-admin-backend-239413-10-1411764939.sh.run.tcloudbase.com` | ✅ 运行中 |
-
----
+- Java 17+（已用 JDK 21 验证）/ Spring Boot 3.3.0
+- Spring Security + JWT
+- MyBatis-Plus
+- MySQL 8
+- Knife4j (OpenAPI)
 
 ## 部署信息
 
-### CloudBase 环境
-- **环境ID**: dev-4g1sv3870175b971
-- **区域**: 上海 (ap-shanghai)
-- **套餐**: 个人版
+### 环境配置
+- **CloudBase 环境 ID**: dev-4g1sv3870175b971
+- **数据库名**: bank_admin
+- **数据库地址**: sh-cynosdbmysql-grp-81wbjz68.sql.tencentcdb.com:20721
 
-### 云托管服务配置
-- **服务名称**: bank-admin-backend
-- **当前线上版本**: bank-admin-backend-037 (运行中)
-- **服务类型**: 容器型 (Container)
-- **CPU**: 1 核
-- **内存**: 2 GB
-- **最小实例数**: 1
-- **最大实例数**: 2
+### 访问地址
+
+#### 前端（静态托管）
+- **URL**: https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/
+- **部署时间**: 2026-05-11 20:03
+- **状态**: ✅ 已部署
+
+#### 后端（云托管容器）
+- **自定义域名**: https://api.bankaiscl.top (推荐)
+- **默认域名**: https://bank-admin-backend-239413-10-1411764939.sh.run.tcloudbase.com
 - **端口**: 7878
-- **访问类型**: OA / PUBLIC / MINIAPP
+- **服务名**: bank-admin-backend
+- **类型**: 容器型 (Container)
+- **规格**: 1核 CPU / 2GB 内存
+- **实例数**: 最小 1 个，最大 2 个
+- **版本**: bank-admin-backend-037
+- **状态**: ✅ 运行中 (normal)
+- **更新时间**: 2026-05-11 20:17
 
-### 静态托管配置
-- **域名**: dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com
-- **状态**: 在线
+#### API 文档 (Knife4j)
+- **URL**: https://bank-admin-backend-239413-10-1411764939.sh.run.tcloudbase.com/doc.html
 
----
+#### MySQL 数据库
+- **控制台**: https://tcb.cloud.tencent.com/dev?envId=dev-4g1sv3870175b971#/db/mysql/table/default/
+- **库名**: bank_admin
+- **字符集**: utf8mb4
+- **排序规则**: utf8mb4_unicode_ci
+
+### 数据表清单（共 10 张）
+
+| 表名 | 说明 | 状态 |
+|------|------|------|
+| bank_sys_user | 系统用户表 | ✅ |
+| card_user | 用户表（两级层级） | ✅ |
+| bank_card | 银行卡表 | ✅ |
+| card_transaction | 流水记录表 | ✅ |
+| card_bill | 账单表 | ✅ |
+| reminder_task | 提醒任务表 | ✅ |
+| operation_log | 操作日志表 | ✅ |
+| book_category | 记账分类表 | ✅ |
+| personal_book | 个人记账表 | ✅ |
+| calendar_event | 日程事项表 | ✅ |
+
+### 默认账号
+- **用户名**: admin
+- **密码**: admin123
+- **角色**: 管理员 (ADMIN)
+
+## CloudBase 控制台入口
+
+- **总览**: https://tcb.cloud.tencent.com/dev?envId=dev-4g1sv3870175b971#/overview
+- **云托管**: https://tcb.cloud.tencent.com/dev?envId=dev-4g1sv3870175b971#/platform-run
+- **静态托管**: https://tcb.cloud.tencent.com/dev?envId=dev-4g1sv3870175b971#/static-hosting
+- **数据库**: https://tcb.cloud.tencent.com/dev?envId=dev-4g1sv3870175b971#/db/mysql
+- **环境设置**: https://tcb.cloud.tencent.com/dev?envId=dev-4g1sv3870175b971#/env
 
 ## 本地开发
 
-### 环境要求
-- Node.js >= 18
-- Java >= 17
-- Maven >= 3.8
-- MySQL >= 8.0
+详细环境说明见：[`DEV_SETUP.md`](./DEV_SETUP.md)
 
-### 启动后端
-```bash
-cd backend
-mvn spring-boot:run
-```
-后端运行在: http://localhost:7878
-
-### 启动前端
+### 前端
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-前端运行在: http://localhost:5173
 
----
-
-## 项目结构
-
-```
-├── backend/                 # 后端项目 (Spring Boot)
-│   ├── src/main/java/com/bank/admin/
-│   │   ├── common/          # 公共模块 (异常、响应、工具类)
-│   │   ├── config/          # 配置类
-│   │   ├── module/          # 业务模块
-│   │   │   ├── auth/        # 认证模块
-│   │   │   ├── owner/       # 持卡人模块
-│   │   │   ├── card/        # 银行卡模块
-│   │   │   ├── transaction/ # 流水模块
-│   │   │   ├── bill/        # 账单模块
-│   │   │   ├── reminder/    # 提醒模块
-│   │   │   ├── dashboard/   # 首页看板
-│   │   │   └── log/         # 日志模块
-│   │   └── security/        # 安全模块
-│   └── pom.xml
-│
-├── frontend/                # 前端项目 (Vue 3)
-│   ├── src/
-│   │   ├── api/             # API 接口封装
-│   │   ├── assets/          # 静态资源
-│   │   ├── components/      # 通用组件
-│   │   ├── layouts/         # 布局组件
-│   │   ├── router/          # 路由配置
-│   │   ├── store/modules/   # Pinia 状态管理
-│   │   ├── styles/          # 全局样式
-│   │   ├── utils/           # 工具函数
-│   │   └── views/           # 页面视图
-│   ├── .env.development     # 开发环境变量
-│   ├── .env.production      # 生产环境变量
-│   └── vite.config.ts
-│
-├── Dockerfile               # 后端容器构建文件
-├── start-backend.bat        # Windows 快速启动脚本
-└── reset-db.bat             # 数据库重置脚本
+### 后端
+```bash
+start-backend.bat
 ```
 
+或手动指定 JDK 17+ 后启动：
+
+```bash
+cd backend
+mvn clean package -DskipTests
+java -jar target/bank-admin-1.0.0.jar
+```
+
+### 重置数据库
+```bash
+reset-db.bat
+```
+
+## 部署记录
+
+| 时间 | 操作 | 状态 |
+|------|------|------|
+| 2026-05-11 20:00 | 初始化 MySQL 数据库 (bank_admin) | ✅ 完成 |
+| 2026-05-11 20:01 | 部署后端到 CloudRun | ✅ 完成 |
+| 2026-05-11 20:03 | 构建前端代码 | ✅ 成功 (14.96s) |
+| 2026-05-11 20:03 | 上传前端到静态托管 (45个文件) | ✅ 完成 |
+
 ---
 
-## 功能模块
-
-1. **登录与权限** - JWT认证、角色权限控制
-2. **持卡人管理** - 持卡人信息CRUD、关联银行卡
-3. **银行卡管理** - 银行卡信息、卡号脱敏、状态管理
-4. **流水管理** - 收支记录、分类统计、导出功能
-5. **账单管理** - 账单生成、还款日提醒、还款记录
-6. **提醒中心** - 到期提醒、逾期标记、通知推送
-7. **首页看板** - 统计概览、数据可视化图表
-8. **操作日志** - 操作审计、日志查询
-
----
-
-## 更新日志
-
-### 2026-05-10 (01:18 更新)
-- **根因修复**: 前端 `BillList.vue` 中 3 处自动改账单状态的代码 (43ef091)
-- **真正的问题**: 后端之前已修复不联动，但**前端仍在本地自动计算并覆盖状态显示**
-- **前端修改（3处）**:
-  1. `handleRepayVerifiedChange()`: 去掉 `row.status = resolveBillStatusFromDetails(...)`
-  2. `handleExpenseVerifiedChange()`: 去掉 `row.status = resolveBillStatusFromDetails(...)`  
-  3. `syncBillRowFromDetails()`: 去掉 `row.status = resolveBillStatusFromDetails(...)`
-- 状态现在完全由用户手动管理，前后端一致
-- 前端44个文件已上传到静态托管
-- 更新缓存刷新参数为 `?v=2026100043`
-
-### 2026-05-10 (01:11 更新)
-- **彻底修复**: 账单状态改为完全手动管理 (14addb8)
-- **问题背景**: 用户反馈账单状态被自动覆盖（保存明细、核实操作都会改状态），与本地代码逻辑不一致
-- **根因链路**:
-  1. `save()` 新增账单时：`refreshBillState()` → `setStatus(resolveBillStatus())` 自动覆盖用户值
-  2. `updateVerification()` 核实时：调用 `resolveBillStatus()` + `setStatus()` 联动改状态
-  3. `resolveBillStatus()` 首行：`verified && expenseVerified → 直接返回已还清` 误判
-  4. `refreshBillAmountFromDetails()` 保存明细时：→ `refreshBillState()` → 再次覆盖状态
-- **修复方案（4处修改）**：
-  1. `save()`: 增加 `dto.getStatus()` 覆盖保护，用户手动值优先
-  2. `updateVerification()`: 去掉 `resolveBillStatus` + `setStatus`，核实只改 `verified/expenseVerified`
-  3. `resolveBillStatus()`: 去掉首行"双核实→已还清"的自动判断
-  4. `refreshBillState()`: **去掉 `entity.setStatus(...)` 行**，只计算实际还款金额
-  5. `refreshBillAmountFromDetails()`: 去掉 `closeBillReminders` 联动
-- 代码已推送到 GitHub
-- 后端云托管 v037 部署中
-
-### 2026-05-10 (00:48 更新)
-- **彻底修复**: 账单明细保存失败 - 根因是 BaseEntity 缺少 `_openid` 字段 (c8c0197)
-- **根因链路分析**:
-  1. `bill_detail` 表有 `_openid NOT NULL` 约束
-  2. `BaseEntity` 没有 `openid` 字段 → `BillDetail` 继承后也没有
-  3. `MetaObjectHandlerConfig` 的 `hasGetter("openid")` 返回 false → 自动填充不执行
-  4. INSERT SQL 不包含 `_openid` 列 → 数据库 NOT NULL 报错
-- **修复方案（三管齐下）**:
-  1. `BaseEntity.java`: 新增 `@TableField(value="_openid", fill=FieldFill.INSERT)` 字段，所有实体继承
-  2. `MetaObjectHandlerConfig.java`: 简化为 `hasGetter("openid")` 时填充 `"system"` 默认值
-  3. 数据库: `ALTER TABLE bill_detail MODIFY _openid VARCHAR(64) DEFAULT 'system'`
-- 代码已推送到 GitHub
-- 后端云托管 v035 部署中
-
-### 2026-05-10 (00:42 更新)
-- **修复**: 账单列表筛选月份改为按还款日筛选而非账单日 (3498edd)
-- **修改文件**: `frontend/src/views/bill/BillList.vue`
-- **修改内容**:
-  1. 筛选器 placeholder 从 "筛选账单月份" 改为 "筛选还款月份"
-  2. `syncBillMonthQuery()` 逻辑：将值传给 `query.repayMonth`（后端按 `DATE_FORMAT(repay_date, '%Y-%m')` 查询），而非之前的 `startBillMonth/endBillMonth`
-- 后端已支持 `repayMonth` 参数，无需改后端代码
-- 代码已推送到 GitHub 远程仓库
-- 前端44个文件已上传到静态托管（纯前端改动，无需重新部署后端）
-- 更新前端缓存刷新参数为 `?v=2026100042`
-
-### 2026-05-10 (00:38 更新) - 补丁
-- **修复**: 修正 `ServletRequestAttributes` 的 import 路径
-  - 错误: `org.springframework.web.servlet.ServletRequestAttributes` (不存在)
-  - 正确: `org.springframework.web.context.request.ServletRequestAttributes` (来自 spring-web)
-- **部署**: 前端已上传 + 后端 v034 部署中（CloudRun 构建较慢，可能已排队）
-- **代码**: 已提交 (a9fec41) 并推送到 GitHub
-
-### 2026-05-10 (00:38 更新)
-- **修复**: 账单明细保存失败 - MetaObjectHandlerConfig 增加 `_openid` 自动填充 (7b5b36f)
-- **根因分析**:
-  - `bill_detail` 表有 `_openid NOT NULL` 约束
-  - `MetaObjectHandlerConfig` 的 `insertFill()` 没有处理 `_openid` 字段
-  - 新增明细时 INSERT 缺少 `_openid` 值，导致 SQL 报错保存失败
-- **修复方案**:
-  - 在 `insertFill()` 中增加 `_openid` 字段自动填充逻辑
-  - 优先从请求头 `x-wx-openid` 获取，无则填默认值 `"system"`
-  - 使用 `hasGetter("_openid")` 判断，仅对含该字段的实体生效
-- 代码已推送到 GitHub 远程仓库
-- 前端44个文件已上传到静态托管
-- 后端云托管 v033 已部署成功（状态 normal）
-- 更新前端缓存刷新参数为 `?v=2026100038`
-
-### 2026-05-10 (00:24 更新)
-- **部署最新代码**: 银行卡管理 + 账单模块优化 (3c7df35)
-- **问题修复**:
-  - `CardBillServiceImpl` 新增 `normalizeBillStatus()` 状态校验，防止非法 status 值导致保存失败
-  - 之前"账单新增明细一直保存不了"的原因：后端对状态值做了严格校验，前后端版本不一致时容易触发异常
-  - 本次部署已确保前后端代码同步
-- **前端变更**: BillList.vue 筛选区优化、状态徽章样式重构、CardUserList/ProfitStatsView/CardList UI调整
-- 无数据库变更（纯业务代码更新）
-- 前端44个文件已上传到静态托管
-- 后端云托管 `bank-admin-backend` v032 部署中
-- 更新前端缓存刷新参数为 `?v=2026100024`
-
-### 2026-05-08 (12:57 更新)
-- **部署最新代码**: 银行卡管理页面 + 利润统计优化 (fbd729d)
-- 本次无数据库变更（纯业务代码更新）
-- 涉及文件：利润统计页面、前端环境配置
-- 代码已推送到 GitHub 远程仓库
-- 前端44个文件已上传到静态托管
-- 后端云托管 `bank-admin-backend` v031 部署中
-- 更新前端缓存刷新参数为 `?v=2026081257`
-
-### 2026-05-07 (21:47 更新)
-- **部署最新代码**: 银行卡管理页面 + 账单模块优化 (b2f1743)
-- **数据库补丁**:
-  - `card_bill` 表新增 `fee_paid_amount` 字段（手续费已支付金额）
-  - `card_bill` 表新增 `fee_pay_time` 字段（最近手续费支付时间）
-  - `card_bill` 表新增 `fee_pay_method` 字段（支付方式：wechat/alipay/cash/other）
-- 前端44个文件已上传到静态托管
-- 后端云托管 `bank-admin-backend` v030 部署中
-- 更新前端缓存刷新参数为 `?v=202605072147`
-
-### 2026-05-06 (19:50 更新)
-- **部署最新代码**: 银行卡管理页面优化 (bf7ea76)
-- 本次无数据库变更（纯业务代码更新）
-- 涉及文件：银行卡管理页面、账单列表、利润统计、操作日志切面、数据库补丁启动器等
-- 前端44个文件已上传到静态托管
-- 后端云托管 `bank-admin-backend` v029 部署中
-- 更新前端缓存刷新参数为 `?v=202605061950`
-
-### 2026-05-05 (20:34 更新)
-- **部署最新代码**: 账单明细模块 + 银行卡页面优化 (0f44d79)
-- **数据库补丁**:
-  - 新建 `bill_detail` 账单明细表（POS刷卡流水/客户还款记录）
-  - `card_bill` 表新增 `other_fee_amount` 字段（其他费用）
-  - `card_bill` 表已有 `fee_rate`、`fee_amount`、`fee_paid` 字段，跳过
-- 前端重新构建并上传到静态托管（44个文件）
-- 后端云托管 `bank-admin-backend` v028 部署中
-- 更新前端缓存刷新参数为 `?v=202605052034`
-
-### 2026-04-29 (14:40 更新)
-- **部署最新代码**: 银行卡管理页面优化 (55db456)
-- **数据库补丁**:
-  - `bank_card.repay_method` 注释更新，新增 `bankapp银行APP` 和 `none无` 选项
-  - `bank_card.verified` 字段已移除（不再使用该字段）
-- 前端重新构建并上传到静态托管（44个文件）
-- 后端云托管 `bank-admin-backend` v027 已发布
-- 更新前端缓存刷新参数为 `?v=202604291440`
-
-### 2026-04-29 (09:59 更新)
-- **部署最新代码**: 银行卡管理 + 账单模块优化 (5ace8ea)
-- 本次无数据库变更（纯业务代码更新）
-- 涉及文件：CardBillController/Service/ServiceImpl、前端 BillList/CardList/bill API
-- 前端重新构建并上传到静态托管（44个文件）
-- 后端云托管 `bank-admin-backend` v026 已发布
-- 更新前端缓存刷新参数为 `?v=202604290959`
-
-### 2026-04-29 (00:23 更新)
-- **部署最新代码**: 银行卡管理页面 + 账单模块优化 (44dba83)
-- **数据库补丁**:
-  - `card_bill` 表新增 `verified` 字段（当月账单是否已核实）
-  - `card_bill` 表新增 `expense_verified` 字段（本月支出明细是否已核实）
-- 前端重新构建并上传到静态托管（44个文件全部更新）
-- 后端云托管服务 `bank-admin-backend` 已触发新的容器部署 (v025)
-- 更新前端缓存刷新访问参数为 `?v=202604290023`
-
-### 2026-04-28 (19:58 更新)
-- **部署最新代码**: 银行卡管理页面多次优化后的最新提交 (44185a3)
-- **数据库补丁执行**:
-  - `bank_card` 表删除废弃字段：`owner_relation`、`owner_name`、`total_limit`
-  - `bank_card` 表更新 `repay_method` 默认值（空值→cloudpay, invoice→other）
-  - `bank_card` 表更新 `verified` 默认值（NULL→0）
-  - 新建 `repay_month_bill` 代还月度账单条目表
-  - `card_user.fee_rate` 字段已确认存在，跳过
-- 前端重新构建并上传到静态托管（44个文件全部更新）
-- 后端云托管服务 `bank-admin-backend` 已触发新的容器部署 (v024)
-- 更新前端缓存刷新访问参数为 `?v=202604281958`
-
-### 2026-04-27 (21:20 更新)
-- **紧急修复**: 发现线上代码落后于本地最新提交
-- 前端重新构建并上传到静态托管（44个文件全部更新）
-- 后端云托管服务 `bank-admin-backend` 已触发新的容器部署 (v023)
-- 本次部署包含最新的"银行卡管理页面优化"提交内容
-- 更新前端缓存刷新访问参数为 `?v=202604272121`
-
-### 2026-04-27
-- 部署最新代码到 CloudBase
-- 修复线上 bank_card 表多余字段（card_no, owner_id, used_amount）导致 INSERT 失败的问题
-- 修复前端页面缓存导致新增用户/银行卡后数据不刷新的问题
-- 前端重新构建并上传到静态托管，访问地址更新
-- 后端云托管服务 `bank-admin-backend` 已重新触发容器部署
-
-### 2026-04-17
-- 再次将当前最新前后端代码重新部署到 CloudBase
-- 后端云托管服务 `bank-admin-backend` 已重新触发容器部署，控制台更新时间为 `2026-04-17 15:33:26`
-- 前端重新构建并上传到静态网站托管
-- 线上执行 `feedback-tables.sql`，补齐 `user_feedback`、`user_feedback_attachment`、`user_feedback_process_log` 三张反馈表
-- 将上传文件相关的 `multipart` 配置同步到 `application-prod.yml`
-- 修复反馈附件下载接口的前端 TypeScript 返回类型，确保本次前端构建成功
-- 更新 README 中的前端缓存刷新访问参数为 `?v=202604171535`
-- 后端 API 线上域名保持不变，可继续通过现有地址访问
-- 当前前后端测试域名仍会先返回 CloudBase 风险提醒页，并提示“当前访问量已达上限”，需后续在控制台继续处理测试域名访问限制
-
-### 2026-04-16
-- 重新将当前最新前后端代码部署到 CloudBase
-- 后端云托管服务 `bank-admin-backend` 成功发布至版本 `bank-admin-backend-013`
-- 前端重新构建并上传到静态网站托管
-- 更新 README 中的前端缓存刷新访问参数为 `?v=202604161539`
-- 线上验证发现测试域名当前返回 CloudBase 风险提醒页，提示“当前访问量已达上限”，需后续在控制台继续排查域名访问限制
-- 后端 API 线上域名保持不变，可继续通过现有地址访问
-
-
-### 2026-04-15
-- 部署到腾讯云 CloudBase 外网
-- 后端部署至云托管容器
-- 前端部署至静态网站托管
-- 修复前端生产环境接口兜底并重新发布静态资源
-- 调整后端 prod 配置与容器 profile，重新部署云托管服务
-- 修复登录链路：登录请求不再附带旧 token，JWT 过滤器跳过 `/api/auth/login`
-- 回测确认 CloudBase 外网登录与静态站点访问均正常
-- 重新发布当前最新版本到 CloudBase（后端云托管 + 前端静态托管）
-- 为云托管服务补充 AI 环境变量配置，外网场景可正常调用 AI 能力
-
-
-
+**部署完成时间**: 2026-05-11 20:03 (CST)
+**部署工具**: CodeBuddy + CloudBase

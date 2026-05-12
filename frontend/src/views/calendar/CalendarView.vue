@@ -1912,6 +1912,7 @@ onBeforeUnmount(()=>{ document.removeEventListener('click',handleDocClick) })
 </script>
 
 <style scoped lang="scss">
+@use "sass:color";
 $primary:       #0958d9;
 $primary-light: #eaf2ff;
 $ink:           #1f2937;
@@ -3714,7 +3715,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   font-size:12px; font-weight:600; padding:8px 0;
   background:$primary; color:#fff; border:none; border-radius:$rs; cursor:pointer;
   transition:all .15s;
-  &:hover { background: darken($primary, 8%); }
+  &:hover { background: color.adjust($primary, $lightness: -8%); }
 }
 .mdp-btn-detail {
   flex:1; display:inline-flex; align-items:center; justify-content:center; gap:4px;

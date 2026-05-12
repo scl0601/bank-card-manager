@@ -72,8 +72,8 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
-@import '../../styles/index.scss';
-@import '../styles/mobile.scss';
+@use '../../styles/index.scss';
+@use '../styles/mobile.scss';
 
 .mobile-layout {
   display: flex;

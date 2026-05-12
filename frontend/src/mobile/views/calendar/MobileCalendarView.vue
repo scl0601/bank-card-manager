@@ -1493,8 +1493,8 @@ async function handleUtilityAction(action: string) {
 </script>
 
 <style scoped lang="scss">
-@import '../../../styles/index.scss';
-@import '../../styles/mobile.scss';
+@use '../../../styles/index.scss';
+@use '../../styles/mobile.scss';
 
 .mobile-calendar-page {
   padding: 12px 12px calc(24px + var(--mobile-safe-bottom));

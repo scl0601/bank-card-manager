@@ -637,8 +637,8 @@ onMounted(() => loadEventDetail())
 </script>
 
 <style scoped lang="scss">
-@import '../../../styles/index.scss';
-@import '../../styles/mobile.scss';
+@use '../../../styles/index.scss';
+@use '../../styles/mobile.scss';
 
 .view-fade-enter-active,
 .view-fade-leave-active {
