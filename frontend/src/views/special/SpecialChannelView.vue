@@ -54,7 +54,13 @@
         </section>
 
         <section v-loading="cardLoading" class="special-card-grid" :style="cardGridStyle">
-          <article v-for="card in cards" :key="card.id" class="bank-card-tile" :class="{ disabled: card.status === 1 }">
+          <article
+            v-for="card in cards"
+            :key="card.id"
+            class="bank-card-tile"
+            :class="[specialCardExpireClass(card.expireDate), { disabled: card.status === 1 }]"
+            :title="specialCardExpireTitle(card.expireDate)"
+          >
             <div class="tile-head">
               <div class="bank-mark">
                 <el-icon><CreditCard /></el-icon>
@@ -82,7 +88,7 @@
               </div>
               <div class="tile-info-item">
                 <span>有效期</span>
-                <strong :class="{ empty: !card.expireDate }">{{ card.expireDate || '-' }}</strong>
+                <strong :class="{ empty: !card.expireDate, 'expire-warning': isSpecialCardExpiringSoon(card.expireDate), 'expire-expired': isSpecialCardExpired(card.expireDate) }">{{ card.expireDate || '-' }}</strong>
               </div>
               <div class="tile-info-item">
                 <span>账单数</span>
@@ -147,18 +153,18 @@
             table-layout="fixed"
             height="100%"
           >
-            <el-table-column prop="billYear" label="年" width="42" align="center">
+            <el-table-column prop="billYear" label="年" width="44" align="center">
               <template #default="{ row }">
                 <span v-if="row.__summary" class="summary-label">合计</span>
                 <span v-else>{{ row.billYear }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="billMonthNo" label="月" width="36" align="center">
+            <el-table-column prop="billMonthNo" label="月" width="38" align="center">
               <template #default="{ row }">
                 <span v-if="!row.__summary">{{ row.billMonthNo }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="银行" width="82" show-overflow-tooltip>
+            <el-table-column label="银行" width="90" show-overflow-tooltip>
               <template #default="{ row }">
                 <span v-if="!row.__summary" class="strong-cell">{{ row.bankName }} / {{ row.cardNoLast4 }}</span>
               </template>
@@ -168,12 +174,12 @@
                 <span v-if="!row.__summary" class="money-text">{{ formatMoney(row.totalAmount) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="账单日" width="46" align="center">
+            <el-table-column label="账单日" width="48" align="center">
               <template #default="{ row }">
                 <el-input-number v-if="!row.__summary" v-model="row.billDay" class="day-input" size="small" :min="1" :max="31" :precision="0" :controls="false" :disabled="!canEdit" />
               </template>
             </el-table-column>
-            <el-table-column label="还款日" width="46" align="center">
+            <el-table-column label="还款日" width="48" align="center">
               <template #default="{ row }">
                 <el-input-number v-if="!row.__summary" v-model="row.repaymentDay" class="day-input" size="small" :min="1" :max="31" :precision="0" :controls="false" :disabled="!canEdit" />
               </template>
@@ -205,7 +211,7 @@
                 </div>
               </template>
             </el-table-column>
-            <el-table-column prop="diffAmount" label="差额" width="70" align="right">
+            <el-table-column prop="diffAmount" label="差额" width="74" align="right">
               <template #default="{ row }">
                 <span class="money-text" :class="billDiffValue(row) >= 0 ? 'amount-income' : 'amount-cost'">
                   {{ formatMoney(billDiffValue(row)) }}
@@ -239,36 +245,36 @@
                 </div>
               </template>
             </el-table-column>
-            <el-table-column prop="balance" label="余额" width="74" align="right">
+            <el-table-column prop="balance" label="余额" width="78" align="right">
               <template #default="{ row }">
                 <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.balance) }}</span>
                 <el-input-number v-else v-model="row.balance" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
               </template>
             </el-table-column>
-            <el-table-column prop="interestAmount" label="利息" width="62" align="right">
+            <el-table-column prop="interestAmount" label="利息" width="70" align="right">
               <template #default="{ row }">
                 <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.interestAmount) }}</span>
                 <el-input-number v-else v-model="row.interestAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
               </template>
             </el-table-column>
-            <el-table-column prop="lateFeeAmount" label="滞纳金" width="62" align="right">
+            <el-table-column prop="lateFeeAmount" label="滞纳金" width="70" align="right">
               <template #default="{ row }">
                 <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.lateFeeAmount) }}</span>
                 <el-input-number v-else v-model="row.lateFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
               </template>
             </el-table-column>
-            <el-table-column prop="installmentFeeAmount" label="分期费" width="62" align="right">
+            <el-table-column prop="installmentFeeAmount" label="分期费" width="70" align="right">
               <template #default="{ row }">
                 <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.installmentFeeAmount) }}</span>
                 <el-input-number v-else v-model="row.installmentFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
               </template>
             </el-table-column>
-            <el-table-column label="备注" width="76">
+            <el-table-column label="备注" width="84">
               <template #default="{ row }">
                 <el-input v-if="!row.__summary" v-model="row.remark" size="small" maxlength="500" clearable :disabled="!canEdit" />
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="50" align="center">
+            <el-table-column label="操作" width="54" align="center">
               <template #default="{ row }">
                 <el-button v-if="!row.__summary" type="primary" link size="small" :disabled="!canEdit" :loading="savingBillId === row.id" @click="saveBill(row)">
                   保存
@@ -320,49 +326,49 @@
               <span>{{ profitPaginationText }}</span>
             </div>
             <el-table :data="pagedProfitRows" border stripe size="small" height="100%" table-layout="fixed">
-              <el-table-column prop="billYear" label="年" width="58" align="center" />
-              <el-table-column prop="billMonthNo" label="月" width="48" align="center" />
-              <el-table-column label="银行" min-width="120" show-overflow-tooltip>
+              <el-table-column prop="billYear" label="年" width="48" align="center" />
+              <el-table-column prop="billMonthNo" label="月" width="40" align="center" />
+              <el-table-column label="银行" min-width="96" show-overflow-tooltip>
                 <template #default="{ row }">{{ row.bankName }} / {{ row.cardNoLast4 }}</template>
               </el-table-column>
-              <el-table-column prop="billDay" label="账单日" width="64" align="center" />
-              <el-table-column prop="repaymentDay" label="还款日" width="64" align="center" />
-              <el-table-column label="账单金额" min-width="100" align="right">
+              <el-table-column prop="billDay" label="账单日" width="56" align="center" />
+              <el-table-column prop="repaymentDay" label="还款日" width="56" align="center" />
+              <el-table-column label="账单金额" min-width="90" align="right">
                 <template #default="{ row }">{{ formatMoney(row.totalAmount) }}</template>
               </el-table-column>
-              <el-table-column label="小焕还款" min-width="100" align="right">
+              <el-table-column label="小焕还款" min-width="90" align="right">
                 <template #default="{ row }">{{ formatMoney(row.xiaohuanRepayAmount) }}</template>
               </el-table-column>
-              <el-table-column label="还款手续费" min-width="100" align="right">
+              <el-table-column label="还款手续费" min-width="94" align="right">
                 <template #default="{ row }">{{ formatMoney(row.repaymentFee) }}</template>
               </el-table-column>
-              <el-table-column label="小焕消费" min-width="100" align="right">
+              <el-table-column label="小焕消费" min-width="90" align="right">
                 <template #default="{ row }">{{ formatMoney(row.xiaohuanConsumeAmount) }}</template>
               </el-table-column>
-              <el-table-column label="消费手续费" min-width="100" align="right">
+              <el-table-column label="消费手续费" min-width="94" align="right">
                 <template #default="{ row }">{{ formatMoney(row.consumeFee) }}</template>
               </el-table-column>
-              <el-table-column label="利息" min-width="86" align="right">
+              <el-table-column label="利息" min-width="82" align="right">
                 <template #default="{ row }">
                   <el-input-number v-model="row.interestAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" />
                 </template>
               </el-table-column>
-              <el-table-column label="滞纳金" min-width="86" align="right">
+              <el-table-column label="滞纳金" min-width="82" align="right">
                 <template #default="{ row }">
                   <el-input-number v-model="row.lateFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" />
                 </template>
               </el-table-column>
-              <el-table-column label="分期费" min-width="86" align="right">
+              <el-table-column label="分期费" min-width="82" align="right">
                 <template #default="{ row }">
                   <el-input-number v-model="row.installmentFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" />
                 </template>
               </el-table-column>
-              <el-table-column label="总计" min-width="100" align="right">
+              <el-table-column label="总计" min-width="90" align="right">
                 <template #default="{ row }">
                   <span class="amount-income">{{ formatMoney(calcProfitTotal(row)) }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="56" align="center">
+              <el-table-column label="操作" width="54" align="center">
                 <template #default="{ row }">
                   <el-button type="primary" link size="small" :disabled="!canEdit" :loading="savingProfitBillId === row.billId" @click="saveProfitExtras(row)">
                     保存
@@ -446,6 +452,7 @@ import {
   updateSpecialProfitExtraFeesApi
 } from '@/api/special'
 import { useAuthStore } from '@/store/modules/auth'
+import { getCardExpireStatus } from '@/utils/cardExpiry'
 
 type TabName = 'cards' | 'bills' | 'profit'
 
@@ -584,8 +591,8 @@ const billTableRef = ref<any>()
 const yearOptions = [2020, 2021, 2022, 2023, 2024, 2025, 2026]
 const deleteBeforeYearOptions = [2021, 2022, 2023, 2024, 2025, 2026, 2027]
 const monthOptions = Array.from({ length: 12 }, (_, index) => index + 1)
-const billListSize = 20
-const billPageSizeOptions = [20, 50, 100]
+const billListSize = 10
+const billPageSizeOptions = [10, 20, 50, 100]
 
 const billQuery = reactive({
   current: 1,
@@ -605,9 +612,9 @@ const profitQuery = reactive({
 
 const profitPage = reactive({
   current: 1,
-  size: 12
+  size: 10
 })
-const profitPageSizeOptions = [12, 24, 50, 100]
+const profitPageSizeOptions = [10, 20, 50, 100]
 
 const cardForm = reactive({
   id: undefined as number | undefined,
@@ -1152,6 +1159,33 @@ function formatDayOfMonth(day: number | string | null | undefined) {
   return Number.isFinite(value) && value > 0 ? `${Math.trunc(value)}日` : '-'
 }
 
+function specialCardExpireStatus(expireDate: string | null | undefined) {
+  return getCardExpireStatus(expireDate)
+}
+
+function isSpecialCardExpiringSoon(expireDate: string | null | undefined) {
+  return specialCardExpireStatus(expireDate) === 'soon'
+}
+
+function isSpecialCardExpired(expireDate: string | null | undefined) {
+  return specialCardExpireStatus(expireDate) === 'expired'
+}
+
+function specialCardExpireClass(expireDate: string | null | undefined) {
+  const status = specialCardExpireStatus(expireDate)
+  return {
+    'is-expire-warning': status === 'soon',
+    'is-expire-expired': status === 'expired'
+  }
+}
+
+function specialCardExpireTitle(expireDate: string | null | undefined) {
+  const status = specialCardExpireStatus(expireDate)
+  if (status === 'soon') return '银行卡有效期将在一个月内到期'
+  if (status === 'expired') return '银行卡有效期已过期'
+  return undefined
+}
+
 function calcDiff(row: SpecialBill) {
   return roundMoney(toNumber(row.xiaohuanRepayAmount) - toNumber(row.xiaohuanConsumeAmount))
 }
@@ -1371,6 +1405,7 @@ function formatRate(value: number | string | null | undefined) {
 }
 
 .bank-card-tile {
+  position: relative;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -1386,6 +1421,18 @@ function formatRate(value: number | string | null | undefined) {
 
 .bank-card-tile.disabled {
   background: #f8fafc;
+}
+
+.bank-card-tile.is-expire-warning {
+  border-color: rgba(217, 119, 6, .48);
+  background: #fff8eb;
+  box-shadow: inset 0 0 0 1px rgba(217, 119, 6, .16), 0 4px 12px rgba(217, 119, 6, .08);
+}
+
+.bank-card-tile.is-expire-expired {
+  border-color: rgba(207, 19, 34, .48);
+  background: #fff1f0;
+  box-shadow: inset 0 0 0 1px rgba(207, 19, 34, .14), 0 4px 12px rgba(207, 19, 34, .08);
 }
 
 .tile-head {
@@ -1511,6 +1558,29 @@ function formatRate(value: number | string | null | undefined) {
   font-weight: 700;
 }
 
+.tile-info-item strong.expire-warning,
+.tile-info-item strong.expire-expired {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: fit-content;
+  max-width: 100%;
+  padding: 1px 5px;
+  border-radius: 999px;
+}
+
+.tile-info-item strong.expire-warning {
+  color: #ad6800;
+  background: #fff1b8;
+  border: 1px solid #ffd666;
+}
+
+.tile-info-item strong.expire-expired {
+  color: #a8071a;
+  background: #ffd8d6;
+  border: 1px solid #ffa39e;
+}
+
 .tile-remark {
   color: #667085;
   font-size: 11px;
@@ -1531,26 +1601,26 @@ function formatRate(value: number | string | null | undefined) {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
-  min-height: 40px;
-  padding: 5px 8px;
+  gap: 6px;
+  min-height: 36px;
+  padding: 4px 8px;
   flex-shrink: 0;
 }
 
 .filter-item {
-  width: 112px;
+  width: 104px;
 }
 
 .filter-card {
-  width: 190px;
+  width: 176px;
 }
 
 .filter-hint {
   display: inline-flex;
   align-items: center;
-  min-height: 28px;
+  min-height: 26px;
   color: #667085;
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -1567,21 +1637,29 @@ function formatRate(value: number | string | null | undefined) {
 .bill-table-shell :deep(.el-table) {
   flex: 1;
   width: 100% !important;
-  font-size: 11px;
+  font-size: 13px;
+}
+
+.bill-table-shell :deep(.el-table__body-wrapper),
+.profit-table-block :deep(.el-table__body-wrapper) {
+  overflow-x: hidden;
 }
 
 .bill-table-shell :deep(.el-table th.el-table__cell) {
-  height: 26px;
-  padding: 1px 0;
+  height: 30px;
+  padding: 2px 0;
+  color: #3f4a5f;
+  font-size: 12.5px;
+  font-weight: 800;
 }
 
 .bill-table-shell :deep(.el-table td.el-table__cell) {
-  height: 28px;
-  padding: 1px 0;
+  height: 36px;
+  padding: 2px 0;
 }
 
 .bill-table-shell :deep(.el-table__row) {
-  height: 28px;
+  height: 36px;
 }
 
 .bill-table-shell :deep(.bill-summary-row) {
@@ -1596,10 +1674,12 @@ function formatRate(value: number | string | null | undefined) {
 .bill-table-shell :deep(.el-table .cell),
 .profit-table-block :deep(.el-table .cell) {
   min-width: 0;
-  padding: 0 3px;
-  line-height: 1.15;
-  white-space: normal;
-  word-break: break-word;
+  padding: 0 4px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: normal;
 }
 
 .money-input {
@@ -1614,46 +1694,60 @@ function formatRate(value: number | string | null | undefined) {
 
 .amount-verify-cell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 30px;
+  grid-template-columns: minmax(0, 1fr) 34px;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
 }
 
 .bill-table-shell .money-input :deep(.el-input__wrapper),
 .bill-table-shell .day-input :deep(.el-input__wrapper),
 .bill-table-shell :deep(.el-input__wrapper) {
-  min-height: 22px;
-  padding: 0 3px;
+  min-height: 28px;
+  padding: 0 5px;
+  border-radius: 6px;
 }
 
 .bill-table-shell :deep(.el-switch) {
   --el-switch-on-color: #2f9e44;
-  height: 18px;
-  min-width: 28px;
-  width: 28px;
+  height: 20px;
+  min-width: 32px;
+  width: 32px;
 }
 
 .bill-table-shell :deep(.el-switch__core) {
-  min-width: 28px;
-  width: 28px;
-  height: 16px;
+  min-width: 32px;
+  width: 32px;
+  height: 18px;
 }
 
 .bill-table-shell :deep(.el-switch__core .el-switch__action) {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
 }
 
 .money-input :deep(.el-input__inner) {
   text-align: right;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.bill-table-shell .day-input :deep(.el-input__inner),
+.bill-table-shell :deep(.el-input__inner),
+.profit-table-block :deep(.el-input__inner) {
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .money-text,
 .strong-cell {
   font-family: var(--font-mono);
   font-weight: 800;
+}
+
+.profit-table-block :deep(.el-table td.el-table__cell) {
+  color: #1f2a37;
+  font-weight: 750;
 }
 
 .strong-cell {
@@ -1669,7 +1763,7 @@ function formatRate(value: number | string | null | undefined) {
   display: grid;
   grid-template-columns: repeat(9, minmax(0, 1fr));
   gap: 4px;
-  padding: 4px;
+  padding: 3px 4px;
   flex-shrink: 0;
 }
 
@@ -1695,9 +1789,9 @@ function formatRate(value: number | string | null | undefined) {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
   color: #1f2a37;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   flex-shrink: 0;
 }
@@ -1705,44 +1799,53 @@ function formatRate(value: number | string | null | undefined) {
 .profit-table-block :deep(.el-table) {
   flex: 1;
   width: 100% !important;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .profit-table-block :deep(.el-table th.el-table__cell) {
-  height: 24px;
-  padding: 1px 0;
+  height: 30px;
+  padding: 2px 0;
+  color: #3f4a5f;
+  font-size: 12.5px;
+  font-weight: 800;
 }
 
 .profit-table-block :deep(.el-table td.el-table__cell) {
-  height: 28px;
-  padding: 1px 0;
+  height: 36px;
+  padding: 2px 0;
+}
+
+.profit-table-block .money-input :deep(.el-input__wrapper) {
+  min-height: 28px;
+  padding: 0 5px;
+  border-radius: 6px;
 }
 
 .profit-pagination {
-  min-height: 28px;
+  min-height: 26px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  padding-top: 4px;
+  padding-top: 3px;
   flex-shrink: 0;
 }
 
 .bill-pagination {
-  min-height: 28px;
+  min-height: 26px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  padding-top: 4px;
+  padding-top: 3px;
   flex-shrink: 0;
 }
 
 .bill-pagination :deep(.el-pagination),
 .profit-pagination :deep(.el-pagination) {
-  --el-pagination-button-height: 20px;
-  --el-pagination-button-width: 20px;
-  --el-pagination-font-size: 11px;
+  --el-pagination-button-height: 22px;
+  --el-pagination-button-width: 22px;
+  --el-pagination-font-size: 12px;
 }
 
 .amount-income {

@@ -214,9 +214,10 @@
               <template v-if="activeCards.length">
                 <template v-for="c in activeCards" :key="c.id">
                 <div
-                  :class="['list-item', 'card-item', { active: c.id === activeCardId }]"
+                  :class="['list-item', 'card-item', cardExpireClass(c.expireDate), { active: c.id === activeCardId }]"
                   role="button"
                   tabindex="0"
+                  :title="cardExpireTitle(c.expireDate)"
                   @click="setActiveCard(c.id)"
                   @keydown.enter.prevent="setActiveCard(c.id)"
                   @keydown.space.prevent="setActiveCard(c.id)"
@@ -246,7 +247,7 @@
                         <span :class="['cig-date', { 'cig-empty': !c.repayDay }]">{{ c.repayDay ? fmtDayOfMonth(c.repayDay) : '—' }}</span>
                         <span class="cig-sep-dot"></span>
                         <span class="cig-label">有效期</span>
-                        <span :class="['cig-date', { 'cig-empty': !c.expireDate }]">{{ c.expireDate || '—' }}</span>
+                        <span :class="['cig-date', { 'cig-empty': !c.expireDate, 'cig-expire-warning': isCardExpiringSoon(c.expireDate), 'cig-expire-expired': isCardExpired(c.expireDate) }]">{{ c.expireDate || '—' }}</span>
                       </div>
                     </div>
                   </div>
@@ -681,6 +682,7 @@ import {
 } from '@/api/card'
 import { getBillPageApi, updateBillApi } from '@/api/bill'
 import { formatMoney, formatRate } from '@/utils/formatters'
+import { getCardExpireStatus } from '@/utils/cardExpiry'
 import {
   BILL_STATUS_MAP,
   BILL_STATUS_TAG_TYPE,
@@ -1189,6 +1191,33 @@ function cardLast4Label(card: any) {
   return last4 || '-'
 }
 
+function cardExpireStatus(expireDate: string | null | undefined) {
+  return getCardExpireStatus(expireDate)
+}
+
+function isCardExpiringSoon(expireDate: string | null | undefined) {
+  return cardExpireStatus(expireDate) === 'soon'
+}
+
+function isCardExpired(expireDate: string | null | undefined) {
+  return cardExpireStatus(expireDate) === 'expired'
+}
+
+function cardExpireClass(expireDate: string | null | undefined) {
+  const status = cardExpireStatus(expireDate)
+  return {
+    'is-expire-warning': status === 'soon',
+    'is-expire-expired': status === 'expired'
+  }
+}
+
+function cardExpireTitle(expireDate: string | null | undefined) {
+  const status = cardExpireStatus(expireDate)
+  if (status === 'soon') return '银行卡有效期将在一个月内到期'
+  if (status === 'expired') return '银行卡有效期已过期'
+  return undefined
+}
+
 function applyKeyword() {
   const v = keyword.value.trim()
   triggerGroupSearch.cancel()
@@ -1290,9 +1319,32 @@ async function fetchGroups(options: { silent?: boolean } = {}) {
   }
 }
 
-function refreshAll() {
-  fetchGroups()
-  ensureUserTree(true)
+async function refreshCardPageData(options: { silent?: boolean; keepCardId?: number | null; keepUserId?: number | null } = {}) {
+  await fetchGroups({ silent: options.silent })
+  if (options.keepUserId && groupList.value.some(group => Number(group.userId) === Number(options.keepUserId))) {
+    activeUserId.value = Number(options.keepUserId)
+  }
+  if (options.keepCardId) {
+    const group = groupList.value.find(item => {
+      return ((item.cards || []) as any[]).some(card => Number(card?.id) === Number(options.keepCardId))
+    })
+    if (group) {
+      activeUserId.value = Number(group.userId)
+      activeCardId.value = Number(options.keepCardId)
+    }
+  }
+  syncActiveSelection()
+  await Promise.all([
+    fetchBillScopeData({ silent: true }),
+    fetchProfitScopeData({ silent: true })
+  ])
+}
+
+async function refreshAll() {
+  await Promise.all([
+    refreshCardPageData(),
+    ensureUserTree(true)
+  ])
 }
 
 // ====== 账单模块 ======
@@ -2074,6 +2126,8 @@ function openBillYearView(card: any) {
 async function handleSubmit() {
   const data: any = { ...formData }
   let createdCardId: number | undefined
+  const keepCardId = Number(data.id || 0) || null
+  const keepUserId = Number(data.userId || 0) || null
 
   ;['creditLimit', 'billDay', 'repayDay'].forEach(key => {
     if (data[key] === '') data[key] = null
@@ -2095,7 +2149,10 @@ async function handleSubmit() {
     }
     ElMessage.success(isEdit.value ? '操作成功' : (data.cardType === CARD_TYPE_VALUE.CREDIT ? '新增成功，已生成本年账单模板' : '新增成功'))
     dialogVisible.value = false
-    await fetchGroups()
+    await refreshCardPageData({
+      keepCardId: isEdit.value ? keepCardId : (createdCardId ?? null),
+      keepUserId
+    })
     if (!isEdit.value && data.cardType === CARD_TYPE_VALUE.CREDIT && createdCardId) {
       openBillYearView({ id: createdCardId })
     }
@@ -2113,7 +2170,7 @@ async function confirmDeleteCard(card: any) {
     )
     await deleteCardApi(Number(card.id))
     ElMessage.success('删除成功')
-    await fetchGroups()
+    await refreshCardPageData({ keepUserId: Number(activeUserId.value || 0) || null })
   } catch (error: any) {
     if (String(error?.message || '').includes('cancel')) return
     ElMessage.error(error?.message || error?.response?.data?.message || '删除失败，该卡可能存在关联历史数据')
@@ -2223,7 +2280,7 @@ watch(
 )
 
 onMounted(() => {
-  fetchGroups({ silent: true })
+  refreshCardPageData({ silent: true })
   ensureUserTree(false, true)
 })
 
@@ -2237,7 +2294,7 @@ onActivated(() => {
     return
   }
   // 从其他页面（如持卡人管理）返回时始终刷新，确保数据最新
-  fetchGroups({ silent: true })
+  refreshCardPageData({ silent: true, keepCardId: activeCardId.value, keepUserId: activeUserId.value })
   ensureUserTree(true, true)
 })
 </script>
@@ -3126,6 +3183,18 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 
 .card-item {
   padding: 8px 10px;
+
+  &.is-expire-warning {
+    border-color: rgba(217, 119, 6, .45);
+    background: #fff8eb;
+    box-shadow: inset 0 0 0 1px rgba(217, 119, 6, .16);
+  }
+
+  &.is-expire-expired {
+    border-color: rgba(207, 19, 34, .45);
+    background: #fff1f0;
+    box-shadow: inset 0 0 0 1px rgba(207, 19, 34, .14);
+  }
 }
 
 .card-info-left {
@@ -3226,6 +3295,22 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   font-weight: 700;
   color: $ink2;
   flex-shrink: 0;
+}
+
+.cig-expire-warning {
+  padding: 1px 5px;
+  border-radius: 999px;
+  color: #ad6800;
+  background: #fff1b8;
+  border: 1px solid #ffd666;
+}
+
+.cig-expire-expired {
+  padding: 1px 5px;
+  border-radius: 999px;
+  color: #a8071a;
+  background: #ffd8d6;
+  border: 1px solid #ffa39e;
 }
 
 .cig-empty {
