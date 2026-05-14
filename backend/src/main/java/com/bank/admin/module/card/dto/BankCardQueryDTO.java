@@ -25,6 +25,6 @@ public class BankCardQueryDTO extends PageDTO {
     @Schema(description = "卡片类型：1借记卡 2信用卡")
     private Integer cardType;
 
-    @Schema(description = "状态：0正常 1冻结 2注销")
+    @Schema(description = "状态：0正常 1冻结 2注销 3停用")
     private Integer status;
 }

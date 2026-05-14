@@ -4,6 +4,7 @@ import com.bank.admin.common.annotation.Log;
 import com.bank.admin.common.enums.ActionTypeEnum;
 import com.bank.admin.common.result.PageResult;
 import com.bank.admin.common.result.Result;
+import com.bank.admin.module.special.dto.SpecialBillAfterYearDeleteDTO;
 import com.bank.admin.module.special.dto.SpecialBillBatchDeleteDTO;
 import com.bank.admin.module.special.dto.SpecialBillQueryDTO;
 import com.bank.admin.module.special.dto.SpecialBillUpdateDTO;
@@ -110,6 +111,23 @@ public class SpecialChannelController {
     @PreAuthorize("hasRole('ADMIN')")
     public Result<Integer> deleteBillsBeforeYear(@Valid @RequestBody SpecialBillBatchDeleteDTO dto) {
         return Result.success(specialChannelService.deleteBillsBeforeYear(dto));
+    }
+
+    @Operation(summary = "按银行卡批量删除指定年份之后的特殊账单")
+    @Log(module = "特殊账单", type = ActionTypeEnum.DELETE, description = "批量删除指定年份之后的特殊账单")
+    @DeleteMapping("/bills/after-year")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Result<Integer> deleteBillsAfterYear(@Valid @RequestBody SpecialBillAfterYearDeleteDTO dto) {
+        return Result.success(specialChannelService.deleteBillsAfterYear(dto));
+    }
+
+    @Operation(summary = "批量删除特殊账单")
+    @Log(module = "特殊账单", type = ActionTypeEnum.DELETE, description = "批量删除特殊账单")
+    @DeleteMapping("/bills/batch")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Result<Void> batchDeleteBills(@RequestBody List<Long> ids) {
+        specialChannelService.batchDeleteBills(ids);
+        return Result.success();
     }
 
     @Operation(summary = "特殊收益统计")

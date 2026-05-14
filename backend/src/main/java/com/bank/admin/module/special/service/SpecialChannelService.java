@@ -1,6 +1,7 @@
 package com.bank.admin.module.special.service;
 
 import com.bank.admin.common.result.PageResult;
+import com.bank.admin.module.special.dto.SpecialBillAfterYearDeleteDTO;
 import com.bank.admin.module.special.dto.SpecialBillBatchDeleteDTO;
 import com.bank.admin.module.special.dto.SpecialBillQueryDTO;
 import com.bank.admin.module.special.dto.SpecialBillUpdateDTO;
@@ -34,6 +35,10 @@ public interface SpecialChannelService {
     void updateBill(SpecialBillUpdateDTO dto);
 
     int deleteBillsBeforeYear(SpecialBillBatchDeleteDTO dto);
+
+    int deleteBillsAfterYear(SpecialBillAfterYearDeleteDTO dto);
+
+    void batchDeleteBills(List<Long> ids);
 
     void updateProfitExtraFees(SpecialProfitExtraFeeUpdateDTO dto);
 

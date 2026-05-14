@@ -23,6 +23,7 @@ public class CardBillSqlProvider {
                     cb.card_id,
                     bc.card_no_last4,
                     bc.bank_name,
+                    bc.status AS card_status,
                     cb.owner_id,
                     cu.name AS owner_name,
                     cb.bill_month,

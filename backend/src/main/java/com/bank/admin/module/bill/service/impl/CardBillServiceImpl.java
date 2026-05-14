@@ -187,7 +187,11 @@ public class CardBillServiceImpl
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "账单不存在");
         }
         Long targetCardId = dto.getCardId() != null ? dto.getCardId() : entity.getCardId();
+        if (!Objects.equals(entity.getCardId(), targetCardId)) {
+            validateCardWritable(requireCard(entity.getCardId()), "编辑账单");
+        }
         BankCard card = requireCard(targetCardId);
+        validateCardWritable(card, "编辑账单");
         ensureNoDuplicate(targetCardId, dto.getBillMonth(), dto.getId());
 
         entity.setCardId(targetCardId);
@@ -246,6 +250,7 @@ public class CardBillServiceImpl
         if (entity == null) {
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "账单不存在");
         }
+        validateCardWritable(requireCard(entity.getCardId()), "编辑账单");
         if (verified != null) {
             entity.setVerified(verified);
         }
@@ -286,6 +291,7 @@ public class CardBillServiceImpl
         if (bill == null) {
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "账单不存在");
         }
+        validateCardWritable(requireCard(bill.getCardId()), "编辑账单");
         bill.setActualPayAmount(scaleMoney(actualPayAmount));
         bill.setActualPayDate(actualPayDate);
         refreshBillState(bill);
@@ -387,6 +393,7 @@ public class CardBillServiceImpl
         if (bill == null) {
             return;
         }
+        validateCardWritable(requireCard(bill.getCardId()), "编辑账单");
         // 只刷新实际还款金额（不改变账单状态）
         refreshBillState(bill);
         updateById(bill);
@@ -541,9 +548,11 @@ public class CardBillServiceImpl
     }
 
     private void deleteSingleBill(Long id) {
-        if (getById(id) == null) {
+        CardBill bill = getById(id);
+        if (bill == null) {
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "账单不存在");
         }
+        validateCardWritable(requireCard(bill.getCardId()), "删除账单");
         billDetailMapper.delete(new LambdaQueryWrapper<BillDetail>().eq(BillDetail::getBillId, id));
         reminderTaskService.removeTasksByBillId(id);
         removeById(id);
@@ -580,7 +589,16 @@ public class CardBillServiceImpl
         }
         throw new BusinessException(
                 ResultCode.OPERATION_FAILED,
-                "银行卡已" + (status == 1 ? "冻结" : "注销") + "，不允许" + actionName);
+                "银行卡已" + cardStatusName(status) + "，不允许" + actionName);
+    }
+
+    private String cardStatusName(int status) {
+        return switch (status) {
+            case 1 -> "冻结";
+            case 2 -> "注销";
+            case 3 -> "停用";
+            default -> "停用";
+        };
     }
 
     private BigDecimal resolveEffectiveFeeRate(Long ownerId) {

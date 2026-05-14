@@ -124,19 +124,19 @@
                 <div class="detail-header">
                   <div class="detail-header-main">
                     <span class="detail-title">本月明细流水</span>
-                    <el-button type="success" size="small" @click="openAddDetail(row)">+ 新增</el-button>
+                    <el-button type="success" size="small" :disabled="isBillCardDisabled(row)" @click="openAddDetail(row)">+ 新增</el-button>
                   </div>
                 </div>
 
               <BillDetailSkeleton v-if="detailLoadingMap[row.id] && !detailLoadedMap[row.id]" />
 
               <template v-else-if="detailListMap[row.id]?.length">
-                <div v-if="selectedDetailsMap[row.id]?.length > 0" class="batch-toolbar">
-                  <el-button type="danger" size="small" @click="handleBatchDelete(row.id)">
+                <div v-if="selectedDetailsMap[row.id]?.length > 0 && !isBillCardDisabled(row)" class="batch-toolbar">
+                  <el-button type="danger" size="small" :disabled="isBillCardDisabled(row)" @click="handleBatchDelete(row.id)">
                     批量删除 ({{ selectedDetailsMap[row.id].length }})
                   </el-button>
-                  <el-dropdown @command="(type: number) => handleBatchUpdateType(row.id, type)">
-                    <el-button size="small">
+                  <el-dropdown :disabled="isBillCardDisabled(row)" @command="(type: number) => handleBatchUpdateType(row.id, type)">
+                    <el-button size="small" :disabled="isBillCardDisabled(row)">
                       批量修改交易类型 <el-icon><arrow-down /></el-icon>
                     </el-button>
                     <template #dropdown>
@@ -161,6 +161,7 @@
                               :model-value="Boolean(row.verified)"
                               active-text="已核实"
                               inactive-text="未核实"
+                              :disabled="isBillCardDisabled(row)"
                               @change="(val: any) => handleRepayVerifiedChange(row, Boolean(val))"
                             />
                           </div>
@@ -178,6 +179,7 @@
                           <el-checkbox
                             :model-value="isPaneAllSelected(row.id, 'income', DETAIL_TYPE_VALUE.INCOME)"
                             :indeterminate="isPaneSelectionIndeterminate(row.id, 'income', DETAIL_TYPE_VALUE.INCOME)"
+                            :disabled="isBillCardDisabled(row)"
                             @change="(checked: any) => togglePaneSelectAll(row.id, 'income', DETAIL_TYPE_VALUE.INCOME, Boolean(checked))"
                           />
                         </div>
@@ -195,6 +197,7 @@
                         <div class="detail-check-col">
                           <el-checkbox
                             :model-value="isDetailSelected(row.id, 'income', detail.id)"
+                            :disabled="isBillCardDisabled(row)"
                             @change="(checked: any) => toggleDetailChecked(row.id, 'income', detail, Boolean(checked))"
                           />
                         </div>
@@ -212,9 +215,9 @@
                           </div>
                         </div>
                         <div class="detail-action-col">
-                          <el-button type="primary" link size="small" @click="openEditDetail(row, detail)">编辑</el-button>
+                          <el-button type="primary" link size="small" :disabled="isBillCardDisabled(row)" @click="openEditDetail(row, detail)">编辑</el-button>
                           <el-popconfirm title="确认删除？" @confirm="handleDeleteDetail(row.id, detail.id)">
-                            <template #reference><el-button type="danger" link size="small">删</el-button></template>
+                            <template #reference><el-button type="danger" link size="small" :disabled="isBillCardDisabled(row)">删</el-button></template>
                           </el-popconfirm>
                         </div>
                       </div>
@@ -234,6 +237,7 @@
                               :model-value="Boolean(row.expenseVerified)"
                               active-text="已核实"
                               inactive-text="未核实"
+                              :disabled="isBillCardDisabled(row)"
                               @change="(val: any) => handleExpenseVerifiedChange(row, Boolean(val))"
                             />
                           </div>
@@ -251,6 +255,7 @@
                           <el-checkbox
                             :model-value="isPaneAllSelected(row.id, 'expense', DETAIL_TYPE_VALUE.EXPENSE)"
                             :indeterminate="isPaneSelectionIndeterminate(row.id, 'expense', DETAIL_TYPE_VALUE.EXPENSE)"
+                            :disabled="isBillCardDisabled(row)"
                             @change="(checked: any) => togglePaneSelectAll(row.id, 'expense', DETAIL_TYPE_VALUE.EXPENSE, Boolean(checked))"
                           />
                         </div>
@@ -268,6 +273,7 @@
                         <div class="detail-check-col">
                           <el-checkbox
                             :model-value="isDetailSelected(row.id, 'expense', detail.id)"
+                            :disabled="isBillCardDisabled(row)"
                             @change="(checked: any) => toggleDetailChecked(row.id, 'expense', detail, Boolean(checked))"
                           />
                         </div>
@@ -285,9 +291,9 @@
                           </div>
                         </div>
                         <div class="detail-action-col">
-                          <el-button type="primary" link size="small" @click="openEditDetail(row, detail)">编辑</el-button>
+                          <el-button type="primary" link size="small" :disabled="isBillCardDisabled(row)" @click="openEditDetail(row, detail)">编辑</el-button>
                           <el-popconfirm title="确认删除？" @confirm="handleDeleteDetail(row.id, detail.id)">
-                            <template #reference><el-button type="danger" link size="small">删</el-button></template>
+                            <template #reference><el-button type="danger" link size="small" :disabled="isBillCardDisabled(row)">删</el-button></template>
                           </el-popconfirm>
                         </div>
                       </div>
@@ -331,6 +337,7 @@
             <el-icon :size="13" color="#67c23a"><CreditCard /></el-icon>
             <span class="bank-inline-name">{{ displayBankName(row.bankName) }}</span>
             <span class="bank-inline-last4">尾号{{ row.cardNoLast4 || '-' }}</span>
+            <span v-if="isBillCardDisabled(row)" class="card-disabled-badge">{{ billCardStatusText(row) }}</span>
           </div>
         </template>
       </el-table-column>
@@ -420,12 +427,12 @@
             >
               <el-icon :size="14"><ArrowRight /></el-icon>
             </el-button>
-            <el-button type="primary" link size="small" class="row-action-btn" title="编辑账单" @click="openBillEdit(row)">
+            <el-button type="primary" link size="small" class="row-action-btn" title="编辑账单" :disabled="isBillCardDisabled(row)" @click="openBillEdit(row)">
               <el-icon :size="14"><Edit /></el-icon>
             </el-button>
             <el-popconfirm title="确认删除该月账单？" @confirm="handleDelete(row.id)">
               <template #reference>
-                <el-button type="danger" link size="small" class="row-action-btn" title="删除">
+                <el-button type="danger" link size="small" class="row-action-btn" title="删除" :disabled="isBillCardDisabled(row)">
                   <el-icon :size="14"><Delete /></el-icon>
                 </el-button>
               </template>
@@ -678,6 +685,7 @@ interface BillRow {
   status: number
   verified?: boolean | null
   expenseVerified?: boolean | null
+  cardStatus?: number | null
   remark?: string
 }
 
@@ -1126,6 +1134,7 @@ function createBillPlaceholderRow(index: number): BillRow {
     status: 0,
     verified: false,
     expenseVerified: false,
+    cardStatus: 0,
     remark: ''
   }
 }
@@ -1134,15 +1143,43 @@ function isBillPlaceholderRow(row: BillRow | null | undefined) {
   return Boolean(row?.__placeholder)
 }
 
+function findBillRowById(billId: number | string | null | undefined) {
+  const targetId = Number(billId || 0)
+  return (list.value as BillRow[]).find(item => Number(item.id) === targetId)
+    || sortedList.value.find(item => Number(item.id) === targetId)
+    || null
+}
+
 function isSelectableBillRow(row: BillRow) {
-  return !isBillPlaceholderRow(row)
+  return !isBillPlaceholderRow(row) && !isBillCardDisabled(row)
 }
 
 function billRowClassName({ row }: { row: BillRow }) {
   if (isBillPlaceholderRow(row)) {
     return 'bill-placeholder-row'
   }
-  return repayMonthOf(row) === currentMonth ? 'current-month-row' : ''
+  const classes: string[] = []
+  if (repayMonthOf(row) === currentMonth) classes.push('current-month-row')
+  if (isBillCardDisabled(row)) classes.push('card-disabled-row')
+  return classes.join(' ')
+}
+
+function isBillCardDisabled(row: BillRow | null | undefined) {
+  return Number(row?.cardStatus ?? 0) !== 0
+}
+
+function billCardStatusText(row: BillRow | null | undefined) {
+  const status = Number(row?.cardStatus ?? 0)
+  if (status === 1) return '冻结'
+  if (status === 2) return '注销'
+  if (status === 3) return '停用'
+  return '异常'
+}
+
+function assertBillCardEditable(row: BillRow | null | undefined) {
+  if (!isBillCardDisabled(row)) return true
+  ElMessage.warning(`银行卡已${billCardStatusText(row)}，账单不能编辑`)
+  return false
 }
 
 function billStatusText(status: unknown) {
@@ -1528,7 +1565,7 @@ const savingId = ref<number | null>(null)
 const selectedBillRows = ref<BillRow[]>([])
 
 function handleBillSelectionChange(selection: BillRow[]) {
-  selectedBillRows.value = (selection || []).filter(row => !isBillPlaceholderRow(row))
+  selectedBillRows.value = (selection || []).filter(row => !isBillPlaceholderRow(row) && !isBillCardDisabled(row))
 }
 
 function clearBillSelection() {
@@ -1844,6 +1881,7 @@ function isPaneSelectionIndeterminate(billId: number, pane: 'income' | 'expense'
 }
 
 function toggleDetailChecked(billId: number, pane: 'income' | 'expense', detail: BillDetailRow, checked: boolean) {
+  if (!assertBillCardEditable(findBillRowById(billId))) return
   const current = getPaneSelection(billId, pane)
   const next = checked
     ? [...current.filter(item => Number(item.id) !== Number(detail.id)), detail]
@@ -1853,6 +1891,7 @@ function toggleDetailChecked(billId: number, pane: 'income' | 'expense', detail:
 }
 
 function togglePaneSelectAll(billId: number, pane: 'income' | 'expense', detailType: number, checked: boolean) {
+  if (!assertBillCardEditable(findBillRowById(billId))) return
   const rows = detailTypeDisplayList(billId, detailType)
   const rowIds = new Set(rows.map(item => Number(item.id)))
   const retained = getPaneSelection(billId, pane).filter(item => !rowIds.has(Number(item.id)))
@@ -1884,6 +1923,7 @@ const detailRules = {
 }
 
 function openAddDetail(row: BillRow) {
+  if (!assertBillCardEditable(row)) return
   currentBillRow.value = row
   Object.assign(detailForm, { id: undefined, billId: row.id, detailDate: currentDateString(), description: '', amount: 0, detailType: DETAIL_TYPE_VALUE.INCOME, remark: '' })
   detailDialogTitle.value = '新增明细'
@@ -1891,6 +1931,7 @@ function openAddDetail(row: BillRow) {
 }
 
 function openEditDetail(billRow: BillRow, detail: any) {
+  if (!assertBillCardEditable(billRow)) return
   currentBillRow.value = billRow
   Object.assign(detailForm, detail)
   detailDialogTitle.value = '编辑明细'
@@ -1898,6 +1939,7 @@ function openEditDetail(billRow: BillRow, detail: any) {
 }
 
 async function handleSaveDetail() {
+  if (!assertBillCardEditable(currentBillRow.value)) return
   try {
     await detailFormRef.value?.validate()
   } catch {
@@ -1925,6 +1967,7 @@ async function handleSaveDetail() {
 }
 
 async function handleDeleteDetail(billId: number, id: number) {
+  if (!assertBillCardEditable(findBillRowById(billId))) return
   try {
     await deleteDetailApi(id)
     ElMessage.success('删除成功')
@@ -1936,6 +1979,7 @@ async function handleDeleteDetail(billId: number, id: number) {
 }
 
 async function handleBatchDelete(billId: number) {
+  if (!assertBillCardEditable(findBillRowById(billId))) return
   const ids = selectedDetailsMap.value[billId]?.map(d => d.id) || []
   if (ids.length === 0) return
 
@@ -1958,6 +2002,7 @@ async function handleBatchDelete(billId: number) {
 }
 
 async function handleBatchUpdateType(billId: number, detailType: number) {
+  if (!assertBillCardEditable(findBillRowById(billId))) return
   const ids = selectedDetailsMap.value[billId]?.map(d => d.id) || []
   if (ids.length === 0) return
 
@@ -1980,6 +2025,7 @@ function refreshBillDataAfterDetailChange() {
 }
 
 async function handleDelete(id: number) {
+  if (!assertBillCardEditable(findBillRowById(id))) return
   try {
     await deleteBillApi(id)
     ElMessage.success('删除成功')
@@ -1991,6 +2037,10 @@ async function handleDelete(id: number) {
 }
 
 async function handleBatchDeleteBills() {
+  if (selectedBillRows.value.some(row => isBillCardDisabled(row))) {
+    ElMessage.warning('已停用银行卡的账单不能删除')
+    return
+  }
   const ids = selectedBillRows.value.map(row => Number(row.id)).filter(id => id > 0)
   if (!ids.length) return
 
@@ -2062,6 +2112,7 @@ function applyLocalBillEdit(row: BillRow, form: EditFormItem) {
 }
 
 async function handleRepayVerifiedChange(row: BillRow, verified: boolean) {
+  if (!assertBillCardEditable(row)) return
   const form = ensureEditForm(row)
   const previousVerified = Boolean(row.verified)
   const previousFormVerified = Boolean(form.verified)
@@ -2081,6 +2132,7 @@ async function handleRepayVerifiedChange(row: BillRow, verified: boolean) {
 }
 
 async function handleExpenseVerifiedChange(row: BillRow, expenseVerified: boolean) {
+  if (!assertBillCardEditable(row)) return
   const form = ensureEditForm(row)
   const previousExpenseVerified = Boolean(row.expenseVerified)
   row.expenseVerified = expenseVerified
@@ -2097,6 +2149,7 @@ async function handleExpenseVerifiedChange(row: BillRow, expenseVerified: boolea
 }
 
 async function handleInlineSave(row: BillRow) {
+  if (!assertBillCardEditable(row)) return false
   const form = editFormMap.value[row.id]
   if (!form) return
   savingId.value = row.id
@@ -2128,6 +2181,7 @@ async function handleInlineSave(row: BillRow) {
 }
 
 function openBillEdit(row: BillRow) {
+  if (!assertBillCardEditable(row)) return
   editFormMap.value[row.id] = buildEditForm(row)
   billEditRow.value = row
   billEditDialogVisible.value = true
@@ -2909,6 +2963,22 @@ watch(
 }
 
 /*noinspection CssUnusedSymbol*/
+.bill-page-table :deep(.el-table__body tr.card-disabled-row > td.el-table__cell) {
+  background: #fff1f0 !important;
+  box-shadow: inset 0 1px 0 #ffa39e, inset 0 -1px 0 #ffa39e;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-page-table :deep(.el-table__body tr.card-disabled-row > td.el-table__cell:first-child) {
+  box-shadow: inset 3px 0 0 #cf1322, inset 0 1px 0 #ffa39e, inset 0 -1px 0 #ffa39e;
+}
+
+/*noinspection CssUnusedSymbol*/
+.bill-page-table :deep(.el-table__body tr.card-disabled-row:hover > td.el-table__cell) {
+  background: #ffe4e2 !important;
+}
+
+/*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-table__header-wrapper),
 .detail-section :deep(.el-table__header-wrapper) {
   overflow: hidden !important;
@@ -3190,6 +3260,18 @@ watch(
   color: #1f2a37;
   white-space: nowrap;
   overflow: hidden;
+}
+
+.card-disabled-badge {
+  flex-shrink: 0;
+  padding: 1px 4px;
+  border: 1px solid #ffa39e;
+  border-radius: 999px;
+  color: #a8071a;
+  background: #ffd8d6;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
 }
 
 .bank-inline-name {

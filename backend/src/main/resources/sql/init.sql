@@ -52,7 +52,7 @@ CREATE TABLE `bank_card` (
   `bill_day`        TINYINT         DEFAULT NULL            COMMENT '账单日',
   `repay_day`       TINYINT         DEFAULT NULL            COMMENT '还款日',
   `expire_date`     VARCHAR(32)     DEFAULT NULL            COMMENT '有效期（原样保存用户输入）',
-  `status`          TINYINT         NOT NULL DEFAULT 0      COMMENT '0正常 1冻结 2注销',
+  `status`          TINYINT         NOT NULL DEFAULT 0      COMMENT '0正常 1冻结 2注销 3停用',
   `repay_method`    VARCHAR(20)     DEFAULT 'cloudpay'      COMMENT 'APP：cloudpay云闪付 wechat微信 alipay支付宝 bankapp银行APP none无 other其他',
   `remark`          VARCHAR(500)    DEFAULT NULL,
   `is_deleted`      TINYINT(1)      NOT NULL DEFAULT 0,

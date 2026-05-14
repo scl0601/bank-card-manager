@@ -43,7 +43,7 @@ public class BankCardSaveDTO {
     @Schema(description = "有效期截止（原样保存用户输入，如 06/28、06-28、06月28年）")
     private String expireDate;
 
-    @Schema(description = "状态：0正常 1冻结 2注销")
+    @Schema(description = "状态：0正常 1冻结 2注销 3停用")
     private Integer status;
 
     @Schema(description = "APP：cloudpay云闪付 wechat微信 alipay支付宝 bankapp银行APP none无 other其他")

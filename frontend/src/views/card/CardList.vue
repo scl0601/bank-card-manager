@@ -214,10 +214,10 @@
               <template v-if="activeCards.length">
                 <template v-for="c in activeCards" :key="c.id">
                 <div
-                  :class="['list-item', 'card-item', cardExpireClass(c.expireDate), { active: c.id === activeCardId }]"
+                  :class="['list-item', 'card-item', cardExpireClass(c.expireDate), { active: c.id === activeCardId, 'is-card-disabled': isCardDisabled(c) }]"
                   role="button"
                   tabindex="0"
-                  :title="cardExpireTitle(c.expireDate)"
+                  :title="cardItemTitle(c)"
                   @click="setActiveCard(c.id)"
                   @keydown.enter.prevent="setActiveCard(c.id)"
                   @keydown.space.prevent="setActiveCard(c.id)"
@@ -239,6 +239,7 @@
                       </div>
                       <div class="card-row-sub">
                         <span class="cig-type">{{ CARD_TYPE_MAP[c.cardType] || '—' }}</span>
+                        <span v-if="!isCardNormal(c)" class="cig-status-disabled">{{ cardStatusText(c) }}</span>
                         <span class="cig-sep-dot"></span>
                         <span class="cig-label">账单日</span>
                         <span :class="['cig-date', { 'cig-empty': !c.billDay }]">{{ c.billDay ? fmtDayOfMonth(c.billDay) : '—' }}</span>
@@ -336,7 +337,7 @@
             </div>
             <div class="bill-list" v-loading="recentBillsVisibleLoading">
               <template v-if="recentBills.length">
-                <div v-for="b in recentBills" :key="b.id" class="bill-item" :class="{ current: isCurrentBillMonth(b) }">
+                <div v-for="b in recentBills" :key="b.id" class="bill-item" :class="{ current: isCurrentBillMonth(b), 'is-card-disabled': isBillCardDisabled(b) }">
                   <div class="li-left bill-info-left">
                     <div class="li-icon bill-icon">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -361,6 +362,8 @@
                         <span class="cig-label">还款日</span>
                         <span class="bill-date">{{ fmtRepayDay(b.repayDate) }}</span>
                         <span class="cig-sep-dot"></span>
+                        <span v-if="isBillCardDisabled(b)" class="cig-status-disabled">{{ billCardStatusText(b) }}</span>
+                        <span v-if="isBillCardDisabled(b)" class="cig-sep-dot"></span>
                         <StatusTag :value="b.status" :label-map="BILL_STATUS_MAP" :type-map="BILL_STATUS_TAG_TYPE" size="small" effect="light" />
                       </div>
                     </div>
@@ -378,7 +381,7 @@
                         size="small"
                         class="bill-amount-input"
                         placeholder="账单金额"
-                        :disabled="savingBillId === b.id"
+                        :disabled="savingBillId === b.id || isBillCardDisabled(b)"
                         @update:model-value="(val: any) => updateBillAmountDraft(b.id, val)"
                         @keyup.enter="saveBillAmount(b)"
                       />
@@ -390,7 +393,7 @@
                         size="small"
                         class="bill-save-btn"
                         :loading="savingBillId === b.id"
-                        :disabled="!isBillAmountChanged(b)"
+                        :disabled="isBillCardDisabled(b) || !isBillAmountChanged(b)"
                         @click="saveBillAmount(b)"
                       >
                         保存
@@ -686,9 +689,11 @@ import { getCardExpireStatus } from '@/utils/cardExpiry'
 import {
   BILL_STATUS_MAP,
   BILL_STATUS_TAG_TYPE,
+  CARD_STATUS_MAP,
   CARD_TYPE_MAP,
   CARD_TYPE_OPTIONS,
   CARD_TYPE_VALUE,
+  CARD_STATUS_VALUE,
   CARD_STATUS_OPTIONS,
   APP_OPTIONS
 } from '@/constants/dict'
@@ -726,6 +731,7 @@ interface BillRow {
   netProfit?: number | null
   verified?: boolean | null
   expenseVerified?: boolean | null
+  cardStatus?: number | null
   status: number
   remark?: string | null
 }
@@ -1203,6 +1209,32 @@ function isCardExpired(expireDate: string | null | undefined) {
   return cardExpireStatus(expireDate) === 'expired'
 }
 
+function isCardDisabled(card: any) {
+  return Number(card?.status ?? 0) !== CARD_STATUS_VALUE.NORMAL
+}
+
+function isCardNormal(card: any) {
+  return !isCardDisabled(card)
+}
+
+function cardStatusText(card: any) {
+  return CARD_STATUS_MAP[Number(card?.status ?? 0)] || '异常'
+}
+
+function isBillCardDisabled(row: BillRow | null | undefined) {
+  return Number(row?.cardStatus ?? 0) !== CARD_STATUS_VALUE.NORMAL
+}
+
+function billCardStatusText(row: BillRow | null | undefined) {
+  return CARD_STATUS_MAP[Number(row?.cardStatus ?? 0)] || '异常'
+}
+
+function assertBillCardEditable(row: BillRow | null | undefined) {
+  if (!isBillCardDisabled(row)) return true
+  ElMessage.warning(`银行卡已${billCardStatusText(row)}，账单不能编辑`)
+  return false
+}
+
 function cardExpireClass(expireDate: string | null | undefined) {
   const status = cardExpireStatus(expireDate)
   return {
@@ -1216,6 +1248,18 @@ function cardExpireTitle(expireDate: string | null | undefined) {
   if (status === 'soon') return '银行卡有效期将在一个月内到期'
   if (status === 'expired') return '银行卡有效期已过期'
   return undefined
+}
+
+function cardItemTitle(card: any) {
+  const parts: string[] = []
+  if (isCardDisabled(card)) {
+    parts.push(`银行卡已${cardStatusText(card)}，关联账单不可编辑`)
+  }
+  const expireTitle = cardExpireTitle(card?.expireDate)
+  if (expireTitle) {
+    parts.push(expireTitle)
+  }
+  return parts.join('；') || undefined
 }
 
 function applyKeyword() {
@@ -1544,6 +1588,7 @@ function buildBillAmountUpdatePayload(row: BillRow, billAmount: number) {
 }
 
 async function saveBillAmount(row: BillRow) {
+  if (!assertBillCardEditable(row)) return
   if (!isBillAmountChanged(row) || savingBillId.value === row.id) return
   savingBillId.value = row.id
   try {
@@ -3195,6 +3240,18 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
     background: #fff1f0;
     box-shadow: inset 0 0 0 1px rgba(207, 19, 34, .14);
   }
+
+  &.is-card-disabled {
+    border-color: rgba(207, 19, 34, .5);
+    background: #fff1f0;
+    box-shadow: inset 0 0 0 1px rgba(207, 19, 34, .18);
+  }
+
+  &.is-card-disabled .li-icon {
+    color: #cf1322;
+    background: #fff1f0;
+    border-color: #ffa39e;
+  }
 }
 
 .card-info-left {
@@ -3288,6 +3345,18 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   font-weight: 700;
   color: $ink2;
   flex-shrink: 0;
+}
+
+.cig-status-disabled {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border: 1px solid #ffa39e;
+  border-radius: 999px;
+  color: #a8071a;
+  background: #ffd8d6;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
 }
 
 .cig-date {
@@ -3660,6 +3729,12 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   border-color: rgba($warning,.55);
   background: linear-gradient(180deg, rgba(255,255,255,.99) 0%, rgba($warning,.08) 150%);
   box-shadow: inset 0 0 0 2px rgba($warning,.20);
+}
+
+.bill-item.is-card-disabled {
+  border-color: rgba(207, 19, 34, .48);
+  background: #fff1f0;
+  box-shadow: inset 0 0 0 1px rgba(207, 19, 34, .16);
 }
 
 .bill-info-left,

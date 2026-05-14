@@ -13,6 +13,7 @@ public class SpecialBillVO {
     private String userName;
     private String bankName;
     private String cardNoLast4;
+    private Integer cardStatus;
     private BigDecimal totalAmount;
     private String billMonth;
     private Integer billYear;

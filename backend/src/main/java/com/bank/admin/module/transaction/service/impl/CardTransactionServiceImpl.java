@@ -189,7 +189,16 @@ public class CardTransactionServiceImpl
         }
         throw new BusinessException(
                 ResultCode.OPERATION_FAILED,
-                "银行卡已" + (status == 1 ? "冻结" : "注销") + "，不允许" + actionName);
+                "银行卡已" + cardStatusName(status) + "，不允许" + actionName);
+    }
+
+    private String cardStatusName(int status) {
+        return switch (status) {
+            case 1 -> "冻结";
+            case 2 -> "注销";
+            case 3 -> "停用";
+            default -> "停用";
+        };
     }
 
     private Long resolveTopUserId(Long ownerId) {

@@ -24,25 +24,29 @@ export const CARD_TYPE_MAP: Record<number, string> = {
 export const CARD_STATUS_VALUE = {
   NORMAL: 0,      // 正常
   FROZEN: 1,      // 冻结
-  CANCELLED: 2    // 注销
+  CANCELLED: 2,   // 注销
+  DISABLED: 3     // 停用
 } as const
 
 export const CARD_STATUS_OPTIONS = [
   { label: '正常', value: CARD_STATUS_VALUE.NORMAL },
   { label: '冻结', value: CARD_STATUS_VALUE.FROZEN },
-  { label: '注销', value: CARD_STATUS_VALUE.CANCELLED }
+  { label: '注销', value: CARD_STATUS_VALUE.CANCELLED },
+  { label: '停用', value: CARD_STATUS_VALUE.DISABLED }
 ]
 
 export const CARD_STATUS_MAP: Record<number, string> = {
   [CARD_STATUS_VALUE.NORMAL]: '正常',
   [CARD_STATUS_VALUE.FROZEN]: '冻结',
-  [CARD_STATUS_VALUE.CANCELLED]: '注销'
+  [CARD_STATUS_VALUE.CANCELLED]: '注销',
+  [CARD_STATUS_VALUE.DISABLED]: '停用'
 }
 
 export const CARD_STATUS_TAG_TYPE: Record<number, string> = {
   [CARD_STATUS_VALUE.NORMAL]: 'success',
   [CARD_STATUS_VALUE.FROZEN]: 'warning',
-  [CARD_STATUS_VALUE.CANCELLED]: 'info'
+  [CARD_STATUS_VALUE.CANCELLED]: 'info',
+  [CARD_STATUS_VALUE.DISABLED]: 'danger'
 }
 
 // ==================== APP ====================

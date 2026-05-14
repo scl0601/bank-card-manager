@@ -26,6 +26,9 @@ public class CardBillVO {
     @Schema(description = "银行名称")
     private String bankName;
 
+    @Schema(description = "银行卡状态：0正常 1冻结 2注销 3停用")
+    private Integer cardStatus;
+
     @Schema(description = "持卡人ID")
     private Long ownerId;
 

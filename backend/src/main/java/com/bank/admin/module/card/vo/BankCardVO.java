@@ -49,7 +49,7 @@ public class BankCardVO {
     @Schema(description = "有效期截止（原样展示用户输入）")
     private String expireDate;
 
-    @Schema(description = "状态：0正常 1冻结 2注销")
+    @Schema(description = "状态：0正常 1冻结 2注销 3停用")
     private Integer status;
 
     @Schema(description = "状态描述")

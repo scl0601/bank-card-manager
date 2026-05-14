@@ -44,7 +44,7 @@ public class BankCard extends BaseEntity {
     private String expireDate;
 
     /**
-     * 状态：0正常 1冻结 2注销
+     * 状态：0正常 1冻结 2注销 3停用
      */
     private Integer status;
 

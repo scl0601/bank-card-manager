@@ -10,6 +10,8 @@ import com.bank.admin.module.bill.mapper.CardBillMapper;
 import com.bank.admin.module.bill.service.BillDetailService;
 import com.bank.admin.module.bill.service.CardBillService;
 import com.bank.admin.module.bill.vo.BillDetailVO;
+import com.bank.admin.module.card.entity.BankCard;
+import com.bank.admin.module.card.mapper.BankCardMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +41,7 @@ public class BillDetailServiceImpl
     private static final String[] DETAIL_TYPE_DESC = {"消费", "还款"};
 
     private final CardBillMapper cardBillMapper;
+    private final BankCardMapper bankCardMapper;
     private final CardBillService cardBillService;
 
     @Override
@@ -59,7 +62,7 @@ public class BillDetailServiceImpl
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void save(BillDetailSaveDTO dto) {
-        requireBill(dto.getBillId());
+        requireWritableBill(dto.getBillId(), "编辑账单");
         BillDetail entity = new BillDetail();
         fillEntity(entity, dto);
         super.save(entity);
@@ -77,7 +80,10 @@ public class BillDetailServiceImpl
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "明细不存在");
         }
         Long originalBillId = entity.getBillId();
-        requireBill(dto.getBillId());
+        requireWritableBill(originalBillId, "编辑账单");
+        if (dto.getBillId() != null && !dto.getBillId().equals(originalBillId)) {
+            requireWritableBill(dto.getBillId(), "编辑账单");
+        }
         fillEntity(entity, dto);
         updateById(entity);
         refreshAffectedBills(originalBillId, entity.getBillId());
@@ -91,6 +97,7 @@ public class BillDetailServiceImpl
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "明细不存在");
         }
         Long billId = entity.getBillId();
+        requireWritableBill(billId, "编辑账单");
         removeById(id);
         cardBillService.refreshBillAmountFromDetails(billId);
     }
@@ -109,6 +116,7 @@ public class BillDetailServiceImpl
                 affectedBillIds.add(detail.getBillId());
             }
         }
+        validateBillIdsWritable(affectedBillIds, "编辑账单");
 
         removeByIds(ids);
 
@@ -136,6 +144,7 @@ public class BillDetailServiceImpl
                 affectedBillIds.add(detail.getBillId());
             }
         }
+        validateBillIdsWritable(affectedBillIds, "编辑账单");
 
         updateBatchById(toUpdate);
 
@@ -159,6 +168,38 @@ public class BillDetailServiceImpl
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "关联账单不存在");
         }
         return bill;
+    }
+
+    private CardBill requireWritableBill(Long billId, String actionName) {
+        CardBill bill = requireBill(billId);
+        validateBillCardWritable(bill, actionName);
+        return bill;
+    }
+
+    private void validateBillIdsWritable(Set<Long> billIds, String actionName) {
+        for (Long billId : billIds) {
+            requireWritableBill(billId, actionName);
+        }
+    }
+
+    private void validateBillCardWritable(CardBill bill, String actionName) {
+        BankCard card = bankCardMapper.selectById(bill.getCardId());
+        if (card == null) {
+            throw new BusinessException(ResultCode.DATA_NOT_FOUND, "银行卡不存在");
+        }
+        int status = card.getStatus() == null ? 0 : card.getStatus();
+        if (status != 0) {
+            throw new BusinessException(ResultCode.OPERATION_FAILED, "银行卡已" + cardStatusName(status) + "，不允许" + actionName);
+        }
+    }
+
+    private String cardStatusName(int status) {
+        return switch (status) {
+            case 1 -> "冻结";
+            case 2 -> "注销";
+            case 3 -> "停用";
+            default -> "停用";
+        };
     }
 
     private void fillEntity(BillDetail entity, BillDetailSaveDTO dto) {

@@ -53,60 +53,56 @@
           </el-button>
         </section>
 
-        <section v-loading="cardLoading" class="special-card-grid" :style="cardGridStyle">
+        <section v-loading="cardLoading" class="special-card-grid">
           <article
             v-for="card in cards"
             :key="card.id"
             class="bank-card-tile"
             :class="[specialCardExpireClass(card.expireDate), { disabled: card.status === 1 }]"
-            :title="specialCardExpireTitle(card.expireDate)"
+            :title="specialCardTitle(card)"
           >
-            <div class="tile-head">
+            <div class="special-card-left">
               <div class="bank-mark">
                 <el-icon><CreditCard /></el-icon>
               </div>
-              <div class="tile-title">
-                <strong>{{ card.bankName || '-' }}</strong>
-                <span>尾号 {{ card.cardNoLast4 || '-' }}</span>
-              </div>
-              <el-tag size="small" :type="card.status === 1 ? 'info' : 'success'" effect="light">
-                {{ card.statusDesc || statusText(card.status) }}
-              </el-tag>
-            </div>
-            <div class="tile-amount">
-              <span>卡片额度</span>
-              <strong>{{ formatMoney(card.totalAmount) }}</strong>
-            </div>
-            <div class="tile-info-grid">
-              <div class="tile-info-item">
-                <span>账单日</span>
-                <strong :class="{ empty: !card.billDay }">{{ formatDayOfMonth(card.billDay) }}</strong>
-              </div>
-              <div class="tile-info-item">
-                <span>还款日</span>
-                <strong :class="{ empty: !card.repaymentDay }">{{ formatDayOfMonth(card.repaymentDay) }}</strong>
-              </div>
-              <div class="tile-info-item">
-                <span>有效期</span>
-                <strong :class="{ empty: !card.expireDate, 'expire-warning': isSpecialCardExpiringSoon(card.expireDate), 'expire-expired': isSpecialCardExpired(card.expireDate) }">{{ card.expireDate || '-' }}</strong>
-              </div>
-              <div class="tile-info-item">
-                <span>账单数</span>
-                <strong>{{ card.billCount || 0 }} 条</strong>
-              </div>
-              <div class="tile-info-item">
-                <span>费率</span>
-                <strong>{{ formatRate(card.feeRate) }}%</strong>
-              </div>
-              <div class="tile-info-item">
-                <span>类型</span>
-                <strong>特殊卡</strong>
+              <div class="special-card-main">
+                <div class="special-card-row-top">
+                  <span class="special-card-bank">{{ card.bankName || '-' }}</span>
+                  <i class="special-card-sep"></i>
+                  <span class="special-card-last4">尾号 {{ card.cardNoLast4 || '-' }}</span>
+                  <span v-if="card.status === 1" class="special-card-status-disabled">停用</span>
+                  <el-tag v-else size="small" type="success" effect="light">正常</el-tag>
+                </div>
+                <div class="special-card-row-sub">
+                  <span class="special-card-type">特殊卡</span>
+                  <span class="special-card-dot"></span>
+                  <span class="special-card-label">账单日</span>
+                  <span :class="['special-card-date', { empty: !card.billDay }]">{{ formatDayOfMonth(card.billDay) }}</span>
+                  <span class="special-card-dot"></span>
+                  <span class="special-card-label">还款日</span>
+                  <span :class="['special-card-date', { empty: !card.repaymentDay }]">{{ formatDayOfMonth(card.repaymentDay) }}</span>
+                  <span class="special-card-dot"></span>
+                  <span class="special-card-label">有效期</span>
+                  <span :class="['special-card-date', { empty: !card.expireDate, 'expire-warning': isSpecialCardExpiringSoon(card.expireDate), 'expire-expired': isSpecialCardExpired(card.expireDate) }]">{{ card.expireDate || '-' }}</span>
+                  <span class="special-card-dot"></span>
+                  <span class="special-card-label">费率</span>
+                  <span class="special-card-date">{{ formatRate(card.feeRate) }}%</span>
+                  <span class="special-card-dot"></span>
+                  <span class="special-card-label">账单</span>
+                  <span class="special-card-date">{{ card.billCount || 0 }}条</span>
+                </div>
+                <div v-if="card.remark" class="special-card-remark" :title="card.remark">{{ card.remark }}</div>
               </div>
             </div>
-            <div v-if="card.remark" class="tile-remark" :title="card.remark">{{ card.remark }}</div>
-            <div class="tile-actions">
-              <el-button size="small" :disabled="!canEdit" @click="openEditCard(card)">编辑</el-button>
-              <el-button size="small" type="danger" plain :disabled="!isAdmin" @click="deleteCard(card)">删除</el-button>
+            <div class="special-card-right">
+              <div class="tile-amount">
+                <span>卡片额度</span>
+                <strong>{{ formatMoney(card.totalAmount) }}</strong>
+              </div>
+              <div class="tile-actions">
+                <el-button size="small" :disabled="!canEdit" @click="openEditCard(card)">编辑</el-button>
+                <el-button size="small" type="danger" plain :disabled="!isAdmin" @click="deleteCard(card)">删除</el-button>
+              </div>
             </div>
           </article>
           <el-empty v-if="!cardLoading && cards.length === 0" description="暂无特殊银行卡" />
@@ -127,6 +123,9 @@
           <el-select v-model="deleteBeforeYear" class="filter-item" placeholder="保留起始年">
             <el-option v-for="year in deleteBeforeYearOptions" :key="year" :label="`保留${year}年起`" :value="year" />
           </el-select>
+          <el-select v-model="deleteAfterYear" class="filter-item filter-keep-year" placeholder="保留到几年账单">
+            <el-option v-for="year in deleteAfterYearOptions" :key="year" :label="`保留到${year}年账单`" :value="year" />
+          </el-select>
           <el-button
             type="danger"
             plain
@@ -135,6 +134,23 @@
             @click="deleteHistoryBills"
           >
             删除之前账单
+          </el-button>
+          <el-button
+            type="danger"
+            plain
+            :disabled="!isAdmin || !billQuery.cardId || deletingFutureBills"
+            :loading="deletingFutureBills"
+            @click="deleteFutureBills"
+          >
+            删除之后账单
+          </el-button>
+          <el-button
+            v-if="isAdmin && selectedBillRows.length > 0"
+            type="danger"
+            :loading="batchDeletingBills"
+            @click="batchDeleteBills"
+          >
+            批量删除 ({{ selectedBillRows.length }})
           </el-button>
           <el-button @click="resetBillQuery">重置</el-button>
           <span class="filter-hint">{{ annualBillHint }}</span>
@@ -152,7 +168,9 @@
             :row-class-name="billRowClassName"
             table-layout="fixed"
             height="100%"
+            @selection-change="handleBillSelectionChange"
           >
+            <el-table-column v-if="isAdmin" type="selection" width="38" align="center" reserve-selection :selectable="isSelectableBillRow" />
             <el-table-column prop="billYear" label="年" width="44" align="center">
               <template #default="{ row }">
                 <span v-if="row.__summary" class="summary-label">合计</span>
@@ -166,7 +184,10 @@
             </el-table-column>
             <el-table-column label="银行" width="90" show-overflow-tooltip>
               <template #default="{ row }">
-                <span v-if="!row.__summary" class="strong-cell">{{ row.bankName }} / {{ row.cardNoLast4 }}</span>
+                <span v-if="!row.__summary" class="strong-cell">
+                  {{ row.bankName }} / {{ row.cardNoLast4 }}
+                  <span v-if="isSpecialBillCardDisabled(row)" class="card-disabled-pill">停用</span>
+                </span>
               </template>
             </el-table-column>
             <el-table-column prop="totalAmount" label="卡片额度" align="right">
@@ -176,20 +197,20 @@
             </el-table-column>
             <el-table-column label="账单日" width="48" align="center">
               <template #default="{ row }">
-                <el-input-number v-if="!row.__summary" v-model="row.billDay" class="day-input" size="small" :min="1" :max="31" :precision="0" :controls="false" :disabled="!canEdit" />
+                <el-input-number v-if="!row.__summary" v-model="row.billDay" class="day-input" size="small" :min="1" :max="31" :precision="0" :controls="false" :disabled="!canEditSpecialBillRow(row)" />
               </template>
             </el-table-column>
             <el-table-column label="还款日" width="48" align="center">
               <template #default="{ row }">
-                <el-input-number v-if="!row.__summary" v-model="row.repaymentDay" class="day-input" size="small" :min="1" :max="31" :precision="0" :controls="false" :disabled="!canEdit" />
+                <el-input-number v-if="!row.__summary" v-model="row.repaymentDay" class="day-input" size="small" :min="1" :max="31" :precision="0" :controls="false" :disabled="!canEditSpecialBillRow(row)" />
               </template>
             </el-table-column>
             <el-table-column prop="billAmount" label="账单金额" align="right">
               <template #default="{ row }">
                 <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.billAmount) }}</span>
                 <div v-else class="amount-verify-cell">
-                  <el-input-number v-model="row.billAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
-                  <el-switch v-model="row.billAmountVerified" size="small" :disabled="!canEdit" />
+                  <el-input-number v-model="row.billAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialBillRow(row)" @update:model-value="refreshBillSummary" />
+                  <el-switch v-model="row.billAmountVerified" size="small" :disabled="!canEditSpecialBillRow(row)" />
                 </div>
               </template>
             </el-table-column>
@@ -197,8 +218,8 @@
               <template #default="{ row }">
                 <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.xiaohuanRepayAmount) }}</span>
                 <div v-else class="amount-verify-cell">
-                  <el-input-number v-model="row.xiaohuanRepayAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
-                  <el-switch v-model="row.xiaohuanRepayVerified" size="small" :disabled="!canEdit" />
+                  <el-input-number v-model="row.xiaohuanRepayAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialBillRow(row)" @update:model-value="refreshBillSummary" />
+                  <el-switch v-model="row.xiaohuanRepayVerified" size="small" :disabled="!canEditSpecialBillRow(row)" />
                 </div>
               </template>
             </el-table-column>
@@ -206,8 +227,8 @@
               <template #default="{ row }">
                 <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.xiaohuanConsumeAmount) }}</span>
                 <div v-else class="amount-verify-cell">
-                  <el-input-number v-model="row.xiaohuanConsumeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
-                  <el-switch v-model="row.xiaohuanConsumeVerified" size="small" :disabled="!canEdit" />
+                  <el-input-number v-model="row.xiaohuanConsumeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialBillRow(row)" @update:model-value="refreshBillSummary" />
+                  <el-switch v-model="row.xiaohuanConsumeVerified" size="small" :disabled="!canEditSpecialBillRow(row)" />
                 </div>
               </template>
             </el-table-column>
@@ -222,8 +243,8 @@
               <template #default="{ row }">
                 <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.customerNeedAmount) }}</span>
                 <div v-else class="amount-verify-cell">
-                  <el-input-number v-model="row.customerNeedAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
-                  <el-switch v-model="row.customerNeedVerified" size="small" :disabled="!canEdit" />
+                  <el-input-number v-model="row.customerNeedAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialBillRow(row)" @update:model-value="refreshBillSummary" />
+                  <el-switch v-model="row.customerNeedVerified" size="small" :disabled="!canEditSpecialBillRow(row)" />
                 </div>
               </template>
             </el-table-column>
@@ -231,8 +252,8 @@
               <template #default="{ row }">
                 <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.customerRepayAmount) }}</span>
                 <div v-else class="amount-verify-cell">
-                  <el-input-number v-model="row.customerRepayAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
-                  <el-switch v-model="row.customerRepayVerified" size="small" :disabled="!canEdit" />
+                  <el-input-number v-model="row.customerRepayAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialBillRow(row)" @update:model-value="refreshBillSummary" />
+                  <el-switch v-model="row.customerRepayVerified" size="small" :disabled="!canEditSpecialBillRow(row)" />
                 </div>
               </template>
             </el-table-column>
@@ -240,43 +261,43 @@
               <template #default="{ row }">
                 <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.customerConsumeAmount) }}</span>
                 <div v-else class="amount-verify-cell">
-                  <el-input-number v-model="row.customerConsumeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
-                  <el-switch v-model="row.customerConsumeVerified" size="small" :disabled="!canEdit" />
+                  <el-input-number v-model="row.customerConsumeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialBillRow(row)" @update:model-value="refreshBillSummary" />
+                  <el-switch v-model="row.customerConsumeVerified" size="small" :disabled="!canEditSpecialBillRow(row)" />
                 </div>
               </template>
             </el-table-column>
             <el-table-column prop="balance" label="余额" width="78" align="right">
               <template #default="{ row }">
                 <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.balance) }}</span>
-                <el-input-number v-else v-model="row.balance" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
+                <el-input-number v-else v-model="row.balance" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialBillRow(row)" @update:model-value="refreshBillSummary" />
               </template>
             </el-table-column>
             <el-table-column prop="interestAmount" label="利息" width="70" align="right">
               <template #default="{ row }">
                 <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.interestAmount) }}</span>
-                <el-input-number v-else v-model="row.interestAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
+                <el-input-number v-else v-model="row.interestAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialBillRow(row)" @update:model-value="refreshBillSummary" />
               </template>
             </el-table-column>
             <el-table-column prop="lateFeeAmount" label="滞纳金" width="70" align="right">
               <template #default="{ row }">
                 <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.lateFeeAmount) }}</span>
-                <el-input-number v-else v-model="row.lateFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
+                <el-input-number v-else v-model="row.lateFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialBillRow(row)" @update:model-value="refreshBillSummary" />
               </template>
             </el-table-column>
             <el-table-column prop="installmentFeeAmount" label="分期费" width="70" align="right">
               <template #default="{ row }">
                 <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.installmentFeeAmount) }}</span>
-                <el-input-number v-else v-model="row.installmentFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" @update:model-value="refreshBillSummary" />
+                <el-input-number v-else v-model="row.installmentFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialBillRow(row)" @update:model-value="refreshBillSummary" />
               </template>
             </el-table-column>
             <el-table-column label="备注" width="84">
               <template #default="{ row }">
-                <el-input v-if="!row.__summary" v-model="row.remark" size="small" maxlength="500" clearable :disabled="!canEdit" />
+                <el-input v-if="!row.__summary" v-model="row.remark" size="small" maxlength="500" clearable :disabled="!canEditSpecialBillRow(row)" />
               </template>
             </el-table-column>
             <el-table-column label="操作" width="54" align="center">
               <template #default="{ row }">
-                <el-button v-if="!row.__summary" type="primary" link size="small" :disabled="!canEdit" :loading="savingBillId === row.id" @click="saveBill(row)">
+                <el-button v-if="!row.__summary" type="primary" link size="small" :disabled="!canEditSpecialBillRow(row)" :loading="savingBillId === row.id" @click="saveBill(row)">
                   保存
                 </el-button>
               </template>
@@ -325,11 +346,14 @@
               <span>收益统计</span>
               <span>{{ profitPaginationText }}</span>
             </div>
-            <el-table :data="pagedProfitRows" border stripe size="small" height="100%" table-layout="fixed">
+            <el-table :data="pagedProfitRows" border stripe size="small" height="100%" table-layout="fixed" :row-class-name="profitRowClassName">
               <el-table-column prop="billYear" label="年" width="48" align="center" />
               <el-table-column prop="billMonthNo" label="月" width="40" align="center" />
               <el-table-column label="银行" min-width="96" show-overflow-tooltip>
-                <template #default="{ row }">{{ row.bankName }} / {{ row.cardNoLast4 }}</template>
+                <template #default="{ row }">
+                  {{ row.bankName }} / {{ row.cardNoLast4 }}
+                  <span v-if="isSpecialBillCardDisabled(row)" class="card-disabled-pill">停用</span>
+                </template>
               </el-table-column>
               <el-table-column prop="billDay" label="账单日" width="56" align="center" />
               <el-table-column prop="repaymentDay" label="还款日" width="56" align="center" />
@@ -350,17 +374,17 @@
               </el-table-column>
               <el-table-column label="利息" min-width="82" align="right">
                 <template #default="{ row }">
-                  <el-input-number v-model="row.interestAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" />
+                  <el-input-number v-model="row.interestAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialProfitRow(row)" />
                 </template>
               </el-table-column>
               <el-table-column label="滞纳金" min-width="82" align="right">
                 <template #default="{ row }">
-                  <el-input-number v-model="row.lateFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" />
+                  <el-input-number v-model="row.lateFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialProfitRow(row)" />
                 </template>
               </el-table-column>
               <el-table-column label="分期费" min-width="82" align="right">
                 <template #default="{ row }">
-                  <el-input-number v-model="row.installmentFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEdit" />
+                  <el-input-number v-model="row.installmentFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialProfitRow(row)" />
                 </template>
               </el-table-column>
               <el-table-column label="总计" min-width="90" align="right">
@@ -370,7 +394,7 @@
               </el-table-column>
               <el-table-column label="操作" width="54" align="center">
                 <template #default="{ row }">
-                  <el-button type="primary" link size="small" :disabled="!canEdit" :loading="savingProfitBillId === row.billId" @click="saveProfitExtras(row)">
+                  <el-button type="primary" link size="small" :disabled="!canEditSpecialProfitRow(row)" :loading="savingProfitBillId === row.billId" @click="saveProfitExtras(row)">
                     保存
                   </el-button>
                 </template>
@@ -439,6 +463,8 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'elem
 import { CreditCard, Plus, RefreshRight } from '@element-plus/icons-vue'
 import { getUserTreeApi } from '@/api/card'
 import {
+  batchDeleteSpecialBillsApi,
+  deleteSpecialBillsAfterYearApi,
   deleteSpecialBillsBeforeYearApi,
   deleteSpecialCardApi,
   getSpecialBillPageApi,
@@ -504,6 +530,7 @@ interface SpecialBill {
   cardId: number
   bankName?: string
   cardNoLast4?: string
+  cardStatus?: number | null
   totalAmount?: number | string | null
   billMonth: string
   billYear?: number
@@ -584,12 +611,15 @@ const profitLoading = ref(false)
 const savingBillId = ref<number>()
 const savingProfitBillId = ref<number>()
 const deletingHistoryBills = ref(false)
+const deletingFutureBills = ref(false)
+const batchDeletingBills = ref(false)
 const cardDialogVisible = ref(false)
 const cardFormRef = ref<FormInstance>()
 const billTableRef = ref<any>()
 
 const yearOptions = [2020, 2021, 2022, 2023, 2024, 2025, 2026]
 const deleteBeforeYearOptions = [2021, 2022, 2023, 2024, 2025, 2026, 2027]
+const deleteAfterYearOptions = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
 const monthOptions = Array.from({ length: 12 }, (_, index) => index + 1)
 const billListSize = 10
 const billPageSizeOptions = [10, 20, 50, 100]
@@ -603,6 +633,8 @@ const billQuery = reactive({
 })
 const billTotal = ref(0)
 const deleteBeforeYear = ref(2023)
+const deleteAfterYear = ref(2026)
+const selectedBillRows = ref<SpecialBill[]>([])
 
 const profitQuery = reactive({
   year: undefined as number | undefined,
@@ -642,16 +674,6 @@ const userOptions = computed<SelectOption[]>(() => flattenUsers(users.value))
 const cardDialogTitle = computed(() => (cardForm.id ? '编辑特殊银行卡' : '新增特殊银行卡'))
 const totalCardAmount = computed(() => cards.value.reduce((sum, card) => sum + toNumber(card.totalAmount), 0))
 const totalBillCount = computed(() => cards.value.reduce((sum, card) => sum + Number(card.billCount || 0), 0))
-const cardGridColumns = computed(() => {
-  const count = Math.max(cards.value.length, 1)
-  if (count <= 2) return count
-  if (count <= 4) return 2
-  if (count <= 6) return 3
-  return 4
-})
-const cardGridStyle = computed(() => ({
-  '--card-grid-columns': String(cardGridColumns.value)
-}))
 const selectedBillCard = computed(() => cards.value.find(card => Number(card.id) === Number(billQuery.cardId)))
 const annualBillHint = computed(() => {
   if (!cards.value.length) return '新增银行卡后自动生成2020-2026年度账单'
@@ -827,6 +849,11 @@ function refreshBillSummary() {
   nextTick(() => billTableRef.value?.doLayout?.())
 }
 
+function clearBillSelection() {
+  selectedBillRows.value = []
+  billTableRef.value?.clearSelection?.()
+}
+
 async function refreshAll() {
   await fetchUsers()
   await fetchConfig()
@@ -981,6 +1008,7 @@ async function fetchBills() {
     })
     billRows.value = sortRowsByRepaymentDay(res.data?.records || [])
     billTotal.value = res.data?.total || 0
+    clearBillSelection()
   } finally {
     billLoading.value = false
   }
@@ -1014,6 +1042,7 @@ async function deleteHistoryBills() {
       beforeYear: deleteBeforeYear.value
     })
     ElMessage.success(`已删除 ${res.data || 0} 条账单`)
+    clearBillSelection()
     await fetchCards()
     await fetchBills()
   } finally {
@@ -1021,7 +1050,55 @@ async function deleteHistoryBills() {
   }
 }
 
+async function deleteFutureBills() {
+  if (!billQuery.cardId) {
+    ElMessage.warning('请先选择银行卡')
+    return
+  }
+  const card = selectedBillCard.value
+  const cardName = card ? cardLabel(card) : '当前银行卡'
+  await ElMessageBox.confirm(
+    `确认删除 ${cardName} ${deleteAfterYear.value} 年之后的所有账单？删除后不会影响 ${deleteAfterYear.value} 年及之前账单。`,
+    '批量删除确认',
+    { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' }
+  )
+  deletingFutureBills.value = true
+  try {
+    const res = await deleteSpecialBillsAfterYearApi({
+      cardId: billQuery.cardId,
+      afterYear: deleteAfterYear.value
+    })
+    ElMessage.success(`已删除 ${res.data || 0} 条账单`)
+    clearBillSelection()
+    await fetchCards()
+    await fetchBills()
+  } finally {
+    deletingFutureBills.value = false
+  }
+}
+
+async function batchDeleteBills() {
+  const ids = selectedBillRows.value.map(row => Number(row.id)).filter(id => id > 0)
+  if (!ids.length) return
+  await ElMessageBox.confirm(
+    `确认删除选中的 ${ids.length} 条特殊账单？`,
+    '批量删除账单',
+    { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' }
+  )
+  batchDeletingBills.value = true
+  try {
+    await batchDeleteSpecialBillsApi(ids)
+    ElMessage.success('批量删除成功')
+    clearBillSelection()
+    await fetchCards()
+    await fetchBills()
+  } finally {
+    batchDeletingBills.value = false
+  }
+}
+
 async function saveBill(row: SpecialBill) {
+  if (!assertSpecialBillEditable(row)) return
   savingBillId.value = row.id
   try {
     await updateSpecialBillApi({
@@ -1076,6 +1153,7 @@ async function fetchProfitStats() {
 }
 
 async function saveProfitExtras(row: any) {
+  if (!assertSpecialBillEditable(row)) return
   savingProfitBillId.value = row.billId
   try {
     await updateSpecialProfitExtraFeesApi({
@@ -1186,6 +1264,49 @@ function specialCardExpireTitle(expireDate: string | null | undefined) {
   return undefined
 }
 
+function isSpecialCardDisabled(card: SpecialCard | null | undefined) {
+  return Number(card?.status ?? 0) === 1
+}
+
+function specialCardTitle(card: SpecialCard) {
+  const parts: string[] = []
+  if (isSpecialCardDisabled(card)) {
+    parts.push('银行卡已停用，关联账单不可编辑')
+  }
+  const expireTitle = specialCardExpireTitle(card.expireDate)
+  if (expireTitle) {
+    parts.push(expireTitle)
+  }
+  return parts.join('；') || undefined
+}
+
+function findSpecialCard(cardId: number | string | null | undefined) {
+  const targetId = Number(cardId || 0)
+  return cards.value.find(card => Number(card.id) === targetId) || null
+}
+
+function isSpecialBillCardDisabled(row: { cardStatus?: number | null; cardId?: number | null } | null | undefined) {
+  if (!row) return false
+  if (row.cardStatus !== null && row.cardStatus !== undefined) {
+    return Number(row.cardStatus) === 1
+  }
+  return isSpecialCardDisabled(findSpecialCard(row.cardId))
+}
+
+function canEditSpecialBillRow(row: SpecialBill | null | undefined) {
+  return canEdit.value && !row?.__summary && !isSpecialBillCardDisabled(row)
+}
+
+function canEditSpecialProfitRow(row: any) {
+  return canEdit.value && !isSpecialBillCardDisabled(row)
+}
+
+function assertSpecialBillEditable(row: { cardStatus?: number | null; cardId?: number | null } | null | undefined) {
+  if (!isSpecialBillCardDisabled(row)) return true
+  ElMessage.warning('银行卡已停用，账单不能编辑')
+  return false
+}
+
 function calcDiff(row: SpecialBill) {
   return roundMoney(toNumber(row.xiaohuanRepayAmount) - toNumber(row.xiaohuanConsumeAmount))
 }
@@ -1198,8 +1319,21 @@ function billRowKey(row: SpecialBill) {
   return row.__summary ? 'summary' : row.id
 }
 
+function isSelectableBillRow(row: SpecialBill) {
+  return !row.__summary
+}
+
+function handleBillSelectionChange(selection: SpecialBill[]) {
+  selectedBillRows.value = (selection || []).filter(row => isSelectableBillRow(row))
+}
+
 function billRowClassName({ row }: { row: SpecialBill }) {
-  return row.__summary ? 'bill-summary-row' : ''
+  if (row.__summary) return 'bill-summary-row'
+  return isSpecialBillCardDisabled(row) ? 'card-disabled-row' : ''
+}
+
+function profitRowClassName({ row }: { row: any }) {
+  return isSpecialBillCardDisabled(row) ? 'card-disabled-row' : ''
 }
 
 function calcRepaymentFee(row: SpecialBill) {
@@ -1395,23 +1529,34 @@ function formatRate(value: number | string | null | undefined) {
 .special-card-grid {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: repeat(var(--card-grid-columns, 3), minmax(0, 1fr));
-  grid-auto-rows: minmax(0, 1fr);
-  align-content: stretch;
-  gap: 8px;
-  overflow: hidden;
-  padding: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2px 4px 2px 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, .55) transparent;
+}
+
+.special-card-grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.special-card-grid::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, .55);
+  border-radius: 999px;
 }
 
 .bank-card-tile {
   position: relative;
   min-width: 0;
-  min-height: 0;
+  min-height: 58px;
   display: flex;
-  flex-direction: column;
-  gap: 7px;
-  padding: 9px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
   border: 1px solid #dbe2ea;
   border-radius: 8px;
   background: #fff;
@@ -1420,7 +1565,15 @@ function formatRate(value: number | string | null | undefined) {
 }
 
 .bank-card-tile.disabled {
-  background: #f8fafc;
+  border-color: rgba(207, 19, 34, .48);
+  background: #fff1f0;
+  box-shadow: inset 0 0 0 1px rgba(207, 19, 34, .16);
+}
+
+.bank-card-tile.disabled .bank-mark {
+  border-color: #ffa39e;
+  color: #cf1322;
+  background: #fff1f0;
 }
 
 .bank-card-tile.is-expire-warning {
@@ -1435,70 +1588,182 @@ function formatRate(value: number | string | null | undefined) {
   box-shadow: inset 0 0 0 1px rgba(207, 19, 34, .14), 0 4px 12px rgba(207, 19, 34, .08);
 }
 
-.tile-head {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) auto;
+.bank-card-tile.disabled.is-expire-warning,
+.bank-card-tile.disabled.is-expire-expired {
+  border-color: rgba(207, 19, 34, .55);
+  background: #fff1f0;
+  box-shadow: inset 0 0 0 1px rgba(207, 19, 34, .2), 0 4px 12px rgba(207, 19, 34, .08);
+}
+
+.special-card-left {
+  display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 32px;
-  flex-shrink: 0;
+  min-width: 0;
+  flex: 1;
 }
 
 .bank-mark {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 8px;
+  border: 1px solid rgba(9, 88, 217, .16);
   color: #0958d9;
   background: #eaf2ff;
+  flex-shrink: 0;
 }
 
-.tile-title {
+.special-card-main {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
 }
 
-.tile-title strong,
-.tile-title span,
-.tile-remark {
-  display: block;
+.special-card-row-top,
+.special-card-row-sub {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+
+.special-card-row-top :deep(.el-tag) {
+  margin-left: 7px;
+  flex-shrink: 0;
+}
+
+.special-card-bank {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tile-title strong {
   color: #1f2a37;
   font-size: 13px;
+  font-weight: 800;
+  flex-shrink: 1;
+}
+
+.special-card-last4 {
+  color: #1f2a37;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.special-card-sep {
+  display: inline-block;
+  width: 1px;
+  height: 10px;
+  margin: 0 7px;
+  background: rgba(148, 163, 184, .4);
+  flex-shrink: 0;
+}
+
+.special-card-dot {
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  margin: 0 5px;
+  border-radius: 50%;
+  background: rgba(148, 163, 184, .5);
+  flex-shrink: 0;
+}
+
+.special-card-type,
+.special-card-date {
+  color: #3f4a5f;
+  font-size: 11.5px;
+  font-weight: 750;
+  flex-shrink: 0;
+}
+
+.special-card-label {
+  margin-right: 2px;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 650;
+  flex-shrink: 0;
+}
+
+.special-card-date.empty {
+  color: #98a2b3;
+  font-weight: 650;
+}
+
+.special-card-date.expire-warning,
+.special-card-date.expire-expired,
+.special-card-status-disabled {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border-radius: 999px;
+  font-size: 11px;
   font-weight: 800;
   line-height: 1.2;
 }
 
-.tile-title span {
-  margin-top: 2px;
+.special-card-date.expire-warning {
+  color: #ad6800;
+  background: #fff1b8;
+  border: 1px solid #ffd666;
+}
+
+.special-card-date.expire-expired,
+.special-card-status-disabled {
+  color: #a8071a;
+  background: #ffd8d6;
+  border: 1px solid #ffa39e;
+}
+
+.special-card-status-disabled {
+  margin-left: 7px;
+}
+
+.special-card-remark {
+  min-width: 0;
+  overflow: hidden;
   color: #667085;
   font-size: 11px;
   font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.special-card-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 260px;
+  flex-shrink: 0;
 }
 
 .tile-amount {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 35px;
-  padding: 7px 8px;
-  border-radius: 8px;
-  background: #f5f8fc;
-  flex-shrink: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  min-width: 118px;
+  min-height: 38px;
+  padding: 0;
+  background: transparent;
 }
 
 .tile-amount span {
   color: #7c8799;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 10.5px;
+  font-weight: 750;
 }
 
 .tile-amount strong {
@@ -1512,88 +1777,11 @@ function formatRate(value: number | string | null | undefined) {
   white-space: nowrap;
 }
 
-.tile-info-grid {
-  min-height: 0;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 5px;
-  flex: 1;
-}
-
-.tile-info-item {
-  min-width: 0;
-  min-height: 34px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 3px;
-  padding: 5px 6px;
-  border: 1px solid #e5eaf1;
-  border-radius: 7px;
-  background: #fbfcfe;
-}
-
-.tile-info-item span {
-  overflow: hidden;
-  color: #7c8799;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tile-info-item strong {
-  overflow: hidden;
-  color: #1f2a37;
-  font-size: 12px;
-  font-weight: 850;
-  line-height: 1.1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tile-info-item strong.empty {
-  color: #98a2b3;
-  font-weight: 700;
-}
-
-.tile-info-item strong.expire-warning,
-.tile-info-item strong.expire-expired {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-  width: fit-content;
-  max-width: 100%;
-  padding: 1px 5px;
-  border-radius: 999px;
-}
-
-.tile-info-item strong.expire-warning {
-  color: #ad6800;
-  background: #fff1b8;
-  border: 1px solid #ffd666;
-}
-
-.tile-info-item strong.expire-expired {
-  color: #a8071a;
-  background: #ffd8d6;
-  border: 1px solid #ffa39e;
-}
-
-.tile-remark {
-  color: #667085;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.2;
-}
-
 .tile-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
-  margin-top: auto;
   flex-shrink: 0;
 }
 
@@ -1607,8 +1795,16 @@ function formatRate(value: number | string | null | undefined) {
   flex-shrink: 0;
 }
 
+.filter-line :deep(.el-button) {
+  margin-left: 0;
+}
+
 .filter-item {
-  width: 104px;
+  width: 108px;
+}
+
+.filter-keep-year {
+  width: 142px;
 }
 
 .filter-card {
@@ -1669,6 +1865,17 @@ function formatRate(value: number | string | null | undefined) {
 
 .bill-table-shell :deep(.bill-summary-row td.el-table__cell) {
   border-top: 1px solid #cbd5e1;
+}
+
+.bill-table-shell :deep(.card-disabled-row td.el-table__cell),
+.profit-table-block :deep(.card-disabled-row td.el-table__cell) {
+  background: #fff1f0 !important;
+  box-shadow: inset 0 1px 0 #ffa39e, inset 0 -1px 0 #ffa39e;
+}
+
+.bill-table-shell :deep(.card-disabled-row td.el-table__cell:first-child),
+.profit-table-block :deep(.card-disabled-row td.el-table__cell:first-child) {
+  box-shadow: inset 3px 0 0 #cf1322, inset 0 1px 0 #ffa39e, inset 0 -1px 0 #ffa39e;
 }
 
 .bill-table-shell :deep(.el-table .cell),
@@ -1752,6 +1959,22 @@ function formatRate(value: number | string | null | undefined) {
 
 .strong-cell {
   color: #1f2a37;
+}
+
+.card-disabled-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  margin-left: 4px;
+  padding: 0 5px;
+  border: 1px solid #ffa39e;
+  border-radius: 999px;
+  color: #a8071a;
+  background: #ffd8d6;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  vertical-align: middle;
 }
 
 .summary-label,
@@ -1884,12 +2107,42 @@ function formatRate(value: number | string | null | undefined) {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .special-card-grid {
-    grid-template-columns: minmax(0, 1fr);
+  .bank-card-tile {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
   }
 
-  .tile-info-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .special-card-row-top,
+  .special-card-row-sub {
+    flex-wrap: wrap;
+    row-gap: 2px;
+    overflow: visible;
+    white-space: normal;
+  }
+
+  .special-card-bank {
+    flex-basis: auto;
+  }
+
+  .special-card-right {
+    min-width: 0;
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .tile-amount {
+    align-items: flex-start;
+    min-width: 0;
+  }
+
+  .tile-amount strong {
+    max-width: 100%;
+  }
+
+  .tile-actions {
+    flex-wrap: nowrap;
   }
 
   .tile-actions :deep(.el-button) {

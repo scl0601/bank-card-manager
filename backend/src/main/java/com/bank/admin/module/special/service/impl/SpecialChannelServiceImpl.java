@@ -7,6 +7,7 @@ import com.bank.admin.common.result.PageResult;
 import com.bank.admin.common.result.ResultCode;
 import com.bank.admin.module.card.entity.CardUser;
 import com.bank.admin.module.card.mapper.CardUserMapper;
+import com.bank.admin.module.special.dto.SpecialBillAfterYearDeleteDTO;
 import com.bank.admin.module.special.dto.SpecialBillBatchDeleteDTO;
 import com.bank.admin.module.special.dto.SpecialBillQueryDTO;
 import com.bank.admin.module.special.dto.SpecialBillUpdateDTO;
@@ -215,6 +216,7 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
         if (card == null) {
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "特殊银行卡不存在");
         }
+        validateSpecialCardWritable(card, "编辑账单");
         bill.setUserId(card.getUserId());
         if (dto.getMonthlyTotalBillAmount() != null) {
             bill.setMonthlyTotalBillAmount(scaleMoney(dto.getMonthlyTotalBillAmount()));
@@ -260,6 +262,45 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public int deleteBillsAfterYear(SpecialBillAfterYearDeleteDTO dto) {
+        if (dto.getAfterYear() < START_YEAR - 1 || dto.getAfterYear() > END_YEAR) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "保留截止年份必须在2019-2026之间");
+        }
+        List<SpecialBankCard> targetCards = listTargetCards(dto.getCardId(), null);
+        if (targetCards.isEmpty()) {
+            throw new BusinessException(ResultCode.DATA_NOT_FOUND, "特殊银行卡不存在");
+        }
+        return specialCardBillMapper.delete(new LambdaQueryWrapper<SpecialCardBill>()
+                .eq(SpecialCardBill::getCardId, dto.getCardId())
+                .gt(SpecialCardBill::getBillYear, dto.getAfterYear()));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void batchDeleteBills(List<Long> ids) {
+        if (CollectionUtils.isEmpty(ids)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "请选择需要删除的账单");
+        }
+        List<Long> distinctIds = ids.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (distinctIds.isEmpty()) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "请选择需要删除的账单");
+        }
+        List<Long> allowedCardIds = listTargetCards(null, null).stream()
+                .map(SpecialBankCard::getId)
+                .toList();
+        if (CollectionUtils.isEmpty(allowedCardIds)) {
+            throw new BusinessException(ResultCode.DATA_NOT_FOUND, "特殊银行卡不存在");
+        }
+        specialCardBillMapper.delete(new LambdaQueryWrapper<SpecialCardBill>()
+                .in(SpecialCardBill::getId, distinctIds)
+                .in(SpecialCardBill::getCardId, allowedCardIds));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void updateProfitExtraFees(SpecialProfitExtraFeeUpdateDTO dto) {
         SpecialCardBill bill = specialCardBillMapper.selectById(dto.getBillId());
         if (bill == null) {
@@ -269,6 +310,7 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
         if (card == null) {
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "特殊银行卡不存在");
         }
+        validateSpecialCardWritable(card, "编辑账单");
         bill.setUserId(card.getUserId());
         bill.setInterestAmount(scaleMoney(dto.getInterestAmount()));
         bill.setLateFeeAmount(scaleMoney(dto.getLateFeeAmount()));
@@ -524,6 +566,7 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
                     if (card != null) {
                         vo.setBankName(card.getBankName());
                         vo.setCardNoLast4(card.getCardNoLast4());
+                        vo.setCardStatus(card.getStatus());
                     }
                     return vo;
                 })
@@ -739,11 +782,18 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
         if (card != null) {
             vo.setBankName(card.getBankName());
             vo.setCardNoLast4(card.getCardNoLast4());
+            vo.setCardStatus(card.getStatus());
             vo.setTotalAmount(scaleMoney(card.getTotalAmount()));
             CardUser user = userMap.get(card.getUserId());
             vo.setUserName(user == null ? null : user.getName());
         }
         return vo;
+    }
+
+    private void validateSpecialCardWritable(SpecialBankCard card, String actionName) {
+        if (Objects.equals(card.getStatus(), 1)) {
+            throw new BusinessException(ResultCode.OPERATION_FAILED, "特殊银行卡已停用，不允许" + actionName);
+        }
     }
 
     private PageResult<SpecialBillVO> emptyBillPage(SpecialBillQueryDTO query) {

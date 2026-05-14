@@ -152,7 +152,7 @@ public class BankCardServiceImpl
         if (hasBillBusinessHistory(bills) || transactionCount > 0) {
             throw new BusinessException(
                     ResultCode.OPERATION_FAILED,
-                    "该银行卡已存在账单或流水历史，请改为冻结/注销，不允许直接删除");
+                    "该银行卡已存在账单或流水历史，请改为停用，不允许直接删除");
         }
         removePlaceholderBills(bills, false);
         reminderTaskService.removeTasksByCardId(id);
@@ -456,6 +456,7 @@ public class BankCardServiceImpl
         vo.setStatusDesc(switch (card.getStatus() == null ? 0 : card.getStatus()) {
             case 1 -> "冻结";
             case 2 -> "注销";
+            case 3 -> "停用";
             default -> "正常";
         });
         if (card.getUserId() != null && card.getUserId() > 0) {

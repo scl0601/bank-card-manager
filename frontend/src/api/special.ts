@@ -11,6 +11,8 @@ export const deleteSpecialCardApi = (id: number) => request.delete(`/special/car
 export const getSpecialBillPageApi = (params: any) => request.get('/special/bills/page', { params })
 export const updateSpecialBillApi = (data: any) => request.put('/special/bills', data)
 export const deleteSpecialBillsBeforeYearApi = (data: any) => request.delete('/special/bills/before-year', { data })
+export const deleteSpecialBillsAfterYearApi = (data: any) => request.delete('/special/bills/after-year', { data })
+export const batchDeleteSpecialBillsApi = (ids: number[]) => request.delete('/special/bills/batch', { data: ids })
 
 export const getSpecialProfitStatsApi = (params: any) => request.get('/special/profit/stats', { params })
 export const updateSpecialProfitExtraFeesApi = (data: any) => request.put('/special/profit/extra-fees', data)
