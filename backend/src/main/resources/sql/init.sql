@@ -11,6 +11,7 @@ CREATE TABLE `bank_sys_user` (
   `password`    VARCHAR(255) NOT NULL                COMMENT '密码（BCrypt）',
   `nickname`    VARCHAR(64)  DEFAULT NULL            COMMENT '昵称',
   `role`        VARCHAR(32)  NOT NULL DEFAULT 'VIEWER' COMMENT '角色：ADMIN/OPERATOR/VIEWER',
+  `data_scope`  VARCHAR(16)  NOT NULL DEFAULT 'ALL'  COMMENT '数据范围：ALL全部 SELF仅本人创建',
   `status`      TINYINT      NOT NULL DEFAULT 0      COMMENT '状态：0正常 1禁用',
   `is_deleted`  TINYINT(1)   NOT NULL DEFAULT 0,
   `create_by`   VARCHAR(64)  DEFAULT NULL,
@@ -174,10 +175,11 @@ CREATE TABLE `operation_log` (
   KEY `idx_create_time` (`create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志表';
 
--- ===================== 初始管理员账号 =====================
--- 密码：admin123（BCrypt加密）
-INSERT INTO `bank_sys_user` (`username`, `password`, `nickname`, `role`, `status`, `is_deleted`, `create_time`)
-VALUES ('admin', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', '管理员', 'ADMIN', 0, 0, NOW());
+-- ===================== 初始账号 =====================
+-- admin 密码：admin123（BCrypt加密），test 密码：test123456（BCrypt加密）
+INSERT INTO `bank_sys_user` (`username`, `password`, `nickname`, `role`, `data_scope`, `status`, `is_deleted`, `create_time`) VALUES
+('admin', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', '管理员', 'ADMIN', 'ALL', 0, 0, NOW()),
+('test', '$2a$10$gX5wW4SAPR.eeXW1.c5x8eRaQIzrNHyHYat2Axq6IfH20oIePAzHS', '功能测试账号', 'ADMIN', 'SELF', 0, 0, NOW());
 
 -- ===================== 记账分类表 =====================
 CREATE TABLE `book_category` (

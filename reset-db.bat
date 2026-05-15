@@ -48,6 +48,11 @@ if %errorlevel% equ 0 (
     echo   用户名: admin
     echo   密码: admin123
     echo.
+    echo 功能测试隔离账号:
+    echo   用户名: test
+    echo   密码: test123456
+    echo   说明: ADMIN 功能权限，仅能看到自己创建的数据
+    echo.
     echo 测试账号 (密码均为 123456):
     echo   zhangsan - 操作员
     echo   lisi     - 查看员

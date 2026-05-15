@@ -48,6 +48,7 @@ public class AuthServiceImpl implements AuthService {
         vo.setUsername(user.getUsername());
         vo.setNickname(user.getNickname());
         vo.setRole(user.getRole());
+        vo.setDataScope(user.getDataScope());
         return vo;
     }
 }

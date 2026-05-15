@@ -3,22 +3,22 @@ package com.bank.admin.module.auth.vo;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
-/**
- * 登录响应VO
- */
 @Data
-@Schema(description = "登录响应")
+@Schema(description = "Login response")
 public class LoginVO {
 
-    @Schema(description = "访问Token")
+    @Schema(description = "Access token")
     private String token;
 
-    @Schema(description = "用户名")
+    @Schema(description = "Username")
     private String username;
 
-    @Schema(description = "昵称")
+    @Schema(description = "Nickname")
     private String nickname;
 
-    @Schema(description = "角色")
+    @Schema(description = "Role")
     private String role;
+
+    @Schema(description = "Data scope: ALL or SELF")
+    private String dataScope;
 }

@@ -188,6 +188,8 @@ public class ReminderTaskServiceImpl
             task.setContent(content);
             task.setStatus(ReminderStatusEnum.PENDING.getCode());
             task.setIsDeleted(0);
+            task.setCreateBy(bill.getCreateBy());
+            task.setUpdateBy(bill.getCreateBy());
             toInsert.add(task);
         }
 
@@ -253,6 +255,8 @@ public class ReminderTaskServiceImpl
                 task.setContent(content);
                 task.setStatus(ReminderStatusEnum.PENDING.getCode());
                 task.setIsDeleted(0);
+                task.setCreateBy(card.getCreateBy());
+                task.setUpdateBy(card.getCreateBy());
                 toInsert.add(task);
             } catch (Exception e) {
                 log.warn("[提醒扫描] 卡片 {} 有效期格式异常：{}", card.getId(), card.getExpireDate());

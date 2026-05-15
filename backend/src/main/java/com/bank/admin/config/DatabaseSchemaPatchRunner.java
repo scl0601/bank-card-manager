@@ -18,6 +18,7 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
     private static final String PATCH_HISTORY_TABLE = "schema_patch_history";
     private static final String CARD_USER_MODEL_PATCH_KEY = "20260427_card_user_model";
     private static final String FEE_RATE_PERCENT_PATCH_KEY = "20260419_fee_rate_percent";
+    private static final String TEST_ACCOUNT_PASSWORD_HASH = "$2a$10$gX5wW4SAPR.eeXW1.c5x8eRaQIzrNHyHYat2Axq6IfH20oIePAzHS";
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -29,6 +30,8 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         ensurePatchHistoryTable();
         ensureSysUserOpenidColumn();
+        ensureSysUserDataScope();
+        ensureFunctionalTestAccount();
         ensureCardUserModelCompatibility();
         ensureBankCardUserIdColumn();
         ensureBankCardColumns();
@@ -77,6 +80,50 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
 
     private void ensureSysUserOpenidColumn() {
         ensureOpenidColumnIfTableExists("bank_sys_user");
+    }
+
+    private void ensureSysUserDataScope() {
+        if (!tableExists("bank_sys_user")) {
+            return;
+        }
+        ensureColumnExists(
+                "bank_sys_user",
+                "data_scope",
+                "ALTER TABLE `bank_sys_user` ADD COLUMN `data_scope` VARCHAR(16) NOT NULL DEFAULT 'ALL' COMMENT 'ALL all data, SELF own data only' AFTER `role`"
+        );
+        jdbcTemplate.update("UPDATE `bank_sys_user` SET `data_scope` = 'ALL' WHERE `data_scope` IS NULL OR `data_scope` = ''");
+    }
+
+    private void ensureFunctionalTestAccount() {
+        if (!tableExists("bank_sys_user")) {
+            return;
+        }
+
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM `bank_sys_user` WHERE `username` = 'test'",
+                Integer.class
+        );
+        if (count != null && count > 0) {
+            jdbcTemplate.update(sql(
+                    "UPDATE `bank_sys_user`",
+                    "SET `password` = ?,",
+                    "    `nickname` = '功能测试账号',",
+                    "    `role` = 'ADMIN',",
+                    "    `data_scope` = 'SELF',",
+                    "    `status` = 0,",
+                    "    `is_deleted` = 0,",
+                    "    `update_time` = NOW()",
+                    "WHERE `username` = 'test'"
+            ), TEST_ACCOUNT_PASSWORD_HASH);
+            return;
+        }
+
+        jdbcTemplate.update(sql(
+                "INSERT INTO `bank_sys_user`",
+                "(`username`, `password`, `nickname`, `role`, `data_scope`, `status`, `is_deleted`, `create_by`, `create_time`, `update_time`, `_openid`)",
+                "VALUES ('test', ?, '功能测试账号', 'ADMIN', 'SELF', 0, 0, 'system', NOW(), NOW(), '')"
+        ), TEST_ACCOUNT_PASSWORD_HASH);
+        log.info("Created functional test account: test");
     }
 
     private void ensureCardUserTable() {

@@ -5,10 +5,10 @@ USE bank_admin;
 
 -- ===================== 系统用户 =====================
 -- 密码均为: 123456 (BCrypt加密)
-INSERT INTO `bank_sys_user` (`username`, `password`, `nickname`, `role`, `status`, `is_deleted`, `create_time`) VALUES
-('zhangsan', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', '张三', 'OPERATOR', 0, 0, NOW()),
-('lisi', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', '李四', 'VIEWER', 0, 0, NOW()),
-('wangwu', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', '王五', 'VIEWER', 1, 0, NOW());
+INSERT INTO `bank_sys_user` (`username`, `password`, `nickname`, `role`, `data_scope`, `status`, `is_deleted`, `create_time`) VALUES
+('zhangsan', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', '张三', 'OPERATOR', 'ALL', 0, 0, NOW()),
+('lisi', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', '李四', 'VIEWER', 'ALL', 0, 0, NOW()),
+('wangwu', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', '王五', 'VIEWER', 'ALL', 1, 0, NOW());
 
 -- ===================== 用户（两级层级） =====================
 INSERT INTO `card_user` (`id`, `name`, `phone`, `parent_id`, `fee_rate`, `remark`, `status`, `is_deleted`, `create_time`) VALUES

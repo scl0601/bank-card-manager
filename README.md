@@ -71,10 +71,6 @@
 | personal_book | 个人记账表 | ✅ |
 | calendar_event | 日程事项表 | ✅ |
 
-### 默认账号
-- **用户名**: admin
-- **密码**: admin123
-- **角色**: 管理员 (ADMIN)
 
 ## CloudBase 控制台入口
 

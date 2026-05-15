@@ -1,19 +1,13 @@
 package com.bank.admin.config;
 
+import com.bank.admin.common.util.CurrentUserUtil;
 import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.reflection.MetaObject;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
 
-/**
- * MyBatis-Plus 自动填充：create_by / create_time / update_by / update_time
- */
 @Slf4j
 @Component
 public class MetaObjectHandlerConfig implements MetaObjectHandler {
@@ -26,20 +20,9 @@ public class MetaObjectHandlerConfig implements MetaObjectHandler {
         this.strictInsertFill(metaObject, "updateTime", LocalDateTime.class, now);
         this.strictInsertFill(metaObject, "createBy", String.class, username);
         this.strictInsertFill(metaObject, "updateBy", String.class, username);
-        // openid 自动填充（bill_detail 等表有 NOT NULL 约束）
         if (metaObject.hasGetter("openid")) {
             this.strictInsertFill(metaObject, "openid", String.class, "system");
         }
-    }
-
-    private String currentOpenid() {
-        try {
-            var attr = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (attr != null && attr.getRequest() != null) {
-                return attr.getRequest().getHeader("x-wx-openid");
-            }
-        } catch (Exception ignored) {}
-        return null;
     }
 
     @Override
@@ -51,12 +34,6 @@ public class MetaObjectHandlerConfig implements MetaObjectHandler {
     }
 
     private String currentUsername() {
-        try {
-            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (auth != null && auth.isAuthenticated()) {
-                return auth.getName();
-            }
-        } catch (Exception ignored) {}
-        return "system";
+        return CurrentUserUtil.getUsernameOrDefault("system");
     }
 }
