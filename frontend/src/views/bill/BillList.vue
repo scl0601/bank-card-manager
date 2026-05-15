@@ -335,9 +335,13 @@
         <template #default="{ row }">
           <div class="bank-inline-cell" :title="bankCardText(row)">
             <el-icon :size="13" color="#67c23a"><CreditCard /></el-icon>
-            <span class="bank-inline-name">{{ displayBankName(row.bankName) }}</span>
-            <span class="bank-inline-last4">尾号{{ row.cardNoLast4 || '-' }}</span>
-            <span v-if="isBillCardDisabled(row)" class="card-disabled-badge">{{ billCardStatusText(row) }}</span>
+            <span class="bank-inline-info">
+              <span class="bank-inline-name">{{ displayBankName(row.bankName) }}</span>
+              <span class="bank-inline-last4">尾号{{ row.cardNoLast4 || '-' }}</span>
+            </span>
+            <span class="card-status-slot">
+              <span v-if="isBillCardDisabled(row)" class="card-disabled-badge">{{ billCardStatusText(row) }}</span>
+            </span>
           </div>
         </template>
       </el-table-column>
@@ -686,6 +690,7 @@ interface BillRow {
   verified?: boolean | null
   expenseVerified?: boolean | null
   cardStatus?: number | null
+  createTime?: string | null
   remark?: string
 }
 
@@ -1054,34 +1059,84 @@ function resolveMonthOrder(month: number) {
   return (month - currentMonthNumber + 12) % 12
 }
 
-function resolveRepayMonthParts(row: BillRow) {
-  const repayMonth = repayMonthOf(row)
-  return parseBillMonthParts(repayMonth) || parseBillMonthParts(row.billMonth)
+function repayDateParts(row: BillRow) {
+  const repayDate = String(row.repayDate || '').slice(0, 10)
+  const match = repayDate.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (match) {
+    return {
+      missingRepayDate: 0,
+      year: Number(match[1]),
+      month: Number(match[2]),
+      day: Number(match[3]),
+      date: repayDate
+    }
+  }
+
+  const billMonthParts = parseBillMonthParts(row.billMonth)
+  if (billMonthParts) {
+    return {
+      missingRepayDate: 1,
+      year: billMonthParts.year,
+      month: billMonthParts.month,
+      day: 1,
+      date: `${billMonthParts.year}-${String(billMonthParts.month).padStart(2, '0')}-01`
+    }
+  }
+
+  return {
+    missingRepayDate: 1,
+    year: 9999,
+    month: 12,
+    day: 31,
+    date: '9999-12-31'
+  }
 }
 
-function resolveSortMonthParts(row: BillRow) {
-  if (isMonthAscBillSort(query) && !query.repayMonth && !query.repayYear) {
-    return parseBillMonthParts(row.billMonth) || resolveRepayMonthParts(row)
+function billMonthSortParts(row: BillRow) {
+  const billMonthParts = parseBillMonthParts(row.billMonth)
+  const repayParts = repayDateParts(row)
+  if (billMonthParts) {
+    return {
+      missingRepayDate: repayParts.missingRepayDate,
+      year: billMonthParts.year,
+      month: billMonthParts.month,
+      day: repayParts.day
+    }
   }
-  return resolveRepayMonthParts(row)
+  return repayParts
 }
 
 const sortedList = computed<BillRow[]>(() => {
   return [...(list.value as BillRow[])].sort((a, b) => {
-    const aParts = resolveSortMonthParts(a)
-    const bParts = resolveSortMonthParts(b)
-    const monthOrderDelta = resolveMonthOrder(Number(aParts?.month || 0)) - resolveMonthOrder(Number(bParts?.month || 0))
-
-    if (!isMonthAscBillSort(query) && monthOrderDelta !== 0) {
-      return monthOrderDelta
+    const aSort = isMonthAscBillSort(query) && !query.repayMonth && !query.repayYear ? billMonthSortParts(a) : repayDateParts(a)
+    const bSort = isMonthAscBillSort(query) && !query.repayMonth && !query.repayYear ? billMonthSortParts(b) : repayDateParts(b)
+    const missingRepayDateDelta = aSort.missingRepayDate - bSort.missingRepayDate
+    if (missingRepayDateDelta !== 0) {
+      return missingRepayDateDelta
     }
 
-    if (aParts?.year !== bParts?.year) {
-      return Number(bParts?.year || 0) - Number(aParts?.year || 0)
-    }
-
+    const monthOrderDelta = resolveMonthOrder(aSort.month) - resolveMonthOrder(bSort.month)
     if (monthOrderDelta !== 0) {
       return monthOrderDelta
+    }
+
+    const dayDelta = aSort.day - bSort.day
+    if (dayDelta !== 0) {
+      return dayDelta
+    }
+
+    if (aSort.year !== bSort.year) {
+      return Number(bSort.year || 0) - Number(aSort.year || 0)
+    }
+
+    const cardDelta = Number(a.cardId || 0) - Number(b.cardId || 0)
+    if (cardDelta !== 0) {
+      return cardDelta
+    }
+
+    const createTimeDelta = String(b.createTime || '').localeCompare(String(a.createTime || ''))
+    if (createTimeDelta !== 0) {
+      return createTimeDelta
     }
 
     return Number(b.id || 0) - Number(a.id || 0)
@@ -3250,9 +3305,9 @@ watch(
 }
 
 .bank-inline-cell {
-  display: flex;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) 30px;
   align-items: center;
-  justify-content: center;
   gap: 4px;
   width: 100%;
   min-width: 0;
@@ -3263,15 +3318,39 @@ watch(
 }
 
 .card-disabled-badge {
-  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-width: 28px;
   padding: 1px 4px;
   border: 1px solid #ffa39e;
-  border-radius: 999px;
+  border-radius: 4px;
   color: #a8071a;
   background: #ffd8d6;
   font-size: 10px;
   font-weight: 800;
   line-height: 1.2;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+.card-status-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  min-width: 30px;
+}
+
+.bank-inline-info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .bank-inline-name {
@@ -3285,6 +3364,7 @@ watch(
   font-family: var(--font-mono), monospace;
   font-weight: 700;
   color: #475467;
+  white-space: nowrap;
 }
 
 .year-cell,

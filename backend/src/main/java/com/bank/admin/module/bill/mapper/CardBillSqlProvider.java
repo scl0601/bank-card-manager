@@ -63,31 +63,31 @@ public class CardBillSqlProvider {
                 """);
         appendFilters(sql, query, cardIds);
         boolean monthAscSort = isMonthAscSort(query, cardIds);
+        sql.append(" ORDER BY cb.repay_date IS NULL ASC, ");
         if (monthAscSort && !isRepayDateScope(query)) {
-            sql.append(" ORDER BY ")
-                    .append(billYearExpr)
+            sql.append(billYearExpr)
                     .append(" DESC, ")
                     .append(billMonthExpr)
                     .append(" ASC, ")
                     .append(repayOrderDateExpr)
                     .append(" ASC, ");
         } else if (!monthAscSort) {
-            sql.append(" ORDER BY MOD(MONTH(")
+            sql.append("MOD(MONTH(")
                     .append(repayOrderDateExpr)
-                    .append(") - CAST(SUBSTRING_INDEX(#{currentMonth}, '-', -1) AS SIGNED) + 12, 12) ASC, YEAR(")
+                    .append(") - CAST(SUBSTRING_INDEX(#{currentMonth}, '-', -1) AS SIGNED) + 12, 12) ASC, DAY(")
                     .append(repayOrderDateExpr)
-                    .append(") DESC, DAY(")
+                    .append(") ASC, YEAR(")
                     .append(repayOrderDateExpr)
-                    .append(") ASC, ");
+                    .append(") DESC, ");
         } else {
-            sql.append(" ORDER BY YEAR(").append(repayOrderDateExpr).append(") DESC, ");
+            sql.append("YEAR(").append(repayOrderDateExpr).append(") DESC, ");
             sql.append("MONTH(")
                     .append(repayOrderDateExpr)
                     .append(") ASC, DAY(")
                     .append(repayOrderDateExpr)
                     .append(") ASC, ");
         }
-        sql.append(" cb.card_id ASC, cb.create_time DESC");
+        sql.append(" cb.card_id ASC, cb.create_time DESC, cb.id DESC");
         return sql.toString();
     }
 

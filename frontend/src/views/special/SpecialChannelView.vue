@@ -76,6 +76,9 @@
                 <div class="special-card-row-sub">
                   <span class="special-card-type">特殊卡</span>
                   <span class="special-card-dot"></span>
+                  <span class="special-card-label">持卡人</span>
+                  <span class="special-card-date">{{ card.userName || config.userName || '-' }}</span>
+                  <span class="special-card-dot"></span>
                   <span class="special-card-label">账单日</span>
                   <span :class="['special-card-date', { empty: !card.billDay }]">{{ formatDayOfMonth(card.billDay) }}</span>
                   <span class="special-card-dot"></span>
@@ -83,7 +86,7 @@
                   <span :class="['special-card-date', { empty: !card.repaymentDay }]">{{ formatDayOfMonth(card.repaymentDay) }}</span>
                   <span class="special-card-dot"></span>
                   <span class="special-card-label">有效期</span>
-                  <span :class="['special-card-date', { empty: !card.expireDate, 'expire-warning': isSpecialCardExpiringSoon(card.expireDate), 'expire-expired': isSpecialCardExpired(card.expireDate) }]">{{ card.expireDate || '-' }}</span>
+                  <span :class="['special-card-date', { 'special-card-expire-date': card.expireDate, empty: !card.expireDate, 'expire-warning': isSpecialCardExpiringSoon(card.expireDate), 'expire-expired': isSpecialCardExpired(card.expireDate) }]">{{ card.expireDate || '-' }}</span>
                   <span class="special-card-dot"></span>
                   <span class="special-card-label">费率</span>
                   <span class="special-card-date">{{ formatRate(card.feeRate) }}%</span>
@@ -120,11 +123,8 @@
           <el-select v-model="billQuery.cardId" class="filter-card" placeholder="银行卡" clearable filterable>
             <el-option v-for="card in cards" :key="card.id" :label="cardLabel(card)" :value="card.id" />
           </el-select>
-          <el-select v-model="deleteBeforeYear" class="filter-item" placeholder="保留起始年">
-            <el-option v-for="year in deleteBeforeYearOptions" :key="year" :label="`保留${year}年起`" :value="year" />
-          </el-select>
-          <el-select v-model="deleteAfterYear" class="filter-item filter-keep-year" placeholder="保留到几年账单">
-            <el-option v-for="year in deleteAfterYearOptions" :key="year" :label="`保留到${year}年账单`" :value="year" />
+          <el-select v-model="deleteBoundaryYear" class="filter-delete-year" placeholder="删除账单年份">
+            <el-option v-for="year in deleteBoundaryYearOptions" :key="year" :label="`删除账单用：${year}年`" :value="year" />
           </el-select>
           <el-button
             type="danger"
@@ -197,12 +197,12 @@
             </el-table-column>
             <el-table-column label="账单日" width="48" align="center">
               <template #default="{ row }">
-                <el-input-number v-if="!row.__summary" v-model="row.billDay" class="day-input" size="small" :min="1" :max="31" :precision="0" :controls="false" :disabled="!canEditSpecialBillRow(row)" />
+                <el-input v-if="!row.__summary" :model-value="formatDayInput(row.billDay)" class="day-input" size="small" maxlength="3" placeholder="-" :disabled="!canEditSpecialBillRow(row)" @focus="selectInputText" @update:model-value="updateSpecialBillDay(row, 'billDay', $event)" />
               </template>
             </el-table-column>
             <el-table-column label="还款日" width="48" align="center">
               <template #default="{ row }">
-                <el-input-number v-if="!row.__summary" v-model="row.repaymentDay" class="day-input" size="small" :min="1" :max="31" :precision="0" :controls="false" :disabled="!canEditSpecialBillRow(row)" />
+                <el-input v-if="!row.__summary" :model-value="formatDayInput(row.repaymentDay)" class="day-input" size="small" maxlength="3" placeholder="-" :disabled="!canEditSpecialBillRow(row)" @focus="selectInputText" @update:model-value="updateSpecialBillDay(row, 'repaymentDay', $event)" />
               </template>
             </el-table-column>
             <el-table-column prop="billAmount" label="账单金额" align="right">
@@ -355,8 +355,12 @@
                   <span v-if="isSpecialBillCardDisabled(row)" class="card-disabled-pill">停用</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="billDay" label="账单日" width="56" align="center" />
-              <el-table-column prop="repaymentDay" label="还款日" width="56" align="center" />
+              <el-table-column label="账单日" width="56" align="center">
+                <template #default="{ row }">{{ formatDayOfMonth(row.billDay) }}</template>
+              </el-table-column>
+              <el-table-column label="还款日" width="56" align="center">
+                <template #default="{ row }">{{ formatDayOfMonth(row.repaymentDay) }}</template>
+              </el-table-column>
               <el-table-column label="账单金额" min-width="90" align="right">
                 <template #default="{ row }">{{ formatMoney(row.totalAmount) }}</template>
               </el-table-column>
@@ -618,8 +622,7 @@ const cardFormRef = ref<FormInstance>()
 const billTableRef = ref<any>()
 
 const yearOptions = [2020, 2021, 2022, 2023, 2024, 2025, 2026]
-const deleteBeforeYearOptions = [2021, 2022, 2023, 2024, 2025, 2026, 2027]
-const deleteAfterYearOptions = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
+const deleteBoundaryYearOptions = [...yearOptions]
 const monthOptions = Array.from({ length: 12 }, (_, index) => index + 1)
 const billListSize = 10
 const billPageSizeOptions = [10, 20, 50, 100]
@@ -632,8 +635,7 @@ const billQuery = reactive({
   cardId: undefined as number | undefined
 })
 const billTotal = ref(0)
-const deleteBeforeYear = ref(2023)
-const deleteAfterYear = ref(2026)
+const deleteBoundaryYear = ref(2023)
 const selectedBillRows = ref<SpecialBill[]>([])
 
 const profitQuery = reactive({
@@ -1031,7 +1033,7 @@ async function deleteHistoryBills() {
   const card = selectedBillCard.value
   const cardName = card ? cardLabel(card) : '当前银行卡'
   await ElMessageBox.confirm(
-    `确认删除 ${cardName} ${deleteBeforeYear.value} 年之前的所有账单？删除后不会影响 ${deleteBeforeYear.value} 年及之后账单。`,
+    `确认删除 ${cardName} ${deleteBoundaryYear.value} 年之前的所有账单？删除后不会影响 ${deleteBoundaryYear.value} 年及之后账单。`,
     '批量删除确认',
     { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' }
   )
@@ -1039,7 +1041,7 @@ async function deleteHistoryBills() {
   try {
     const res = await deleteSpecialBillsBeforeYearApi({
       cardId: billQuery.cardId,
-      beforeYear: deleteBeforeYear.value
+      beforeYear: deleteBoundaryYear.value
     })
     ElMessage.success(`已删除 ${res.data || 0} 条账单`)
     clearBillSelection()
@@ -1058,7 +1060,7 @@ async function deleteFutureBills() {
   const card = selectedBillCard.value
   const cardName = card ? cardLabel(card) : '当前银行卡'
   await ElMessageBox.confirm(
-    `确认删除 ${cardName} ${deleteAfterYear.value} 年之后的所有账单？删除后不会影响 ${deleteAfterYear.value} 年及之前账单。`,
+    `确认删除 ${cardName} ${deleteBoundaryYear.value} 年之后的所有账单？删除后不会影响 ${deleteBoundaryYear.value} 年及之前账单。`,
     '批量删除确认',
     { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' }
   )
@@ -1066,7 +1068,7 @@ async function deleteFutureBills() {
   try {
     const res = await deleteSpecialBillsAfterYearApi({
       cardId: billQuery.cardId,
-      afterYear: deleteAfterYear.value
+      afterYear: deleteBoundaryYear.value
     })
     ElMessage.success(`已删除 ${res.data || 0} 条账单`)
     clearBillSelection()
@@ -1234,7 +1236,33 @@ function repaymentDaySortValue(row: Record<string, any>) {
 
 function formatDayOfMonth(day: number | string | null | undefined) {
   const value = Number(day)
-  return Number.isFinite(value) && value > 0 ? `${Math.trunc(value)}日` : '-'
+  return Number.isFinite(value) && value > 0 ? `${String(Math.trunc(value)).padStart(2, '0')}日` : '-'
+}
+
+function formatDayInput(value: number | string | null | undefined) {
+  const text = formatDayOfMonth(value)
+  return text === '-' ? '' : text
+}
+
+function parseDayInput(value: string) {
+  return value.replace(/[^\d]/g, '')
+}
+
+function updateSpecialBillDay(row: SpecialBill, field: 'billDay' | 'repaymentDay', value: string) {
+  const digits = parseDayInput(value)
+  if (!digits) {
+    row[field] = null
+    return
+  }
+  const day = Number(digits)
+  if (!Number.isFinite(day)) return
+  row[field] = Math.min(31, Math.max(1, Math.trunc(day)))
+}
+
+function selectInputText(event: FocusEvent) {
+  if (event.target instanceof HTMLInputElement) {
+    event.target.select()
+  }
 }
 
 function specialCardExpireStatus(expireDate: string | null | undefined) {
@@ -1378,6 +1406,11 @@ function formatRate(value: number | string | null | undefined) {
 
 <style scoped>
 .special-page {
+  --special-list-text-color: #1f2a37;
+  --special-list-muted-color: #667085;
+  --special-list-empty-color: #98a2b3;
+  --special-list-text-weight: 750;
+  --special-list-strong-weight: 800;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1644,17 +1677,17 @@ function formatRate(value: number | string | null | undefined) {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: #1f2a37;
+  color: var(--special-list-text-color);
   font-size: 13px;
-  font-weight: 800;
+  font-weight: var(--special-list-strong-weight);
   flex-shrink: 1;
 }
 
 .special-card-last4 {
-  color: #1f2a37;
+  color: var(--special-list-text-color);
   font-family: var(--font-mono);
   font-size: 13px;
-  font-weight: 800;
+  font-weight: var(--special-list-strong-weight);
   flex-shrink: 0;
 }
 
@@ -1679,27 +1712,41 @@ function formatRate(value: number | string | null | undefined) {
 
 .special-card-type,
 .special-card-date {
-  color: #3f4a5f;
+  color: var(--special-list-text-color);
   font-size: 11.5px;
-  font-weight: 750;
+  font-weight: var(--special-list-text-weight);
   flex-shrink: 0;
+}
+
+.special-card-expire-date {
+  width: 48px;
+  min-width: 48px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 0 5px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  line-height: 1;
 }
 
 .special-card-label {
   margin-right: 2px;
-  color: #667085;
+  color: var(--special-list-muted-color);
   font-size: 11px;
-  font-weight: 650;
+  font-weight: var(--special-list-text-weight);
   flex-shrink: 0;
 }
 
 .special-card-date.empty {
-  color: #98a2b3;
-  font-weight: 650;
+  color: var(--special-list-empty-color);
+  font-weight: var(--special-list-text-weight);
 }
 
-.special-card-date.expire-warning,
-.special-card-date.expire-expired,
+.special-card-expire-date.expire-warning,
+.special-card-expire-date.expire-expired,
 .special-card-status-disabled {
   display: inline-flex;
   align-items: center;
@@ -1711,13 +1758,13 @@ function formatRate(value: number | string | null | undefined) {
   line-height: 1.2;
 }
 
-.special-card-date.expire-warning {
+.special-card-expire-date.expire-warning {
   color: #ad6800;
   background: #fff1b8;
   border: 1px solid #ffd666;
 }
 
-.special-card-date.expire-expired,
+.special-card-expire-date.expire-expired,
 .special-card-status-disabled {
   color: #a8071a;
   background: #ffd8d6;
@@ -1731,9 +1778,9 @@ function formatRate(value: number | string | null | undefined) {
 .special-card-remark {
   min-width: 0;
   overflow: hidden;
-  color: #667085;
+  color: var(--special-list-muted-color);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--special-list-text-weight);
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1761,18 +1808,18 @@ function formatRate(value: number | string | null | undefined) {
 }
 
 .tile-amount span {
-  color: #7c8799;
+  color: var(--special-list-muted-color);
   font-size: 10.5px;
-  font-weight: 750;
+  font-weight: var(--special-list-text-weight);
 }
 
 .tile-amount strong {
   min-width: 0;
   overflow: hidden;
-  color: #1f2a37;
+  color: var(--special-list-text-color);
   font-family: var(--font-mono);
   font-size: 17px;
-  font-weight: 900;
+  font-weight: var(--special-list-strong-weight);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1803,8 +1850,8 @@ function formatRate(value: number | string | null | undefined) {
   width: 108px;
 }
 
-.filter-keep-year {
-  width: 142px;
+.filter-delete-year {
+  width: 154px;
 }
 
 .filter-card {
@@ -1933,32 +1980,50 @@ function formatRate(value: number | string | null | undefined) {
 }
 
 .money-input :deep(.el-input__inner) {
+  color: var(--special-list-text-color);
   text-align: right;
   font-family: var(--font-mono);
   font-size: 13px;
-  font-weight: 800;
+  font-weight: var(--special-list-strong-weight);
 }
 
 .bill-table-shell .day-input :deep(.el-input__inner),
 .bill-table-shell :deep(.el-input__inner),
 .profit-table-block :deep(.el-input__inner) {
+  color: var(--special-list-text-color);
   font-size: 13px;
-  font-weight: 800;
+  font-weight: var(--special-list-strong-weight);
 }
 
-.money-text,
-.strong-cell {
+.money-text {
+  color: var(--special-list-text-color);
   font-family: var(--font-mono);
-  font-weight: 800;
-}
-
-.profit-table-block :deep(.el-table td.el-table__cell) {
-  color: #1f2a37;
-  font-weight: 750;
+  font-weight: var(--special-list-strong-weight);
 }
 
 .strong-cell {
-  color: #1f2a37;
+  color: var(--special-list-text-color);
+  font-family: inherit;
+  font-weight: var(--special-list-strong-weight);
+}
+
+.bill-table-shell :deep(.el-table td.el-table__cell),
+.profit-table-block :deep(.el-table td.el-table__cell) {
+  color: var(--special-list-text-color);
+  font-weight: var(--special-list-text-weight);
+}
+
+.profit-table-block :deep(.el-table td.el-table__cell .cell) {
+  color: var(--special-list-text-color);
+  font-weight: var(--special-list-text-weight);
+}
+
+.profit-table-block :deep(.el-table td.el-table__cell[align="right"] .cell),
+.profit-table-block :deep(.el-table td.el-table__cell.is-right .cell),
+.bill-table-shell :deep(.el-table td.el-table__cell[align="right"] .cell),
+.bill-table-shell :deep(.el-table td.el-table__cell.is-right .cell) {
+  font-family: var(--font-mono);
+  font-weight: var(--special-list-strong-weight);
 }
 
 .card-disabled-pill {
