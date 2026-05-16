@@ -56,6 +56,7 @@ public class CardBillServiceImpl
 
     private static final String[] STATUS_DESC = {"待还款", "已还清", "部分还款", "逾期"};
     private static final DateTimeFormatter MONTH_FMT = DateTimeFormatter.ofPattern("yyyy-MM");
+    private static final BigDecimal POS_COST_RATE = new BigDecimal("0.0055");
 
     private final BankCardMapper bankCardMapper;
     private final CardUserMapper cardUserMapper;
@@ -138,6 +139,8 @@ public class CardBillServiceImpl
         }
         CardBillVO vo = new CardBillVO();
         BeanUtils.copyProperties(bill, vo);
+        vo.setPosCostAmount(calculatePosCost(bill.getBillAmount()));
+        vo.setNetProfit(scaleMoney(bill.getFeeAmount()).subtract(vo.getPosCostAmount()).subtract(scaleMoney(bill.getOtherFeeAmount())).setScale(2, RoundingMode.HALF_UP));
         if (bill.getRepayDate() != null) {
             vo.setRepayDay(bill.getRepayDate().getDayOfMonth());
         }
@@ -471,7 +474,6 @@ public class CardBillServiceImpl
         }
         BigDecimal feeRate = dto.getFeeRate() != null ? dto.getFeeRate() : resolveEffectiveFeeRate(card.getUserId());
         entity.setFeeRate(normalizeFeeRate(feeRate));
-        entity.setPosCostAmount(scaleMoney(dto.getPosCostAmount() != null ? dto.getPosCostAmount() : entity.getPosCostAmount()));
         entity.setOtherFeeAmount(scaleMoney(dto.getOtherFeeAmount() != null ? dto.getOtherFeeAmount() : entity.getOtherFeeAmount()));
         if (StringUtils.hasText(dto.getFeePayMethod())) {
             entity.setFeePayMethod(normalizeFeePayMethod(dto.getFeePayMethod()));
@@ -636,7 +638,7 @@ public class CardBillServiceImpl
         BigDecimal amount = scaleMoney(entity.getBillAmount());
         BigDecimal feeRate = normalizeFeeRate(entity.getFeeRate());
         BigDecimal feeAmount = amount.multiply(feeRate).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
-        BigDecimal posCost = scaleMoney(entity.getPosCostAmount());
+        BigDecimal posCost = calculatePosCost(amount);
         entity.setBillAmount(amount);
         entity.setFeeRate(feeRate);
         entity.setFeeAmount(feeAmount);
@@ -645,6 +647,10 @@ public class CardBillServiceImpl
         entity.setOtherFeeAmount(otherFee);
         entity.setNetProfit(feeAmount.subtract(posCost).subtract(otherFee).setScale(2, RoundingMode.HALF_UP));
         normalizeFeePayment(entity);
+    }
+
+    private BigDecimal calculatePosCost(BigDecimal billAmount) {
+        return scaleMoney(billAmount).multiply(POS_COST_RATE).setScale(2, RoundingMode.HALF_UP);
     }
 
     private void normalizeFeePayment(CardBill entity) {

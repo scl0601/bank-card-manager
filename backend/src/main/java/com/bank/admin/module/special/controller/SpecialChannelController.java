@@ -13,6 +13,7 @@ import com.bank.admin.module.special.dto.SpecialProfitExtraFeeUpdateDTO;
 import com.bank.admin.module.special.dto.SpecialProfitQueryDTO;
 import com.bank.admin.module.special.dto.SpecialUserConfigSaveDTO;
 import com.bank.admin.module.special.service.SpecialChannelService;
+import com.bank.admin.module.special.vo.SpecialBillImportResultVO;
 import com.bank.admin.module.special.vo.SpecialBillVO;
 import com.bank.admin.module.special.vo.SpecialCardVO;
 import com.bank.admin.module.special.vo.SpecialConfigVO;
@@ -29,7 +30,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -63,7 +66,7 @@ public class SpecialChannelController {
         return Result.success(specialChannelService.listCards());
     }
 
-    @Operation(summary = "新增特殊银行卡，并自动生成2020-2026账单")
+    @Operation(summary = "新增特殊银行卡，并自动生成基础年度账单")
     @Log(module = "特殊卡务", type = ActionTypeEnum.INSERT, description = "新增特殊银行卡")
     @PostMapping("/cards")
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
@@ -103,6 +106,16 @@ public class SpecialChannelController {
     public Result<Void> updateBill(@Valid @RequestBody SpecialBillUpdateDTO dto) {
         specialChannelService.updateBill(dto);
         return Result.success();
+    }
+
+    @Operation(summary = "导入特殊账单Excel")
+    @Log(module = "特殊账单", type = ActionTypeEnum.IMPORT, description = "导入特殊账单Excel")
+    @PostMapping("/bills/import")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public Result<SpecialBillImportResultVO> importBills(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "year", required = false) Integer year) {
+        return Result.success(specialChannelService.importBills(file, year));
     }
 
     @Operation(summary = "按银行卡批量删除指定年份之前的特殊账单")

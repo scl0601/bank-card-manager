@@ -124,7 +124,9 @@
                 <div class="detail-header">
                   <div class="detail-header-main">
                     <span class="detail-title">本月明细流水</span>
-                    <el-button type="success" size="small" :disabled="isBillCardDisabled(row)" @click="openAddDetail(row)">+ 新增</el-button>
+                    <el-button type="success" size="small" :disabled="isBillCardDisabled(row)" @click="openAddDetail(row, DETAIL_TYPE_VALUE.INCOME)">+ 还款</el-button>
+                    <el-button type="danger" size="small" :disabled="isBillCardDisabled(row)" @click="openAddDetail(row, DETAIL_TYPE_VALUE.EXPENSE)">+ 消费</el-button>
+                    <el-button size="small" :disabled="detailLoadingMap[row.id] && !detailLoadedMap[row.id]" @click="openAllDetailsDialog(row)">展开全部</el-button>
                   </div>
                 </div>
 
@@ -619,6 +621,68 @@
         <el-button @click="detailDialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="detailSaving" @click="handleSaveDetail">保存</el-button>
       </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="allDetailsDialogVisible"
+      :title="allDetailsDialogTitle"
+      width="min(1320px, 98vw)"
+      class="all-detail-dialog"
+      modal-class="all-detail-overlay"
+      destroy-on-close
+    >
+      <div class="all-detail-summary">
+        <div class="all-detail-summary-item">
+          <span>全部明细</span>
+          <strong>{{ allDetailsRows.length }}</strong>
+        </div>
+        <div class="all-detail-summary-item">
+          <span>还款总额</span>
+          <strong class="amt-pos">¥{{ formatMoney(allDetailsIncomeTotal) }}</strong>
+        </div>
+        <div class="all-detail-summary-item">
+          <span>消费总额</span>
+          <strong class="amt-neg">¥{{ formatMoney(allDetailsExpenseTotal) }}</strong>
+        </div>
+      </div>
+      <div class="all-detail-grid">
+        <div class="all-detail-head">
+          <div>序号</div>
+          <div>类型</div>
+          <div>日期</div>
+          <div class="is-right">金额</div>
+          <div>描述</div>
+          <div>备注</div>
+          <div>操作</div>
+        </div>
+        <div
+          v-for="(detail, index) in allDetailsRows"
+          :key="detail.id"
+          class="all-detail-row"
+        >
+          <div class="font-mono">{{ index + 1 }}</div>
+          <div>
+            <el-tag :type="detail.detailType === DETAIL_TYPE_VALUE.INCOME ? 'success' : 'danger'" size="small" effect="light">
+              {{ detailTypeText(detail.detailType) }}
+            </el-tag>
+          </div>
+          <div>{{ detail.detailDate }}</div>
+          <div class="is-right font-mono" :class="detail.detailType === DETAIL_TYPE_VALUE.INCOME ? 'amt-pos' : 'amt-neg'">
+            {{ detail.detailType === DETAIL_TYPE_VALUE.INCOME ? '+' : '-' }}{{ formatMoney(detail.amount) }}
+          </div>
+          <div class="all-detail-text">{{ detail.description || '-' }}</div>
+          <div class="all-detail-text">{{ detail.remark || '-' }}</div>
+          <div class="all-detail-actions">
+            <el-button type="primary" link size="small" :disabled="isBillCardDisabled(allDetailsBillRow)" @click="openEditDetailFromAll(detail)">编辑</el-button>
+            <el-popconfirm title="确认删除？" @confirm="handleDeleteAllDetail(detail)">
+              <template #reference>
+                <el-button type="danger" link size="small" :disabled="isBillCardDisabled(allDetailsBillRow)">删</el-button>
+              </template>
+            </el-popconfirm>
+          </div>
+        </div>
+        <div v-if="!allDetailsRows.length" class="all-detail-empty">暂无明细</div>
+      </div>
     </el-dialog>
 
   </div>
@@ -1594,15 +1658,16 @@ async function handleCreateBill() {
       return
     }
 
+    const billAmount = toNumber(createBillForm.billAmount)
     await saveBillApi({
       ...buildCreateBillBasePayload(card),
       billMonth: createBillForm.billMonth,
-      billAmount: toNumber(createBillForm.billAmount),
+      billAmount,
       minPayAmount: 0,
       feePaid: false,
       verified: false,
       expenseVerified: false,
-      posCostAmount: 0,
+      posCostAmount: buildPosCostAmount(billAmount),
       remark: createBillForm.remark || ''
     })
     ElMessage.success('账单新增成功')
@@ -1637,7 +1702,7 @@ function ensureEditForm(row: BillRow) {
 
 function buildEditForm(row: BillRow): EditFormItem {
   const billAmount = toNumber(row.billAmount)
-  const posCostAmount = toNumber(row.posCostAmount)
+  const posCostAmount = buildPosCostAmount(billAmount)
   const feeAmount = buildFeeAmount(billAmount, row.feeRate)
   const netProfit = buildNetProfit(billAmount, row.feeRate, posCostAmount, toNumber(row.otherFeeAmount))
   return {
@@ -1659,6 +1724,7 @@ function syncInlineAmounts(billId: number) {
   const row = (list.value as BillRow[]).find(item => item.id === billId)
   if (!form || !row) return
   const feeAmount = buildFeeAmount(form.billAmount, row.feeRate)
+  form.posCostAmount = buildPosCostAmount(form.billAmount)
   form.feeAmount = feeAmount.toFixed(2)
   form.netProfit = buildNetProfit(form.billAmount, row.feeRate, form.posCostAmount, toNumber(row.otherFeeAmount)).toFixed(2)
 }
@@ -1959,9 +2025,28 @@ const detailDialogTitle = ref('新增明细')
 const detailSaving = ref(false)
 const detailFormRef = ref<any>()
 const currentBillRow = ref<BillRow | null>(null)
+const allDetailsDialogVisible = ref(false)
+const allDetailsBillRow = ref<BillRow | null>(null)
 const billEditDialogVisible = ref(false)
 const billEditRow = ref<BillRow | null>(null)
 const billEditRowId = computed(() => Number(billEditRow.value?.id || 0))
+const allDetailsDialogTitle = computed(() => {
+  const row = allDetailsBillRow.value
+  if (!row) return '全部明细'
+  const owner = row.ownerName || '账单'
+  const month = row.billMonth ? ` · ${row.billMonth}` : ''
+  return `${owner}${month} · 全部明细`
+})
+const allDetailsRows = computed(() => {
+  const billId = Number(allDetailsBillRow.value?.id || 0)
+  return [...(detailListMap.value[billId] || [])].sort(compareDetailRows)
+})
+const allDetailsIncomeTotal = computed(() => allDetailsRows.value
+  .filter(item => Number(item.detailType) === Number(DETAIL_TYPE_VALUE.INCOME))
+  .reduce((sum, item) => sum + toNumber(item.amount), 0))
+const allDetailsExpenseTotal = computed(() => allDetailsRows.value
+  .filter(item => Number(item.detailType) === Number(DETAIL_TYPE_VALUE.EXPENSE))
+  .reduce((sum, item) => sum + toNumber(item.amount), 0))
 const detailForm = reactive({
   id: undefined as number | undefined,
   billId: 0,
@@ -1973,15 +2058,41 @@ const detailForm = reactive({
 })
 const detailRules = {
   detailDate: [{ required: true, message: '请选择日期', trigger: 'change' }],
-  description: [{ required: true, message: '请输入描述', trigger: 'blur' }],
   detailType: [{ required: true, message: '请选择交易类型', trigger: 'change' }]
 }
 
-function openAddDetail(row: BillRow) {
+function compareDetailRows(a: BillDetailRow, b: BillDetailRow) {
+  const dateCompare = String(a.detailDate || '').localeCompare(String(b.detailDate || ''))
+  if (dateCompare !== 0) return dateCompare
+  return Number(a.id || 0) - Number(b.id || 0)
+}
+
+function detailTypeText(detailType: number) {
+  return Number(detailType) === Number(DETAIL_TYPE_VALUE.INCOME) ? '还款' : '消费'
+}
+
+async function openAllDetailsDialog(row: BillRow) {
+  allDetailsBillRow.value = row
+  await loadDetails(row.id, { force: !detailLoadedMap.value[row.id], silent: true, quiet: true, syncBillRow: true })
+  allDetailsDialogVisible.value = true
+}
+
+function openEditDetailFromAll(detail: BillDetailRow) {
+  if (!allDetailsBillRow.value) return
+  openEditDetail(allDetailsBillRow.value, detail)
+}
+
+async function handleDeleteAllDetail(detail: BillDetailRow) {
+  const billId = Number(allDetailsBillRow.value?.id || detail.billId || 0)
+  if (!billId) return
+  await handleDeleteDetail(billId, detail.id)
+}
+
+function openAddDetail(row: BillRow, detailType: number = DETAIL_TYPE_VALUE.INCOME) {
   if (!assertBillCardEditable(row)) return
   currentBillRow.value = row
-  Object.assign(detailForm, { id: undefined, billId: row.id, detailDate: currentDateString(), description: '', amount: 0, detailType: DETAIL_TYPE_VALUE.INCOME, remark: '' })
-  detailDialogTitle.value = '新增明细'
+  Object.assign(detailForm, { id: undefined, billId: row.id, detailDate: currentDateString(), description: '', amount: 0, detailType, remark: '' })
+  detailDialogTitle.value = detailType === DETAIL_TYPE_VALUE.EXPENSE ? '新增消费明细' : '新增还款明细'
   detailDialogVisible.value = true
 }
 
@@ -2119,7 +2230,7 @@ function updateEditField(billId: number, field: string, value: any) {
   const form = editFormMap.value[billId] as any
   form[field] = value
 
-  if (field === 'billAmount' || field === 'posCostAmount') {
+  if (field === 'billAmount') {
     syncInlineAmounts(billId)
   }
 }
@@ -2141,7 +2252,7 @@ function buildBillUpdatePayload(row: BillRow, form: EditFormItem, overrides: Rec
     feePaid: Boolean(row.feePaid),
     verified: form.verified,
     expenseVerified: Boolean(row.expenseVerified),
-    posCostAmount: toNumber(form.posCostAmount),
+    posCostAmount: buildPosCostAmount(form.billAmount),
     otherFeeAmount: toNumber(row.otherFeeAmount),
     status: form.status,
     remark: form.remark || '',
@@ -2151,7 +2262,7 @@ function buildBillUpdatePayload(row: BillRow, form: EditFormItem, overrides: Rec
 
 function applyLocalBillEdit(row: BillRow, form: EditFormItem) {
   const billAmount = toNumber(form.billAmount)
-  const posCostAmount = toNumber(form.posCostAmount)
+  const posCostAmount = buildPosCostAmount(billAmount)
   const feeAmount = buildFeeAmount(billAmount, row.feeRate)
   const netProfit = buildNetProfit(billAmount, row.feeRate, posCostAmount, toNumber(row.otherFeeAmount))
 
@@ -2337,6 +2448,10 @@ onUnmounted(() => {
 
 function buildFeeAmount(amount: number, feeRate: number | null | undefined) {
   return Number(((amount * toNumber(feeRate)) / 100).toFixed(2))
+}
+
+function buildPosCostAmount(amount: number) {
+  return Number((toNumber(amount) * 0.0055).toFixed(2))
 }
 
 function buildNetProfit(amount: number, feeRate: number | null | undefined, posCostAmount: number, otherFeeAmount = 0) {
@@ -3496,7 +3611,7 @@ watch(
 .detail-header {
   display: flex;
   align-items: center;
-  padding: 5px 8px;
+  padding: 3px 6px;
   background: #fafbfc;
   border-bottom: 1px solid #e5eaf1;
 }
@@ -3504,7 +3619,7 @@ watch(
 .detail-header-main {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
   flex-wrap: wrap;
 }
 
@@ -3525,25 +3640,25 @@ watch(
 /*noinspection CssUnusedSymbol*/
 .detail-header :deep(.el-button) {
   flex-shrink: 0;
-  height: 24px;
-  padding: 0 8px;
+  height: 22px;
+  padding: 0 7px;
 }
 
 .batch-toolbar {
   display: flex;
   gap: 6px;
-  padding: 5px 8px;
+  padding: 3px 6px;
   background: #f5f7fa;
   border-bottom: 1px solid #e5eaf1;
   flex-wrap: wrap;
 }
 
 .detail-split-grid {
-  --detail-grid-columns: 34px 46px 92px 110px minmax(0, 1fr) 74px;
+  --detail-grid-columns: 28px 38px 82px 96px minmax(0, 1fr) 58px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  padding: 8px;
+  gap: 5px;
+  padding: 5px;
   min-height: 0;
 }
 
@@ -3553,7 +3668,7 @@ watch(
   display: flex;
   flex-direction: column;
   border: 1px solid #e5eaf1;
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
   background: #fff;
 }
@@ -3562,7 +3677,7 @@ watch(
   display: flex;
   flex-direction: column;
   min-height: 0;
-  max-height: min(34vh, 320px);
+  max-height: min(28vh, 260px);
   overflow: auto;
   overscroll-behavior: contain;
 }
@@ -3572,8 +3687,9 @@ watch(
   display: grid;
   grid-template-columns: var(--detail-grid-columns);
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
+  gap: 5px;
+  min-height: 26px;
+  padding: 3px 6px;
 }
 
 .detail-lite-head {
@@ -3584,6 +3700,7 @@ watch(
   border-bottom: 1px solid #eef2f6;
   color: #7c8799;
   font-size: var(--bill-small-font-size);
+  min-height: 24px;
 }
 
 .detail-lite-row + .detail-lite-row {
@@ -3622,16 +3739,20 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 3px;
   white-space: nowrap;
+}
+
+.detail-action-col :deep(.el-button) {
+  padding: 0 2px;
 }
 
 .detail-pane-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
-  padding: 6px 8px;
+  gap: 5px;
+  padding: 4px 6px;
   background: #fafbfc;
   border-bottom: 1px solid #e5eaf1;
 }
@@ -3639,14 +3760,14 @@ watch(
 .detail-pane-head-main {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
 }
 
 .detail-pane-title {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
   font-size: var(--bill-font-size);
   font-weight: 700;
@@ -3654,6 +3775,7 @@ watch(
 }
 
 .detail-pane-sub {
+  display: none;
   font-size: var(--bill-small-font-size);
   color: #98a2b3;
 }
@@ -3662,8 +3784,8 @@ watch(
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 2px;
-  min-width: 72px;
+  gap: 1px;
+  min-width: 64px;
   text-align: right;
 }
 
@@ -3681,7 +3803,7 @@ watch(
 }
 
 .detail-empty {
-  padding: 22px 12px;
+  padding: 14px 10px;
   text-align: center;
   font-size: var(--bill-small-font-size);
   color: #98a2b3;
@@ -3690,7 +3812,7 @@ watch(
 .detail-note-cell {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .detail-note-main {
@@ -3700,8 +3822,126 @@ watch(
 .detail-note-sub {
   font-size: var(--bill-small-font-size);
   color: #98a2b3;
-  line-height: 1.3;
+  line-height: 1.15;
   word-break: break-word;
+}
+
+.all-detail-dialog :deep(.el-dialog__body) {
+  padding: 6px 10px 10px;
+  max-height: none;
+  overflow: visible;
+}
+
+:global(.all-detail-overlay .el-overlay-dialog) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2vh 0;
+}
+
+:global(.all-detail-overlay .all-detail-dialog) {
+  margin: 0 !important;
+  max-height: none;
+  overflow: visible;
+  transform: translateY(-5vh);
+}
+
+.all-detail-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.all-detail-summary-item {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 26px;
+  padding: 3px 8px;
+  border: 1px solid #e5eaf1;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.all-detail-summary-item span {
+  color: #667085;
+  font-size: var(--bill-small-font-size);
+  font-weight: 700;
+}
+
+.all-detail-summary-item strong {
+  font-family: var(--font-mono), monospace;
+  font-size: var(--bill-font-size);
+  font-weight: 800;
+}
+
+.all-detail-grid {
+  --all-detail-grid-columns: 44px 60px 96px 112px minmax(140px, 1.15fr) minmax(140px, 1fr) 64px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e5eaf1;
+  border-radius: 6px;
+  overflow: visible;
+  background: #fff;
+}
+
+.all-detail-head,
+.all-detail-row {
+  display: grid;
+  grid-template-columns: var(--all-detail-grid-columns);
+  align-items: center;
+  gap: 6px;
+  min-height: 20px;
+  padding: 1px 7px;
+}
+
+.all-detail-head {
+  color: #667085;
+  background: #f8fafc;
+  border-bottom: 1px solid #e5eaf1;
+  font-size: var(--bill-small-font-size);
+  font-weight: 800;
+}
+
+.all-detail-row + .all-detail-row {
+  border-top: 1px solid #f0f3f7;
+}
+
+.all-detail-row {
+  font-size: var(--bill-font-size);
+}
+
+.all-detail-text {
+  min-width: 0;
+  overflow: hidden;
+  color: #1f2a37;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.all-detail-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.all-detail-actions :deep(.el-button) {
+  padding: 0 2px;
+}
+
+.all-detail-empty {
+  padding: 18px;
+  color: #98a2b3;
+  font-size: var(--bill-small-font-size);
+  text-align: center;
+}
+
+.is-right {
+  text-align: right;
 }
 
 /*noinspection CssUnusedSymbol*/

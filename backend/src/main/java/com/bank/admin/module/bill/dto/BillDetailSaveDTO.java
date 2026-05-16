@@ -1,7 +1,6 @@
 package com.bank.admin.module.bill.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -26,8 +25,7 @@ public class BillDetailSaveDTO {
     @NotNull(message = "明细日期不能为空")
     private LocalDate detailDate;
 
-    @Schema(description = "描述", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotBlank(message = "描述不能为空")
+    @Schema(description = "描述")
     private String description;
 
     @Schema(description = "金额", requiredMode = Schema.RequiredMode.REQUIRED)

@@ -49,11 +49,14 @@
     <div class="workspace-grid">
       <section class="data-panel card-shell">
         <div class="panel-head data-head">
-          <div class="panel-title data-title">
-            <span>用户数据区</span>
-            <span class="data-title-count">{{ filteredTotal }} 条</span>
+          <div class="data-title-block">
+            <div class="panel-title data-title">
+              <span class="panel-dot is-primary"></span>
+              <span>用户数据区</span>
+            </div>
           </div>
           <div class="data-head-actions">
+            <span class="data-title-count">{{ filteredTotal }} 条</span>
             <el-button type="primary" class="action-btn" :icon="Plus" @click="openAddTopUser">新增用户</el-button>
           </div>
         </div>
@@ -115,8 +118,9 @@
                       <span class="name-text">{{ row.name }}</span>
                     </div>
                     <div class="user-sub-row">
-                      <el-tag v-if="!row.parentId" type="warning" size="small" effect="light" class="role-tag">洽谈人</el-tag>
-                      <el-tag v-else type="info" size="small" effect="plain" class="role-tag">名下持卡人</el-tag>
+                      <span class="role-badge" :class="row.parentId ? 'is-child' : 'is-main'">
+                        {{ row.parentId ? '名下持卡人' : '洽谈人' }}
+                      </span>
                       <span v-if="row.parentId" class="user-parent-text">{{ row.parentName || '未指定' }}</span>
                     </div>
                   </div>
@@ -183,8 +187,7 @@
             <el-table-column prop="cardCount" label="卡数" min-width="68" align="center" header-align="center">
               <template #default="{ row }">
                 <div class="card-count-cell">
-                  <el-badge v-if="row.cardCount > 0" :value="row.cardCount" :max="99" type="primary" class="count-badge" />
-                  <span v-else class="no-data">0</span>
+                  <span class="card-count-badge" :class="{ empty: !row.cardCount }">{{ row.cardCount || 0 }} 张</span>
                 </div>
               </template>
             </el-table-column>
@@ -192,10 +195,10 @@
             <el-table-column prop="status" label="状态" min-width="78" align="center" header-align="center">
               <template #default="{ row }">
                 <div class="status-cell">
-                  <el-tag :type="row.status === 0 ? 'success' : 'danger'" size="small" effect="light">
+                  <span class="status-badge" :class="row.status === 0 ? 'is-active' : 'is-disabled'">
                     <span class="status-dot" :class="row.status === 0 ? 'dot-green' : 'dot-red'" />
                     {{ row.status === 0 ? '正常' : '停用' }}
-                  </el-tag>
+                  </span>
                 </div>
               </template>
             </el-table-column>
@@ -972,6 +975,7 @@ function ensureExpandedRowVisible(row: UserData) {
 function rowClassName({ row }: { row: UserData }) {
   const visibleIndex = visibleRowIndexMap.value.get(row.id) ?? 0
   const classNames = [`user-row-${row.id}`, visibleIndex % 2 === 0 ? 'row-even' : 'row-odd']
+  classNames.push(row.parentId ? 'row-child-user' : 'row-main-user')
   if (row.status === 1) classNames.push('row-disabled')
   return classNames.join(' ')
 }
@@ -1237,8 +1241,12 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   flex-direction: column;
   align-items: stretch;
   flex-shrink: 0;
-  gap: 6px 10px;
-  padding: 4px;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid #e5eaf1;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: none;
 }
 
 .user-search-panel .app-search-main {
@@ -1270,8 +1278,8 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 .quick-menu-bar {
   align-items: stretch;
   justify-content: flex-start;
-  padding-top: 4px;
-  border-top: 1px dashed #e5eaf1;
+  padding-top: 6px;
+  border-top: 1px solid #eef1f6;
 }
 
 .user-search-panel .app-search-btn {
@@ -1320,33 +1328,57 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   display: flex;
   flex-direction: column;
   min-height: 0;
-}
-
-.data-panel {
-  padding: 4px;
+  padding: 0;
   overflow: hidden;
+  border: 1px solid #dbe2ea;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
 }
 
 .panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 5px;
-  margin-bottom: 6px;
+  gap: 10px;
+  min-height: 42px;
+  padding: 9px 12px;
+  border-bottom: 1px solid #e5eaf1;
+  background: #f8fafc;
   flex-shrink: 0;
 }
 
 .panel-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
   color: #1f2a37;
   line-height: 1.15;
+}
+
+.panel-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #526074;
+  flex-shrink: 0;
+}
+
+.panel-dot.is-primary {
+  background: #0958d9;
+}
+
+.data-title-block {
+  min-width: 0;
 }
 
 .data-title {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .data-title-count {
@@ -1355,10 +1387,16 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   height: 20px;
   padding: 0 8px;
   border-radius: 999px;
-  background: rgba(9, 88, 217, 0.08);
-  color: #0958d9;
+  border: 1px solid #dbe7ff;
+  background: #fff;
+  color: #526074;
   font-size: 10.5px;
   font-weight: 700;
+  white-space: nowrap;
+}
+
+.data-title-sub {
+  display: none;
 }
 
 .panel-desc {
@@ -1367,16 +1405,20 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 
 .menu-list {
   display: grid;
-  gap: 3px;
+  gap: 0;
   overflow: hidden;
 }
 
 .menu-list-inline {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 6px;
+  gap: 0;
   min-width: 0;
   width: 100%;
+  border: 1px solid #e5eaf1;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 3px;
 }
 
 .menu-item {
@@ -1385,29 +1427,30 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   align-items: center;
   gap: 6px;
   width: 100%;
-  height: 36px;
-  padding: 0 12px;
-  border: 1px solid rgba(218, 226, 236, 0.92);
-  border-radius: 12px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(248,250,253,0.97) 100%);
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
   color: #55657b;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 6px 16px rgba(15,23,42,0.05);
+  box-shadow: none;
 }
 
 .menu-item:hover {
-  transform: translateY(-1px);
-  border-color: rgba(180, 206, 255, 0.92);
-  box-shadow: 0 10px 18px rgba(15,23,42,0.07);
+  transform: none;
+  background: #fff;
+  border-color: #dbe7ff;
+  box-shadow: none;
 }
 
 .menu-item.active {
-  transform: translateY(-1px);
-  border-color: transparent;
-  background: linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(234,242,255,0.95) 160%);
+  transform: none;
+  border-color: #b4ceff;
+  background: #fff;
   color: #0958d9;
-  box-shadow: inset 0 0 0 1.5px rgba(180, 206, 255, 0.85), 0 12px 22px rgba(15,23,42,0.08);
+  box-shadow: 0 4px 10px rgba(9, 88, 217, 0.08);
 }
 
 .menu-dot {
@@ -1418,7 +1461,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 
 .menu-label {
   text-align: center;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -1426,14 +1469,14 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 }
 
 .menu-count {
-  min-width: 20px;
-  height: 20px;
+  min-width: 18px;
+  height: 18px;
   padding: 0 4px;
   border-radius: 999px;
-  background: rgba(9, 88, 217, 0.1);
+  background: rgba(148, 163, 184, 0.12);
   color: inherit;
-  font-size: 11px;
-  line-height: 20px;
+  font-size: 10.5px;
+  line-height: 18px;
   text-align: center;
 }
 
@@ -1444,7 +1487,8 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 .data-head-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .user-table-wrap {
@@ -1453,7 +1497,8 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 4px 6px;
+  margin: 8px 10px 0;
+  padding: 0;
   box-sizing: border-box;
   border: 1px solid #e5eaf1;
   border-radius: 10px;
@@ -1512,8 +1557,11 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   justify-content: space-between;
   align-items: center;
   gap: 8px;
-  min-height: 28px;
-  padding-top: 3px;
+  min-height: 34px;
+  margin: 6px 10px 8px;
+  padding: 4px 8px;
+  border-top: 1px solid #eef1f6;
+  background: #fff;
   flex-shrink: 0;
 }
 
@@ -1663,8 +1711,24 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 }
 
 /*noinspection CssUnusedSymbol*/
+.user-table-wrap :deep(.el-table__body tr.row-main-user > td.el-table__cell:first-child) {
+  box-shadow: inset 2px 0 0 #0958d9;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-table-wrap :deep(.el-table__body tr.row-child-user > td.el-table__cell:first-child) {
+  box-shadow: inset 2px 0 0 #98a2b3;
+}
+
+/*noinspection CssUnusedSymbol*/
 .user-table-wrap :deep(.el-table__body tr:hover > td.el-table__cell) {
   background: #eef5ff !important;
+  box-shadow: none;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-table-wrap :deep(.el-table__body tr:hover > td.el-table__cell:first-child) {
+  box-shadow: inset 2px 0 0 #0958d9;
 }
 
 /*noinspection CssUnusedSymbol*/
@@ -1674,7 +1738,12 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 
 /*noinspection CssUnusedSymbol*/
 .user-table-wrap :deep(.el-table__body tr.row-disabled > td.el-table__cell) {
-  background: #f2f4f7 !important;
+  background: #f4f4f5 !important;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-table-wrap :deep(.el-table__body tr.row-disabled > td.el-table__cell:first-child) {
+  box-shadow: inset 2px 0 0 #cf1322;
 }
 
 .user-cell {
@@ -1725,13 +1794,14 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 .avatar-wrap {
   width: var(--user-avatar-size);
   height: var(--user-avatar-size);
-  border-radius: 7px;
-  background: linear-gradient(135deg, #e6f0ff 0%, #cfe0ff 100%);
+  border-radius: 6px;
+  background: #e6f0ff;
   color: #0958d9;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(9, 88, 217, 0.08);
 }
 
 .avatar-wrap :deep(.el-icon) {
@@ -1741,8 +1811,9 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 }
 
 .avatar-child {
-  background: linear-gradient(135deg, #f1f4f8 0%, #e4e9f1 100%);
+  background: #f1f4f8;
   color: #6b7280;
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.18);
 }
 
 .name-row {
@@ -1755,12 +1826,31 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   line-height: 1.2;
 }
 
-.role-tag {
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
   height: 16px;
   padding: 0 5px;
   font-size: 10px;
   line-height: 14px;
+  font-weight: 700;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.role-badge.is-main {
+  color: #ad6800;
+  background: #fff7e6;
+  border-color: #ffd591;
+}
+
+.role-badge.is-child {
+  color: #526074;
+  background: #f4f4f5;
+  border-color: #e5eaf1;
 }
 
 .name-text {
@@ -1810,6 +1900,19 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   text-overflow: ellipsis;
 }
 
+.relation-cell {
+  width: auto;
+  max-width: 100%;
+  min-height: 18px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #526074;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .remark-cell {
   display: block;
   overflow: hidden;
@@ -1821,8 +1924,13 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 .phone-cell-inner {
   display: inline-flex;
   align-items: center;
-  width: 98px;
+  width: 102px;
   max-width: 100%;
+  min-height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
 }
 
 .phone-icon {
@@ -1832,6 +1940,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   width: 14px;
   margin-right: 4px;
   flex-shrink: 0;
+  color: #0958d9;
 }
 
 .phone-text {
@@ -1891,9 +2000,9 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   align-items: center;
   justify-content: center;
   gap: 2px;
-  min-height: 20px;
-  padding: 0 4px;
-  border-radius: 999px;
+  min-height: 18px;
+  padding: 0 6px;
+  border-radius: 4px;
   font-size: 10px;
   font-weight: 700;
   line-height: 1.05;
@@ -1908,9 +2017,9 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 }
 
 .fee-badge.has-rate {
-  background: linear-gradient(135deg, #faad14 0%, #ffc53d 100%);
-  border-color: transparent;
-  color: #fff;
+  background: #fff7e6;
+  border-color: #ffd591;
+  color: #ad6800;
 }
 
 .pct-sign {
@@ -1928,25 +2037,55 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   min-width: 0;
 }
 
-/*noinspection CssUnusedSymbol*/
-.count-badge :deep(.el-badge__content) {
-  font-weight: 700;
-  min-width: 14px;
-  height: 14px;
-  padding: 0 3px;
-  font-size: var(--user-font-size);
-  line-height: 14px;
+.card-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  min-height: 18px;
+  padding: 0 6px;
+  border: 1px solid #bae0ff;
+  border-radius: 4px;
+  background: #e6f4ff;
+  color: #0958d9;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
-/*noinspection CssUnusedSymbol*/
-.status-cell :deep(.el-tag) {
+.card-count-badge.empty {
+  border-color: #e9e9eb;
+  background: #f4f4f5;
+  color: #909399;
+}
+
+.status-badge {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  min-height: 20px;
-  padding: 0 4px;
+  justify-content: center;
+  width: 52px;
+  min-width: 52px;
+  min-height: 18px;
+  padding: 0 5px;
+  border-radius: 4px;
   font-size: 10px;
   font-weight: 700;
+  border: 1px solid transparent;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+.status-badge.is-active {
+  color: #2f9e44;
+  background: #f0f9eb;
+  border-color: #e1f3d8;
+}
+
+.status-badge.is-disabled {
+  color: #cf1322;
+  background: #fef0f0;
+  border-color: #fde2e2;
 }
 
 .status-dot {

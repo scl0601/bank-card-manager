@@ -57,54 +57,76 @@
           <article
             v-for="card in cards"
             :key="card.id"
-            class="bank-card-tile"
-            :class="[specialCardExpireClass(card.expireDate), { disabled: card.status === 1 }]"
+            class="list-item card-item bank-card-tile"
+            :class="[specialCardExpireClass(card.expireDate), { 'is-card-disabled': isSpecialCardDisabled(card) }]"
             :title="specialCardTitle(card)"
           >
-            <div class="special-card-left">
-              <div class="bank-mark">
-                <el-icon><CreditCard /></el-icon>
+            <div class="li-left card-info-left">
+              <div class="li-icon credit">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="5" width="18" height="14" rx="2" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
               </div>
-              <div class="special-card-main">
-                <div class="special-card-row-top">
-                  <span class="special-card-bank">{{ card.bankName || '-' }}</span>
-                  <i class="special-card-sep"></i>
-                  <span class="special-card-last4">尾号 {{ card.cardNoLast4 || '-' }}</span>
-                  <span v-if="card.status === 1" class="special-card-status-disabled">停用</span>
-                  <el-tag v-else size="small" type="success" effect="light">正常</el-tag>
+              <div class="li-main">
+                <div class="card-row-top">
+                  <span class="cig-name">{{ specialCardUserLabel(card) }}</span>
+                  <i class="cig-sep"></i>
+                  <span class="cig-bank">{{ card.bankName || '—' }}</span>
+                  <i class="cig-sep"></i>
+                  <span class="cig-last4 font-mono">{{ specialCardLast4Label(card) }}</span>
                 </div>
-                <div class="special-card-row-sub">
-                  <span class="special-card-type">特殊卡</span>
-                  <span class="special-card-dot"></span>
-                  <span class="special-card-label">持卡人</span>
-                  <span class="special-card-date">{{ card.userName || config.userName || '-' }}</span>
-                  <span class="special-card-dot"></span>
-                  <span class="special-card-label">账单日</span>
-                  <span :class="['special-card-date', { empty: !card.billDay }]">{{ formatDayOfMonth(card.billDay) }}</span>
-                  <span class="special-card-dot"></span>
-                  <span class="special-card-label">还款日</span>
-                  <span :class="['special-card-date', { empty: !card.repaymentDay }]">{{ formatDayOfMonth(card.repaymentDay) }}</span>
-                  <span class="special-card-dot"></span>
-                  <span class="special-card-label">有效期</span>
-                  <span :class="['special-card-date', { 'special-card-expire-date': card.expireDate, empty: !card.expireDate, 'expire-warning': isSpecialCardExpiringSoon(card.expireDate), 'expire-expired': isSpecialCardExpired(card.expireDate) }]">{{ card.expireDate || '-' }}</span>
-                  <span class="special-card-dot"></span>
-                  <span class="special-card-label">费率</span>
-                  <span class="special-card-date">{{ formatRate(card.feeRate) }}%</span>
-                  <span class="special-card-dot"></span>
-                  <span class="special-card-label">账单</span>
-                  <span class="special-card-date">{{ card.billCount || 0 }}条</span>
+                <div class="card-row-sub">
+                  <span class="cig-type">特殊卡</span>
+                  <span v-if="isSpecialCardDisabled(card)" class="cig-status-disabled">{{ statusText(card.status) }}</span>
+                  <span class="cig-sep-dot"></span>
+                  <span class="cig-label">账单日</span>
+                  <span :class="['cig-date', { 'cig-empty': !card.billDay }]">{{ card.billDay ? formatDayOfMonth(card.billDay) : '—' }}</span>
+                  <span class="cig-sep-dot"></span>
+                  <span class="cig-label">还款日</span>
+                  <span :class="['cig-date', { 'cig-empty': !card.repaymentDay }]">{{ card.repaymentDay ? formatDayOfMonth(card.repaymentDay) : '—' }}</span>
+                  <span class="cig-sep-dot"></span>
+                  <span class="cig-label">有效期</span>
+                  <span :class="['cig-date', 'cig-expire-date', { 'cig-empty': !card.expireDate, 'cig-expire-warning': isSpecialCardExpiringSoon(card.expireDate), 'cig-expire-expired': isSpecialCardExpired(card.expireDate) }]">{{ card.expireDate || '—' }}</span>
+                  <span class="cig-sep-dot"></span>
+                  <span class="cig-label">费率</span>
+                  <span class="cig-date">{{ formatRate(card.feeRate) }}%</span>
+                  <span class="cig-sep-dot"></span>
+                  <span class="cig-label">账单</span>
+                  <span class="cig-date">{{ card.billCount || 0 }}条</span>
                 </div>
                 <div v-if="card.remark" class="special-card-remark" :title="card.remark">{{ card.remark }}</div>
               </div>
             </div>
-            <div class="special-card-right">
-              <div class="tile-amount">
-                <span>卡片额度</span>
-                <strong>{{ formatMoney(card.totalAmount) }}</strong>
+            <div class="li-right card-info-right">
+              <div class="amt">
+                <span class="amt-label">卡片额度</span>
+                <span class="amt-value font-mono">{{ formatMoney(card.totalAmount) }}</span>
               </div>
-              <div class="tile-actions">
-                <el-button size="small" :disabled="!canEdit" @click="openEditCard(card)">编辑</el-button>
-                <el-button size="small" type="danger" plain :disabled="!isAdmin" @click="deleteCard(card)">删除</el-button>
+              <div class="li-actions">
+                <button class="mini-icon" @click.stop="openSpecialCardBills(card)" title="详情">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                  </svg>
+                </button>
+                <button class="mini-icon" :disabled="!canEdit" @click.stop="openEditCard(card)" title="编辑">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                  </svg>
+                </button>
+                <button class="mini-icon danger" :disabled="!isAdmin" @click.stop="deleteCard(card)" title="删除">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                    <path d="M10 11v6" />
+                    <path d="M14 11v6" />
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                  </svg>
+                </button>
               </div>
             </div>
           </article>
@@ -152,6 +174,23 @@
           >
             批量删除 ({{ selectedBillRows.length }})
           </el-button>
+          <el-button
+            v-if="canEdit"
+            type="primary"
+            plain
+            :loading="importingBills"
+            :disabled="!config.userId"
+            @click="openImportBillFile"
+          >
+            导入年度账单
+          </el-button>
+          <input
+            ref="importBillFileRef"
+            class="hidden-file-input"
+            type="file"
+            accept=".xlsx"
+            @change="handleImportBillFileChange"
+          />
           <el-button @click="resetBillQuery">重置</el-button>
           <span class="filter-hint">{{ annualBillHint }}</span>
         </section>
@@ -333,90 +372,92 @@
           <span class="filter-hint">筛选变化后自动刷新</span>
         </section>
 
-        <section class="profit-summary-grid" v-loading="profitLoading">
-          <div v-for="item in profitSummaryCards" :key="item.label" class="profit-summary-item">
-              <span>{{ item.label === '每月账单金额' ? '账单总金额' : item.label }}</span>
-            <strong :class="item.className">{{ item.value }}</strong>
-          </div>
-        </section>
+        <section class="profit-aligned-shell">
+          <section class="profit-summary-grid" v-loading="profitLoading">
+            <div v-for="item in profitSummaryCards" :key="item.label" :class="['profit-summary-item', item.gridClass]">
+              <span>{{ item.label }}</span>
+              <strong :class="item.className">{{ item.value }}</strong>
+            </div>
+          </section>
 
-        <section class="profit-tables">
-          <div class="profit-table-block">
-            <div class="block-title">
-              <span>收益统计</span>
-              <span>{{ profitPaginationText }}</span>
+          <section class="profit-tables">
+            <div class="profit-table-block">
+              <div class="block-title">
+                <span>收益统计</span>
+                <span>{{ profitPaginationText }}</span>
+              </div>
+              <el-table :data="pagedProfitRows" border stripe size="small" height="100%" table-layout="fixed" :row-class-name="profitRowClassName">
+                <el-table-column prop="billYear" label="年" width="48" align="center" />
+                <el-table-column prop="billMonthNo" label="月" width="40" align="center" />
+                <el-table-column label="银行卡" min-width="120" show-overflow-tooltip>
+                  <template #default="{ row }">
+                    {{ row.bankName }} / {{ row.cardNoLast4 }}
+                    <span v-if="isSpecialBillCardDisabled(row)" class="card-disabled-pill">停用</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="账单日" width="56" align="center">
+                  <template #default="{ row }">{{ formatDayOfMonth(row.billDay) }}</template>
+                </el-table-column>
+                <el-table-column label="还款日" width="56" align="center">
+                  <template #default="{ row }">{{ formatDayOfMonth(row.repaymentDay) }}</template>
+                </el-table-column>
+                <el-table-column label="账单总金额" min-width="104" align="right">
+                  <template #default="{ row }">{{ formatMoney(row.totalAmount) }}</template>
+                </el-table-column>
+                <el-table-column label="小焕还款" min-width="96" align="right">
+                  <template #default="{ row }">{{ formatMoney(row.xiaohuanRepayAmount) }}</template>
+                </el-table-column>
+                <el-table-column label="还款手续费" min-width="104" align="right">
+                  <template #default="{ row }">{{ formatMoney(row.repaymentFee) }}</template>
+                </el-table-column>
+                <el-table-column label="小焕消费" min-width="96" align="right">
+                  <template #default="{ row }">{{ formatMoney(row.xiaohuanConsumeAmount) }}</template>
+                </el-table-column>
+                <el-table-column label="消费手续费" min-width="104" align="right">
+                  <template #default="{ row }">{{ formatMoney(row.consumeFee) }}</template>
+                </el-table-column>
+                <el-table-column label="利息" min-width="82" align="right">
+                  <template #default="{ row }">
+                    <el-input-number v-model="row.interestAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialProfitRow(row)" />
+                  </template>
+                </el-table-column>
+                <el-table-column label="滞纳金" min-width="82" align="right">
+                  <template #default="{ row }">
+                    <el-input-number v-model="row.lateFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialProfitRow(row)" />
+                  </template>
+                </el-table-column>
+                <el-table-column label="分期费" min-width="82" align="right">
+                  <template #default="{ row }">
+                    <el-input-number v-model="row.installmentFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialProfitRow(row)" />
+                  </template>
+                </el-table-column>
+                <el-table-column label="总计" min-width="90" align="right">
+                  <template #default="{ row }">
+                    <span class="amount-income">{{ formatMoney(calcProfitTotal(row)) }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="54" align="center">
+                  <template #default="{ row }">
+                    <el-button type="primary" link size="small" :disabled="!canEditSpecialProfitRow(row)" :loading="savingProfitBillId === row.billId" @click="saveProfitExtras(row)">
+                      保存
+                    </el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <div class="profit-pagination">
+                <span class="pagination-meta">共 {{ profitTotal }} 条</span>
+                <el-pagination
+                  v-model:current-page="profitPage.current"
+                  v-model:page-size="profitPage.size"
+                  :total="profitTotal"
+                  :page-sizes="profitPageSizeOptions"
+                  small
+                  background
+                  layout="sizes, prev, pager, next"
+                />
+              </div>
             </div>
-            <el-table :data="pagedProfitRows" border stripe size="small" height="100%" table-layout="fixed" :row-class-name="profitRowClassName">
-              <el-table-column prop="billYear" label="年" width="48" align="center" />
-              <el-table-column prop="billMonthNo" label="月" width="40" align="center" />
-              <el-table-column label="银行" min-width="96" show-overflow-tooltip>
-                <template #default="{ row }">
-                  {{ row.bankName }} / {{ row.cardNoLast4 }}
-                  <span v-if="isSpecialBillCardDisabled(row)" class="card-disabled-pill">停用</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="账单日" width="56" align="center">
-                <template #default="{ row }">{{ formatDayOfMonth(row.billDay) }}</template>
-              </el-table-column>
-              <el-table-column label="还款日" width="56" align="center">
-                <template #default="{ row }">{{ formatDayOfMonth(row.repaymentDay) }}</template>
-              </el-table-column>
-              <el-table-column label="账单金额" min-width="90" align="right">
-                <template #default="{ row }">{{ formatMoney(row.totalAmount) }}</template>
-              </el-table-column>
-              <el-table-column label="小焕还款" min-width="90" align="right">
-                <template #default="{ row }">{{ formatMoney(row.xiaohuanRepayAmount) }}</template>
-              </el-table-column>
-              <el-table-column label="还款手续费" min-width="94" align="right">
-                <template #default="{ row }">{{ formatMoney(row.repaymentFee) }}</template>
-              </el-table-column>
-              <el-table-column label="小焕消费" min-width="90" align="right">
-                <template #default="{ row }">{{ formatMoney(row.xiaohuanConsumeAmount) }}</template>
-              </el-table-column>
-              <el-table-column label="消费手续费" min-width="94" align="right">
-                <template #default="{ row }">{{ formatMoney(row.consumeFee) }}</template>
-              </el-table-column>
-              <el-table-column label="利息" min-width="82" align="right">
-                <template #default="{ row }">
-                  <el-input-number v-model="row.interestAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialProfitRow(row)" />
-                </template>
-              </el-table-column>
-              <el-table-column label="滞纳金" min-width="82" align="right">
-                <template #default="{ row }">
-                  <el-input-number v-model="row.lateFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialProfitRow(row)" />
-                </template>
-              </el-table-column>
-              <el-table-column label="分期费" min-width="82" align="right">
-                <template #default="{ row }">
-                  <el-input-number v-model="row.installmentFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialProfitRow(row)" />
-                </template>
-              </el-table-column>
-              <el-table-column label="总计" min-width="90" align="right">
-                <template #default="{ row }">
-                  <span class="amount-income">{{ formatMoney(calcProfitTotal(row)) }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="54" align="center">
-                <template #default="{ row }">
-                  <el-button type="primary" link size="small" :disabled="!canEditSpecialProfitRow(row)" :loading="savingProfitBillId === row.billId" @click="saveProfitExtras(row)">
-                    保存
-                  </el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-            <div class="profit-pagination">
-              <span class="pagination-meta">共 {{ profitTotal }} 条</span>
-              <el-pagination
-                v-model:current-page="profitPage.current"
-                v-model:page-size="profitPage.size"
-                :total="profitTotal"
-                :page-sizes="profitPageSizeOptions"
-                small
-                background
-                layout="sizes, prev, pager, next"
-              />
-            </div>
-          </div>
+          </section>
         </section>
       </el-tab-pane>
     </el-tabs>
@@ -475,6 +516,7 @@ import {
   getSpecialCardsApi,
   getSpecialConfigApi,
   getSpecialProfitStatsApi,
+  importSpecialBillsApi,
   saveSpecialCardApi,
   saveSpecialConfigApi,
   updateSpecialBillApi,
@@ -612,6 +654,7 @@ const cardLoading = ref(false)
 const savingCard = ref(false)
 const billLoading = ref(false)
 const profitLoading = ref(false)
+const importingBills = ref(false)
 const savingBillId = ref<number>()
 const savingProfitBillId = ref<number>()
 const deletingHistoryBills = ref(false)
@@ -620,8 +663,12 @@ const batchDeletingBills = ref(false)
 const cardDialogVisible = ref(false)
 const cardFormRef = ref<FormInstance>()
 const billTableRef = ref<any>()
+const importBillFileRef = ref<HTMLInputElement>()
 
-const yearOptions = [2020, 2021, 2022, 2023, 2024, 2025, 2026]
+const minYear = 1900
+const maxYear = 2100
+const currentYear = new Date().getFullYear()
+const yearOptions = Array.from({ length: maxYear - minYear + 1 }, (_, index) => minYear + index)
 const deleteBoundaryYearOptions = [...yearOptions]
 const monthOptions = Array.from({ length: 12 }, (_, index) => index + 1)
 const billListSize = 10
@@ -630,12 +677,12 @@ const billPageSizeOptions = [10, 20, 50, 100]
 const billQuery = reactive({
   current: 1,
   size: billListSize,
-  year: new Date().getFullYear() as number | undefined,
+  year: currentYear as number | undefined,
   month: new Date().getMonth() + 1 as number | undefined,
   cardId: undefined as number | undefined
 })
 const billTotal = ref(0)
-const deleteBoundaryYear = ref(2023)
+const deleteBoundaryYear = ref(currentYear)
 const selectedBillRows = ref<SpecialBill[]>([])
 
 const profitQuery = reactive({
@@ -677,8 +724,9 @@ const cardDialogTitle = computed(() => (cardForm.id ? '编辑特殊银行卡' : 
 const totalCardAmount = computed(() => cards.value.reduce((sum, card) => sum + toNumber(card.totalAmount), 0))
 const totalBillCount = computed(() => cards.value.reduce((sum, card) => sum + Number(card.billCount || 0), 0))
 const selectedBillCard = computed(() => cards.value.find(card => Number(card.id) === Number(billQuery.cardId)))
+const importBillYear = computed(() => billQuery.year || currentYear)
 const annualBillHint = computed(() => {
-  if (!cards.value.length) return '新增银行卡后自动生成2020-2026年度账单'
+  if (!cards.value.length) return '新增银行卡后自动生成基础年度账单，导入其他年份时会补齐对应年度'
   const card = selectedBillCard.value
   const year = billQuery.year ? `${billQuery.year}年` : '全部年份'
   const month = billQuery.month ? `${billQuery.month}月` : '全部月份'
@@ -689,15 +737,17 @@ const annualBillHint = computed(() => {
 const profitSummaryCards = computed(() => {
   const overview = profitStats.overview || {}
   return [
-    { label: '银行卡', value: String(overview.cardCount || 0) },
-    { label: '账单数', value: String(overview.billCount || 0) },
-    { label: '每月账单金额', value: formatMoney(overview.totalBillAmount) },
-    { label: '还款手续费', value: formatMoney(overview.totalRepaymentFee), className: 'amount-income' },
-    { label: '消费手续费', value: formatMoney(overview.totalConsumeFee), className: 'amount-income' },
-    { label: '利息', value: formatMoney(overview.totalInterestAmount), className: 'amount-income' },
-    { label: '滞纳金', value: formatMoney(overview.totalLateFeeAmount), className: 'amount-income' },
-    { label: '分期费', value: formatMoney(overview.totalInstallmentFeeAmount), className: 'amount-income' },
-    { label: '总计', value: formatMoney(overview.totalProfitAmount), className: 'amount-income' }
+    { label: '银行卡', value: String(overview.cardCount || 0), gridClass: 'profit-summary-bank' },
+    { label: '账单数', value: String(overview.billCount || 0), gridClass: 'profit-summary-bill-count' },
+    { label: '账单总金额', value: formatMoney(overview.totalBillAmount), gridClass: 'profit-summary-bill-amount' },
+    { label: '小焕还款', value: formatMoney(overview.totalXiaohuanRepayAmount), gridClass: 'profit-summary-xh-repay' },
+    { label: '还款手续费', value: formatMoney(overview.totalRepaymentFee), className: 'amount-income', gridClass: 'profit-summary-repay-fee' },
+    { label: '小焕消费', value: formatMoney(overview.totalXiaohuanConsumeAmount), gridClass: 'profit-summary-xh-consume' },
+    { label: '消费手续费', value: formatMoney(overview.totalConsumeFee), className: 'amount-income', gridClass: 'profit-summary-consume-fee' },
+    { label: '利息', value: formatMoney(overview.totalInterestAmount), className: 'amount-income', gridClass: 'profit-summary-interest' },
+    { label: '滞纳金', value: formatMoney(overview.totalLateFeeAmount), className: 'amount-income', gridClass: 'profit-summary-late-fee' },
+    { label: '分期费', value: formatMoney(overview.totalInstallmentFeeAmount), className: 'amount-income', gridClass: 'profit-summary-installment-fee' },
+    { label: '总计', value: formatMoney(overview.totalProfitAmount), className: 'amount-income', gridClass: 'profit-summary-total' }
   ]
 })
 
@@ -959,7 +1009,7 @@ async function submitCard() {
       ElMessage.success('银行卡已更新')
     } else {
       await saveSpecialCardApi(payload)
-      ElMessage.success('银行卡已新增，2020-2026账单已生成')
+      ElMessage.success('银行卡已新增，基础年度账单已生成')
     }
     cardDialogVisible.value = false
     await fetchCards()
@@ -1019,7 +1069,7 @@ async function fetchBills() {
 async function resetBillQuery() {
   billQuery.current = 1
   billQuery.size = billListSize
-  billQuery.year = new Date().getFullYear()
+  billQuery.year = currentYear
   billQuery.month = new Date().getMonth() + 1
   billQuery.cardId = undefined
   await fetchBills()
@@ -1096,6 +1146,63 @@ async function batchDeleteBills() {
     await fetchBills()
   } finally {
     batchDeletingBills.value = false
+  }
+}
+
+function openImportBillFile() {
+  if (!canEdit.value || !config.userId || importingBills.value) return
+  if (importBillFileRef.value) {
+    importBillFileRef.value.value = ''
+    importBillFileRef.value.click()
+  }
+}
+
+async function handleImportBillFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  if (!file.name.toLowerCase().endsWith('.xlsx')) {
+    ElMessage.warning('请选择 .xlsx 文件')
+    return
+  }
+  const filenameYear = extractYearFromFilename(file.name)
+  const year = filenameYear || importBillYear.value
+  if (filenameYear && filenameYear !== importBillYear.value) {
+    ElMessage.info(`已按文件名年份 ${filenameYear} 年导入`)
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `将覆盖${year}年账单金额、小焕还款、小焕消费；不修改核实开关，也不修改未匹配的卡。`,
+      `导入${year}年特殊账单`,
+      {
+        type: 'warning',
+        confirmButtonText: '开始导入',
+        cancelButtonText: '取消'
+      }
+    )
+  } catch {
+    return
+  }
+
+  importingBills.value = true
+  try {
+    const res = await importSpecialBillsApi(file, year)
+    const data = res.data || {}
+    const importedYear = Number(data.year || year)
+    if (Number.isFinite(importedYear)) {
+      billQuery.year = importedYear
+      profitQuery.year = importedYear
+    }
+    await ElMessageBox.alert(formatImportResult(data), '导入完成', {
+      confirmButtonText: '知道了',
+      dangerouslyUseHTMLString: false
+    })
+    await fetchCards()
+    await refreshActiveTabData()
+  } finally {
+    importingBills.value = false
   }
 }
 
@@ -1205,8 +1312,23 @@ function cardLabel(card: SpecialCard) {
   return `${card.bankName || '-'} / 尾号 ${card.cardNoLast4 || '-'}`
 }
 
+function specialCardUserLabel(card: SpecialCard) {
+  return card.userName || config.userName || '—'
+}
+
+function specialCardLast4Label(card: SpecialCard) {
+  return card.cardNoLast4 ? `尾号 ${card.cardNoLast4}` : '尾号 —'
+}
+
 function statusText(status?: number) {
   return status === 1 ? '停用' : '正常'
+}
+
+async function openSpecialCardBills(card: SpecialCard) {
+  billQuery.cardId = card.id
+  billQuery.current = 1
+  activeTab.value = 'bills'
+  await fetchBills()
 }
 
 function sortCardsByRepaymentDay(list: SpecialCard[]) {
@@ -1382,6 +1504,35 @@ function calcProfitTotal(row: any) {
   )
 }
 
+function formatImportResult(data: any) {
+  const lines = [
+    `年份：${data.year || importBillYear.value}`,
+    `更新记录：${data.updatedRows || 0} 条`,
+    `导入卡片：${(data.importedCardNames || []).join('、') || '-'}`,
+    `未导入卡片：${(data.skippedCardNames || []).join('、') || '-'}`,
+    `账单金额合计：${formatMoney(data.totalBillAmount)}`,
+    `小焕还款合计：${formatMoney(data.totalXiaohuanRepayAmount)}`,
+    `小焕消费合计：${formatMoney(data.totalXiaohuanConsumeAmount)}`,
+    `还款手续费：${formatMoney(data.totalRepaymentFee)}`,
+    `消费手续费：${formatMoney(data.totalConsumeFee)}`,
+    `收益总计：${formatMoney(data.totalProfitAmount)}`
+  ]
+  const warnings = data.warnings || []
+  if (warnings.length) {
+    lines.push('', `提醒：${warnings.length} 条`)
+    lines.push(...warnings.slice(0, 8))
+    if (warnings.length > 8) {
+      lines.push(`还有 ${warnings.length - 8} 条提醒未显示`)
+    }
+  }
+  return lines.join('\n')
+}
+
+function extractYearFromFilename(filename: string) {
+  const match = filename.match(/(?:^|\D)((?:19|20)\d{2}|2100)(?!\d)/)
+  return match ? Number(match[1]) : undefined
+}
+
 function toNumber(value: number | string | null | undefined) {
   const num = Number(value ?? 0)
   return Number.isFinite(num) ? num : 0
@@ -1411,6 +1562,7 @@ function formatRate(value: number | string | null | undefined) {
   --special-list-empty-color: #98a2b3;
   --special-list-text-weight: 750;
   --special-list-strong-weight: 800;
+  --profit-grid-columns: 48px 40px minmax(120px, 1.2fr) 56px 56px minmax(104px, 1.04fr) minmax(96px, .96fr) minmax(104px, 1.04fr) minmax(96px, .96fr) minmax(104px, 1.04fr) minmax(82px, .82fr) minmax(82px, .82fr) minmax(82px, .82fr) minmax(90px, .9fr) 54px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1421,6 +1573,10 @@ function formatRate(value: number | string | null | undefined) {
   overflow: hidden;
   background: #f5f7fb;
   box-sizing: border-box;
+}
+
+.hidden-file-input {
+  display: none;
 }
 
 .special-header,
@@ -1584,26 +1740,33 @@ function formatRate(value: number | string | null | undefined) {
 .bank-card-tile {
   position: relative;
   min-width: 0;
-  min-height: 58px;
+  min-height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   padding: 8px 10px;
-  border: 1px solid #dbe2ea;
-  border-radius: 8px;
+  border: 1px solid rgba(219, 226, 234, .85);
+  border-radius: 14px;
   background: #fff;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
   overflow: hidden;
+  transition: all .16s;
 }
 
-.bank-card-tile.disabled {
+.bank-card-tile:hover {
+  border-color: rgba(9, 88, 217, .22);
+  box-shadow: 0 10px 18px rgba(15, 23, 42, .06);
+  transform: translateY(-1px);
+}
+
+.bank-card-tile.is-card-disabled {
   border-color: rgba(207, 19, 34, .48);
   background: #fff1f0;
   box-shadow: inset 0 0 0 1px rgba(207, 19, 34, .16);
 }
 
-.bank-card-tile.disabled .bank-mark {
+.bank-card-tile.is-card-disabled .li-icon {
   border-color: #ffa39e;
   color: #cf1322;
   background: #fff1f0;
@@ -1621,59 +1784,64 @@ function formatRate(value: number | string | null | undefined) {
   box-shadow: inset 0 0 0 1px rgba(207, 19, 34, .14), 0 4px 12px rgba(207, 19, 34, .08);
 }
 
-.bank-card-tile.disabled.is-expire-warning,
-.bank-card-tile.disabled.is-expire-expired {
+.bank-card-tile.is-card-disabled.is-expire-warning,
+.bank-card-tile.is-card-disabled.is-expire-expired {
   border-color: rgba(207, 19, 34, .55);
   background: #fff1f0;
   box-shadow: inset 0 0 0 1px rgba(207, 19, 34, .2), 0 4px 12px rgba(207, 19, 34, .08);
 }
 
-.special-card-left {
+.li-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
   flex: 1;
 }
 
-.bank-mark {
-  width: 30px;
-  height: 30px;
+.li-icon {
+  width: 34px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  border: 1px solid rgba(9, 88, 217, .16);
-  color: #0958d9;
-  background: #eaf2ff;
+  border: 1px solid rgba(219, 226, 234, .7);
+  border-radius: 12px;
+  color: #667085;
+  background: rgba(148, 163, 184, .12);
   flex-shrink: 0;
 }
 
-.special-card-main {
+.li-icon.credit {
+  color: #0958d9;
+  background: linear-gradient(180deg, rgba(9, 88, 217, .12) 0%, rgba(9, 88, 217, .06) 100%);
+  border-color: rgba(9, 88, 217, .14);
+}
+
+.li-main {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  flex: 1;
 }
 
-.special-card-row-top,
-.special-card-row-sub {
+.card-info-left {
+  min-width: 0;
+}
+
+.card-row-top,
+.card-row-sub {
   display: flex;
   align-items: center;
   gap: 0;
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
-  line-height: 1.5;
+  height: 20px;
+  line-height: 20px;
 }
 
-.special-card-row-top :deep(.el-tag) {
-  margin-left: 7px;
-  flex-shrink: 0;
-}
-
-.special-card-bank {
+.cig-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1683,15 +1851,25 @@ function formatRate(value: number | string | null | undefined) {
   flex-shrink: 1;
 }
 
-.special-card-last4 {
+.cig-bank {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--special-list-text-color);
-  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 1;
+}
+
+.cig-last4 {
+  color: var(--special-list-text-color);
   font-size: 13px;
   font-weight: var(--special-list-strong-weight);
+  letter-spacing: 0.5px;
   flex-shrink: 0;
 }
 
-.special-card-sep {
+.cig-sep {
   display: inline-block;
   width: 1px;
   height: 10px;
@@ -1700,7 +1878,7 @@ function formatRate(value: number | string | null | undefined) {
   flex-shrink: 0;
 }
 
-.special-card-dot {
+.cig-sep-dot {
   display: inline-block;
   width: 3px;
   height: 3px;
@@ -1710,29 +1888,24 @@ function formatRate(value: number | string | null | undefined) {
   flex-shrink: 0;
 }
 
-.special-card-type,
-.special-card-date {
+.cig-type,
+.cig-date {
+  display: inline-flex;
+  align-items: center;
   color: var(--special-list-text-color);
   font-size: 11.5px;
   font-weight: var(--special-list-text-weight);
+  height: 18px;
+  line-height: 18px;
   flex-shrink: 0;
 }
 
-.special-card-expire-date {
+.cig-expire-date {
   width: 48px;
-  min-width: 48px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
   justify-content: center;
-  box-sizing: border-box;
-  padding: 0 5px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  line-height: 1;
 }
 
-.special-card-label {
+.cig-label {
   margin-right: 2px;
   color: var(--special-list-muted-color);
   font-size: 11px;
@@ -1740,39 +1913,35 @@ function formatRate(value: number | string | null | undefined) {
   flex-shrink: 0;
 }
 
-.special-card-date.empty {
+.cig-empty {
   color: var(--special-list-empty-color);
   font-weight: var(--special-list-text-weight);
 }
 
-.special-card-expire-date.expire-warning,
-.special-card-expire-date.expire-expired,
-.special-card-status-disabled {
-  display: inline-flex;
-  align-items: center;
+.cig-expire-warning,
+.cig-expire-expired,
+.cig-status-disabled {
   flex-shrink: 0;
-  padding: 1px 5px;
+  box-sizing: border-box;
+  height: 18px;
+  padding: 0 5px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 800;
-  line-height: 1.2;
+  line-height: 16px;
 }
 
-.special-card-expire-date.expire-warning {
+.cig-expire-warning {
   color: #ad6800;
   background: #fff1b8;
   border: 1px solid #ffd666;
 }
 
-.special-card-expire-date.expire-expired,
-.special-card-status-disabled {
+.cig-expire-expired,
+.cig-status-disabled {
   color: #a8071a;
   background: #ffd8d6;
   border: 1px solid #ffa39e;
-}
-
-.special-card-status-disabled {
-  margin-left: 7px;
 }
 
 .special-card-remark {
@@ -1786,50 +1955,76 @@ function formatRate(value: number | string | null | undefined) {
   white-space: nowrap;
 }
 
-.special-card-right {
+.li-right,
+.card-info-right {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-  min-width: 260px;
   flex-shrink: 0;
 }
 
-.tile-amount {
+.amt {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  justify-content: center;
-  gap: 2px;
-  min-width: 118px;
-  min-height: 38px;
-  padding: 0;
-  background: transparent;
+  gap: 3px;
+  min-width: 88px;
+  text-align: right;
 }
 
-.tile-amount span {
+.amt-label {
   color: var(--special-list-muted-color);
-  font-size: 10.5px;
-  font-weight: var(--special-list-text-weight);
+  font-size: 11px;
+  font-weight: var(--special-list-strong-weight);
 }
 
-.tile-amount strong {
+.amt-value {
   min-width: 0;
   overflow: hidden;
   color: var(--special-list-text-color);
-  font-family: var(--font-mono);
-  font-size: 17px;
-  font-weight: var(--special-list-strong-weight);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: .2px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.tile-actions {
+.li-actions {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 6px;
-  flex-shrink: 0;
+}
+
+.mini-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(219, 226, 234, .75);
+  border-radius: 10px;
+  color: var(--special-list-muted-color);
+  background: rgba(148, 163, 184, .10);
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.mini-icon:hover:not(:disabled) {
+  border-color: rgba(9, 88, 217, .25);
+  color: #0958d9;
+  background: rgba(9, 88, 217, .08);
+}
+
+.mini-icon.danger:hover:not(:disabled) {
+  border-color: rgba(207, 19, 34, .4);
+  color: #cf1322;
+  background: rgba(207, 19, 34, .08);
+}
+
+.mini-icon:disabled {
+  cursor: not-allowed;
+  opacity: .45;
 }
 
 .filter-line {
@@ -2047,12 +2242,105 @@ function formatRate(value: number | string | null | undefined) {
   font-weight: 800;
 }
 
+.profit-aligned-shell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+}
+
 .profit-summary-grid {
   display: grid;
-  grid-template-columns: repeat(9, minmax(0, 1fr));
-  gap: 4px;
+  grid-template-columns: var(--profit-grid-columns);
+  gap: 0;
+  width: 100%;
+  min-width: 0;
   padding: 3px 4px;
   flex-shrink: 0;
+}
+
+.profit-summary-grid .profit-summary-item {
+  padding: 4px;
+  border-radius: 0;
+}
+
+.profit-summary-grid .profit-summary-item:first-child {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.profit-summary-grid .profit-summary-item:last-child {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.profit-summary-grid .profit-summary-item:not(:first-child) {
+  border-left: 0;
+}
+
+.profit-summary-bank {
+  grid-column: 1 / 4;
+}
+
+.profit-summary-bill-count {
+  grid-column: 4 / 6;
+}
+
+.profit-summary-bill-amount {
+  grid-column: 6;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.profit-summary-xh-repay {
+  grid-column: 7;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.profit-summary-repay-fee {
+  grid-column: 8;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.profit-summary-xh-consume {
+  grid-column: 9;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.profit-summary-consume-fee {
+  grid-column: 10;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.profit-summary-interest {
+  grid-column: 11;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.profit-summary-late-fee {
+  grid-column: 12;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.profit-summary-installment-fee {
+  grid-column: 13;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.profit-summary-total {
+  grid-column: 14 / 16;
+  align-items: flex-end;
+  padding-right: 58px !important;
+  text-align: right;
 }
 
 .profit-tables {
@@ -2062,6 +2350,8 @@ function formatRate(value: number | string | null | undefined) {
   grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   overflow: hidden;
+  width: 100%;
+  min-width: 0;
 }
 
 .profit-table-block {
@@ -2096,6 +2386,12 @@ function formatRate(value: number | string | null | undefined) {
   color: #3f4a5f;
   font-size: 12.5px;
   font-weight: 800;
+}
+
+.profit-table-block :deep(.el-table th.el-table__cell[align="right"] .cell),
+.profit-table-block :deep(.el-table th.el-table__cell.is-right .cell) {
+  justify-content: flex-end;
+  text-align: right;
 }
 
 .profit-table-block :deep(.el-table td.el-table__cell) {
@@ -2178,40 +2474,37 @@ function formatRate(value: number | string | null | undefined) {
     gap: 8px;
   }
 
-  .special-card-row-top,
-  .special-card-row-sub {
+  .card-row-top,
+  .card-row-sub {
     flex-wrap: wrap;
     row-gap: 2px;
     overflow: visible;
     white-space: normal;
   }
 
-  .special-card-bank {
+  .cig-name,
+  .cig-bank {
     flex-basis: auto;
   }
 
-  .special-card-right {
+  .card-info-right {
     min-width: 0;
     width: 100%;
     justify-content: space-between;
     gap: 8px;
   }
 
-  .tile-amount {
+  .amt {
     align-items: flex-start;
     min-width: 0;
   }
 
-  .tile-amount strong {
+  .amt-value {
     max-width: 100%;
   }
 
-  .tile-actions {
+  .li-actions {
     flex-wrap: nowrap;
-  }
-
-  .tile-actions :deep(.el-button) {
-    margin-left: 0;
   }
 }
 </style>

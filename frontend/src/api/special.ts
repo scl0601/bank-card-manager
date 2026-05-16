@@ -10,6 +10,17 @@ export const deleteSpecialCardApi = (id: number) => request.delete(`/special/car
 
 export const getSpecialBillPageApi = (params: any) => request.get('/special/bills/page', { params })
 export const updateSpecialBillApi = (data: any) => request.put('/special/bills', data)
+export const importSpecialBillsApi = (file: File, year?: number) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  if (year) {
+    formData.append('year', String(year))
+  }
+  return request.post('/special/bills/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60000
+  })
+}
 export const deleteSpecialBillsBeforeYearApi = (data: any) => request.delete('/special/bills/before-year', { data })
 export const deleteSpecialBillsAfterYearApi = (data: any) => request.delete('/special/bills/after-year', { data })
 export const batchDeleteSpecialBillsApi = (ids: number[]) => request.delete('/special/bills/batch', { data: ids })

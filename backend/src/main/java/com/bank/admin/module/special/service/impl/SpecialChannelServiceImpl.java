@@ -23,6 +23,7 @@ import com.bank.admin.module.special.mapper.SpecialCardBillMapper;
 import com.bank.admin.module.special.mapper.SpecialUserConfigMapper;
 import com.bank.admin.module.special.service.SpecialChannelService;
 import com.bank.admin.module.special.vo.SpecialBillVO;
+import com.bank.admin.module.special.vo.SpecialBillImportResultVO;
 import com.bank.admin.module.special.vo.SpecialCardVO;
 import com.bank.admin.module.special.vo.SpecialConfigVO;
 import com.bank.admin.module.special.vo.SpecialProfitCardVO;
@@ -31,12 +32,24 @@ import com.bank.admin.module.special.vo.SpecialProfitOverviewVO;
 import com.bank.admin.module.special.vo.SpecialProfitRowVO;
 import com.bank.admin.module.special.vo.SpecialProfitStatsVO;
 import lombok.RequiredArgsConstructor;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.CellValue;
+import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.FormulaEvaluator;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.YearMonth;
@@ -45,12 +58,15 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -59,6 +75,10 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
     private static final DateTimeFormatter MONTH_FMT = DateTimeFormatter.ofPattern("yyyy-MM");
     private static final int START_YEAR = 2020;
     private static final int END_YEAR = 2026;
+    private static final int MIN_IMPORT_YEAR = 1900;
+    private static final int MAX_IMPORT_YEAR = 2100;
+    private static final int EXPECTED_IMPORT_MONTH_COUNT = 12;
+    private static final Pattern IMPORT_YEAR_PATTERN = Pattern.compile("(?<!\\d)((?:19|20)\\d{2}|2100)(?!\\d)");
 
     private final SpecialUserConfigMapper specialUserConfigMapper;
     private final SpecialBankCardMapper specialBankCardMapper;
@@ -247,9 +267,90 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public SpecialBillImportResultVO importBills(MultipartFile file, Integer year) {
+        validateImportFile(file);
+        Integer targetYear = resolveImportYear(file, year);
+        validateImportYear(targetYear);
+
+        SpecialUserConfig config = getActiveConfig();
+        if (config == null || config.getUserId() == null) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "请先配置特殊用户");
+        }
+        Long userId = config.getUserId();
+        BigDecimal feeRate = resolveEffectiveFeeRate(userId);
+        List<ImportedSpecialBillRow> importedRows = parseSpecialBillWorkbook(file, targetYear);
+        Set<String> importedCardNames = importedRows.stream()
+                .map(ImportedSpecialBillRow::bankName)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        validateImportedRowsComplete(importedRows, importedCardNames);
+
+        Map<String, SpecialBankCard> cardMap = buildImportCardMap(userId);
+        for (String bankName : importedCardNames) {
+            if (!cardMap.containsKey(normalizeBankName(bankName))) {
+                throw new BusinessException(ResultCode.DATA_NOT_FOUND, "Excel中的特殊银行卡不存在：" + bankName);
+            }
+        }
+
+        ensureImportYearBills(importedCardNames, cardMap, userId, feeRate, targetYear);
+        Map<String, SpecialCardBill> billMap = loadImportTargetBills(importedRows, cardMap, targetYear);
+        SpecialBillImportResultVO result = new SpecialBillImportResultVO();
+        result.setYear(targetYear);
+        result.setUpdatedRows(0);
+        result.setImportedCardNames(new ArrayList<>(importedCardNames));
+        result.setImportedCardCount(importedCardNames.size());
+        result.setSkippedCardNames(cardMap.values().stream()
+                .map(SpecialBankCard::getBankName)
+                .filter(StringUtils::hasText)
+                .filter(bankName -> !importedCardNames.contains(bankName.trim()))
+                .distinct()
+                .toList());
+        result.setWarnings(new ArrayList<>());
+
+        BigDecimal totalBillAmount = moneyZero();
+        BigDecimal totalRepayAmount = moneyZero();
+        BigDecimal totalConsumeAmount = moneyZero();
+        BigDecimal totalRepaymentFee = moneyZero();
+        BigDecimal totalConsumeFee = moneyZero();
+        BigDecimal totalProfitAmount = moneyZero();
+
+        for (ImportedSpecialBillRow row : importedRows) {
+            SpecialBankCard card = cardMap.get(normalizeBankName(row.bankName()));
+            SpecialCardBill bill = billMap.get(importBillKey(card.getId(), row.monthNo()));
+            if (bill == null) {
+                throw new BusinessException(ResultCode.DATA_NOT_FOUND, "缺少特殊账单：" + row.bankName() + " " + targetYear + "-" + String.format("%02d", row.monthNo()));
+            }
+            bill.setUserId(userId);
+            bill.setFeeRate(feeRate);
+            bill.setBillAmount(row.billAmount());
+            bill.setXiaohuanRepayAmount(row.xiaohuanRepayAmount());
+            bill.setXiaohuanConsumeAmount(row.xiaohuanConsumeAmount());
+            recalculateBill(bill);
+            specialCardBillMapper.updateById(bill);
+
+            totalBillAmount = totalBillAmount.add(bill.getBillAmount());
+            totalRepayAmount = totalRepayAmount.add(bill.getXiaohuanRepayAmount());
+            totalConsumeAmount = totalConsumeAmount.add(bill.getXiaohuanConsumeAmount());
+            totalRepaymentFee = totalRepaymentFee.add(bill.getRepaymentFee());
+            totalConsumeFee = totalConsumeFee.add(bill.getConsumeFee());
+            totalProfitAmount = totalProfitAmount.add(bill.getProfitTotalAmount());
+            result.setUpdatedRows(result.getUpdatedRows() + 1);
+            result.getWarnings().addAll(row.warnings());
+        }
+
+        result.setTotalBillAmount(totalBillAmount.setScale(2, RoundingMode.HALF_UP));
+        result.setTotalXiaohuanRepayAmount(totalRepayAmount.setScale(2, RoundingMode.HALF_UP));
+        result.setTotalXiaohuanConsumeAmount(totalConsumeAmount.setScale(2, RoundingMode.HALF_UP));
+        result.setTotalRepaymentFee(totalRepaymentFee.setScale(2, RoundingMode.HALF_UP));
+        result.setTotalConsumeFee(totalConsumeFee.setScale(2, RoundingMode.HALF_UP));
+        result.setTotalProfitAmount(totalProfitAmount.setScale(2, RoundingMode.HALF_UP));
+        return result;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public int deleteBillsBeforeYear(SpecialBillBatchDeleteDTO dto) {
-        if (dto.getBeforeYear() < START_YEAR || dto.getBeforeYear() > END_YEAR + 1) {
-            throw new BusinessException(ResultCode.PARAM_ERROR, "保留起始年份必须在2020-2027之间");
+        if (dto.getBeforeYear() < MIN_IMPORT_YEAR || dto.getBeforeYear() > MAX_IMPORT_YEAR + 1) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "保留起始年份必须在1900-2101之间");
         }
         List<SpecialBankCard> targetCards = listTargetCards(dto.getCardId(), null);
         if (targetCards.isEmpty()) {
@@ -263,8 +364,8 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int deleteBillsAfterYear(SpecialBillAfterYearDeleteDTO dto) {
-        if (dto.getAfterYear() < START_YEAR - 1 || dto.getAfterYear() > END_YEAR) {
-            throw new BusinessException(ResultCode.PARAM_ERROR, "保留截止年份必须在2019-2026之间");
+        if (dto.getAfterYear() < MIN_IMPORT_YEAR - 1 || dto.getAfterYear() > MAX_IMPORT_YEAR) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "保留截止年份必须在1899-2100之间");
         }
         List<SpecialBankCard> targetCards = listTargetCards(dto.getCardId(), null);
         if (targetCards.isEmpty()) {
@@ -423,42 +524,54 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
                 if (existingMonths.contains(billMonth)) {
                     continue;
                 }
-                SpecialCardBill bill = new SpecialCardBill();
-                bill.setCardId(cardId);
-                bill.setUserId(userId);
-                bill.setBillMonth(billMonth);
-                bill.setBillYear(year);
-                bill.setBillMonthNo(month);
-                bill.setMonthlyTotalBillAmount(moneyZero());
-                bill.setBillDay(billDay);
-                bill.setRepaymentDay(repaymentDay);
-                bill.setBillAmount(moneyZero());
-                bill.setBillAmountVerified(false);
-                bill.setXiaohuanRepayAmount(moneyZero());
-                bill.setXiaohuanRepayVerified(false);
-                bill.setCustomerRepayAmount(moneyZero());
-                bill.setCustomerRepayVerified(false);
-                bill.setXiaohuanConsumeAmount(moneyZero());
-                bill.setXiaohuanConsumeVerified(false);
-                bill.setCustomerNeedAmount(moneyZero());
-                bill.setCustomerNeedVerified(false);
-                bill.setCustomerConsumeAmount(moneyZero());
-                bill.setCustomerConsumeVerified(false);
-                bill.setDiffAmount(moneyZero());
-                bill.setBalance(moneyZero());
-                bill.setFeeRate(feeRate);
-                bill.setRepaymentFee(moneyZero());
-                bill.setConsumeFee(moneyZero());
-                bill.setInterestAmount(moneyZero());
-                bill.setLateFeeAmount(moneyZero());
-                bill.setInstallmentFeeAmount(moneyZero());
-                bill.setProfitTotalAmount(moneyZero());
-                toInsert.add(bill);
+                toInsert.add(newEmptySpecialBill(cardId, userId, year, month, billDay, repaymentDay, feeRate));
             }
         }
         for (SpecialCardBill bill : toInsert) {
             specialCardBillMapper.insert(bill);
         }
+    }
+
+    private SpecialCardBill newEmptySpecialBill(
+            Long cardId,
+            Long userId,
+            int year,
+            int month,
+            Integer billDay,
+            Integer repaymentDay,
+            BigDecimal feeRate) {
+        YearMonth ym = YearMonth.of(year, month);
+        SpecialCardBill bill = new SpecialCardBill();
+        bill.setCardId(cardId);
+        bill.setUserId(userId);
+        bill.setBillMonth(ym.format(MONTH_FMT));
+        bill.setBillYear(year);
+        bill.setBillMonthNo(month);
+        bill.setMonthlyTotalBillAmount(moneyZero());
+        bill.setBillDay(billDay);
+        bill.setRepaymentDay(repaymentDay);
+        bill.setBillAmount(moneyZero());
+        bill.setBillAmountVerified(false);
+        bill.setXiaohuanRepayAmount(moneyZero());
+        bill.setXiaohuanRepayVerified(false);
+        bill.setCustomerRepayAmount(moneyZero());
+        bill.setCustomerRepayVerified(false);
+        bill.setXiaohuanConsumeAmount(moneyZero());
+        bill.setXiaohuanConsumeVerified(false);
+        bill.setCustomerNeedAmount(moneyZero());
+        bill.setCustomerNeedVerified(false);
+        bill.setCustomerConsumeAmount(moneyZero());
+        bill.setCustomerConsumeVerified(false);
+        bill.setDiffAmount(moneyZero());
+        bill.setBalance(moneyZero());
+        bill.setFeeRate(feeRate);
+        bill.setRepaymentFee(moneyZero());
+        bill.setConsumeFee(moneyZero());
+        bill.setInterestAmount(moneyZero());
+        bill.setLateFeeAmount(moneyZero());
+        bill.setInstallmentFeeAmount(moneyZero());
+        bill.setProfitTotalAmount(moneyZero());
+        return bill;
     }
 
     private void syncCardBillDays(Long cardId, Integer billDay, Integer repaymentDay) {
@@ -665,6 +778,312 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
+    private void validateImportFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "请选择需要导入的Excel文件");
+        }
+        String filename = file.getOriginalFilename();
+        if (!StringUtils.hasText(filename) || !filename.toLowerCase().endsWith(".xlsx")) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "仅支持导入.xlsx文件");
+        }
+    }
+
+    private Integer resolveImportYear(MultipartFile file, Integer year) {
+        Integer filenameYear = extractImportYearFromFilename(file.getOriginalFilename());
+        if (year != null && filenameYear != null && !Objects.equals(year, filenameYear)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "文件名年份" + filenameYear + "与选择导入年份" + year + "不一致");
+        }
+        if (year != null) {
+            return year;
+        }
+        if (filenameYear != null) {
+            return filenameYear;
+        }
+        throw new BusinessException(ResultCode.PARAM_ERROR, "请选择导入年份，或在Excel文件名中包含4位年份");
+    }
+
+    private Integer extractImportYearFromFilename(String filename) {
+        if (StringUtils.hasText(filename)) {
+            Matcher matcher = IMPORT_YEAR_PATTERN.matcher(filename);
+            if (matcher.find()) {
+                return Integer.parseInt(matcher.group(1));
+            }
+        }
+        return null;
+    }
+
+    private void validateImportYear(Integer year) {
+        if (year == null || year < MIN_IMPORT_YEAR || year > MAX_IMPORT_YEAR) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "导入年份必须在1900-2100之间");
+        }
+    }
+
+    private List<ImportedSpecialBillRow> parseSpecialBillWorkbook(MultipartFile file, Integer targetYear) {
+        try (InputStream inputStream = file.getInputStream();
+             Workbook workbook = WorkbookFactory.create(inputStream)) {
+            Map<Integer, Sheet> monthSheets = collectImportMonthSheets(workbook);
+            FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
+            DataFormatter formatter = new DataFormatter();
+            List<ImportedSpecialBillRow> rows = new ArrayList<>();
+            Set<String> rowKeys = new HashSet<>();
+            for (int month = 1; month <= EXPECTED_IMPORT_MONTH_COUNT; month++) {
+                Sheet sheet = monthSheets.get(month);
+                List<ImportedSpecialBillRow> monthRows = parseSpecialBillSheet(sheet, month, targetYear, evaluator, formatter);
+                if (monthRows.isEmpty()) {
+                    throw new BusinessException(ResultCode.PARAM_ERROR, sheet.getSheetName() + "没有可导入的银行卡区块");
+                }
+                for (ImportedSpecialBillRow row : monthRows) {
+                    String key = normalizeBankName(row.bankName()) + ":" + row.monthNo();
+                    if (!rowKeys.add(key)) {
+                        throw new BusinessException(ResultCode.PARAM_ERROR, "Excel存在重复银行卡区块：" + row.bankName() + " " + row.monthNo() + "月");
+                    }
+                }
+                rows.addAll(monthRows);
+            }
+            return rows;
+        } catch (BusinessException e) {
+            throw e;
+        } catch (IOException e) {
+            throw new BusinessException(ResultCode.OPERATION_FAILED, "读取Excel失败");
+        } catch (Exception e) {
+            throw new BusinessException(ResultCode.OPERATION_FAILED, "解析Excel失败：" + e.getMessage());
+        }
+    }
+
+    private void validateImportedRowsComplete(List<ImportedSpecialBillRow> importedRows, Set<String> importedCardNames) {
+        if (importedRows.isEmpty() || importedCardNames.isEmpty()) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "Excel没有可导入的特殊账单数据");
+        }
+        int expectedRows = importedCardNames.size() * EXPECTED_IMPORT_MONTH_COUNT;
+        if (importedRows.size() != expectedRows) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "Excel银行卡区块不完整，每张导入卡必须包含12个月记录");
+        }
+        for (String bankName : importedCardNames) {
+            Set<Integer> months = importedRows.stream()
+                    .filter(row -> Objects.equals(row.bankName(), bankName))
+                    .map(ImportedSpecialBillRow::monthNo)
+                    .collect(Collectors.toSet());
+            for (int month = 1; month <= EXPECTED_IMPORT_MONTH_COUNT; month++) {
+                if (!months.contains(month)) {
+                    throw new BusinessException(ResultCode.PARAM_ERROR, "Excel缺少" + bankName + month + "月记录");
+                }
+            }
+        }
+    }
+
+    private Map<Integer, Sheet> collectImportMonthSheets(Workbook workbook) {
+        Map<Integer, Sheet> monthSheets = new LinkedHashMap<>();
+        for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
+            Sheet sheet = workbook.getSheetAt(i);
+            Integer month = parseMonthSheetName(sheet.getSheetName());
+            if (month == null) {
+                continue;
+            }
+            if (monthSheets.put(month, sheet) != null) {
+                throw new BusinessException(ResultCode.PARAM_ERROR, "存在重复月份工作表：" + month + "月");
+            }
+        }
+        if (monthSheets.size() != EXPECTED_IMPORT_MONTH_COUNT) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "Excel必须包含1月到12月共12张工作表");
+        }
+        for (int month = 1; month <= EXPECTED_IMPORT_MONTH_COUNT; month++) {
+            if (!monthSheets.containsKey(month)) {
+                throw new BusinessException(ResultCode.PARAM_ERROR, "缺少工作表：" + month + "月");
+            }
+        }
+        return monthSheets;
+    }
+
+    private Integer parseMonthSheetName(String sheetName) {
+        if (!StringUtils.hasText(sheetName)) {
+            return null;
+        }
+        String trimmed = sheetName.trim();
+        if (!trimmed.endsWith("月")) {
+            return null;
+        }
+        try {
+            int month = Integer.parseInt(trimmed.substring(0, trimmed.length() - 1));
+            return month >= 1 && month <= 12 ? month : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private List<ImportedSpecialBillRow> parseSpecialBillSheet(
+            Sheet sheet,
+            int month,
+            Integer targetYear,
+            FormulaEvaluator evaluator,
+            DataFormatter formatter) {
+        List<ImportedSpecialBillRow> rows = new ArrayList<>();
+        int lastRow = Math.max(sheet.getLastRowNum(), 0);
+        for (int rowIndex = 0; rowIndex <= lastRow; rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            if (row == null) {
+                continue;
+            }
+            String bankName = cellText(row.getCell(1), evaluator, formatter);
+            String billLabel = cellText(row.getCell(2), evaluator, formatter);
+            String repaymentLabel = cellText(row.getCell(3), evaluator, formatter);
+            if (!StringUtils.hasText(bankName) || !billLabel.startsWith("账单") || !repaymentLabel.startsWith("还款")) {
+                continue;
+            }
+            List<String> warnings = new ArrayList<>();
+            BigDecimal billAmount = readImportMoney(sheet, rowIndex, 8, sheet.getSheetName(), bankName, "账单金额", evaluator, warnings);
+            BigDecimal repayAmount = readImportMoney(sheet, rowIndex + 1, 8, sheet.getSheetName(), bankName, "小焕还款", evaluator, warnings);
+            BigDecimal consumeAmount = readImportMoney(sheet, rowIndex + 2, 8, sheet.getSheetName(), bankName, "小焕消费", evaluator, warnings);
+            rows.add(new ImportedSpecialBillRow(
+                    normalizeBankName(bankName),
+                    targetYear,
+                    month,
+                    billAmount,
+                    repayAmount,
+                    consumeAmount,
+                    warnings));
+        }
+        return rows;
+    }
+
+    private BigDecimal readImportMoney(
+            Sheet sheet,
+            int rowIndex,
+            int columnIndex,
+            String sheetName,
+            String bankName,
+            String fieldName,
+            FormulaEvaluator evaluator,
+            List<String> warnings) {
+        Row row = sheet.getRow(rowIndex);
+        Cell cell = row == null ? null : row.getCell(columnIndex);
+        if (cell == null || cell.getCellType() == CellType.BLANK) {
+            warnings.add(sheetName + " " + bankName + " " + fieldName + "为空，按0导入");
+            return moneyZero();
+        }
+        try {
+            if (cell.getCellType() == CellType.NUMERIC) {
+                return scaleMoney(BigDecimal.valueOf(cell.getNumericCellValue()));
+            }
+            if (cell.getCellType() == CellType.FORMULA) {
+                CellValue value = evaluator.evaluate(cell);
+                if (value == null || value.getCellType() == CellType.BLANK) {
+                    warnings.add(sheetName + " " + bankName + " " + fieldName + "为空，按0导入");
+                    return moneyZero();
+                }
+                if (value.getCellType() == CellType.NUMERIC) {
+                    return scaleMoney(BigDecimal.valueOf(value.getNumberValue()));
+                }
+                throw new BusinessException(ResultCode.PARAM_ERROR, sheetName + " " + bankName + " " + fieldName + "公式结果不是数字");
+            }
+            String text = cell.toString().trim();
+            if (!StringUtils.hasText(text)) {
+                warnings.add(sheetName + " " + bankName + " " + fieldName + "为空，按0导入");
+                return moneyZero();
+            }
+            return scaleMoney(new BigDecimal(text.replace(",", "")));
+        } catch (Exception e) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, sheetName + " " + bankName + " " + fieldName + "不是数字");
+        }
+    }
+
+    private String cellText(Cell cell, FormulaEvaluator evaluator, DataFormatter formatter) {
+        if (cell == null) {
+            return "";
+        }
+        return formatter.formatCellValue(cell, evaluator).trim();
+    }
+
+    private Map<String, SpecialCardBill> loadImportTargetBills(
+            List<ImportedSpecialBillRow> importedRows,
+            Map<String, SpecialBankCard> cardMap,
+            Integer targetYear) {
+        Set<Long> cardIds = importedRows.stream()
+                .map(row -> cardMap.get(normalizeBankName(row.bankName())))
+                .filter(Objects::nonNull)
+                .map(SpecialBankCard::getId)
+                .collect(Collectors.toSet());
+        if (cardIds.isEmpty()) {
+            return Map.of();
+        }
+        return specialCardBillMapper.selectList(new LambdaQueryWrapper<SpecialCardBill>()
+                        .in(SpecialCardBill::getCardId, cardIds)
+                        .eq(SpecialCardBill::getBillYear, targetYear))
+                .stream()
+                .collect(Collectors.toMap(
+                        bill -> importBillKey(bill.getCardId(), bill.getBillMonthNo()),
+                        bill -> bill,
+                        (left, right) -> left));
+    }
+
+    private void ensureImportYearBills(
+            Set<String> importedCardNames,
+            Map<String, SpecialBankCard> cardMap,
+            Long userId,
+            BigDecimal feeRate,
+            Integer targetYear) {
+        for (String bankName : importedCardNames) {
+            SpecialBankCard card = cardMap.get(normalizeBankName(bankName));
+            if (card == null) {
+                continue;
+            }
+            ensureCardYearBills(card, userId, feeRate, targetYear);
+        }
+    }
+
+    private void ensureCardYearBills(SpecialBankCard card, Long userId, BigDecimal feeRate, Integer targetYear) {
+        List<SpecialCardBill> existingBills = specialCardBillMapper.selectList(new LambdaQueryWrapper<SpecialCardBill>()
+                .eq(SpecialCardBill::getCardId, card.getId())
+                .eq(SpecialCardBill::getBillYear, targetYear));
+        Set<Integer> existingMonths = existingBills.stream()
+                .map(SpecialCardBill::getBillMonthNo)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        boolean allMonthsExist = true;
+        for (int month = 1; month <= EXPECTED_IMPORT_MONTH_COUNT; month++) {
+            if (!existingMonths.contains(month)) {
+                allMonthsExist = false;
+                break;
+            }
+        }
+        if (allMonthsExist) {
+            return;
+        }
+        SpecialCardBill template = loadCardDayTemplate(card.getId());
+        Integer billDay = template == null ? null : template.getBillDay();
+        Integer repaymentDay = template == null ? null : template.getRepaymentDay();
+        for (int month = 1; month <= EXPECTED_IMPORT_MONTH_COUNT; month++) {
+            if (existingMonths.contains(month)) {
+                continue;
+            }
+            SpecialCardBill bill = newEmptySpecialBill(card.getId(), userId, targetYear, month, billDay, repaymentDay, feeRate);
+            specialCardBillMapper.insert(bill);
+        }
+    }
+
+    private Map<String, SpecialBankCard> buildImportCardMap(Long userId) {
+        Map<String, SpecialBankCard> cardMap = new LinkedHashMap<>();
+        for (SpecialBankCard card : specialBankCardMapper.selectList(new LambdaQueryWrapper<SpecialBankCard>()
+                .eq(SpecialBankCard::getUserId, userId))) {
+            String bankName = normalizeBankName(card.getBankName());
+            if (!StringUtils.hasText(bankName)) {
+                continue;
+            }
+            if (cardMap.containsKey(bankName)) {
+                throw new BusinessException(ResultCode.PARAM_ERROR, "特殊银行卡银行名重复，无法按银行名导入：" + bankName);
+            }
+            cardMap.put(bankName, card);
+        }
+        return cardMap;
+    }
+
+    private String importBillKey(Long cardId, Integer monthNo) {
+        return cardId + ":" + monthNo;
+    }
+
+    private String normalizeBankName(String bankName) {
+        return bankName == null ? "" : bankName.trim();
+    }
+
     private void recalculateBill(SpecialCardBill bill) {
         BigDecimal monthlyTotalBillAmount = scaleMoney(bill.getMonthlyTotalBillAmount());
         BigDecimal billAmount = scaleMoney(bill.getBillAmount());
@@ -843,5 +1262,15 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
 
     private BigDecimal moneyZero() {
         return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private record ImportedSpecialBillRow(
+            String bankName,
+            Integer year,
+            Integer monthNo,
+            BigDecimal billAmount,
+            BigDecimal xiaohuanRepayAmount,
+            BigDecimal xiaohuanConsumeAmount,
+            List<String> warnings) {
     }
 }

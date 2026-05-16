@@ -49,9 +49,9 @@ public class CardBillSqlProvider {
                     cb.fee_paid_amount,
                     cb.fee_pay_time,
                     cb.fee_pay_method,
-                    cb.pos_cost_amount,
+                    ROUND(IFNULL(cb.bill_amount, 0) * 0.0055, 2) AS pos_cost_amount,
                     cb.other_fee_amount,
-                    cb.net_profit,
+                    ROUND(IFNULL(cb.fee_amount, 0) - ROUND(IFNULL(cb.bill_amount, 0) * 0.0055, 2) - IFNULL(cb.other_fee_amount, 0), 2) AS net_profit,
                     bc.repay_method,
                     cb.verified,
                     cb.expense_verified,
@@ -124,9 +124,9 @@ public class CardBillSqlProvider {
                     SUM(CASE WHEN cb.status = 3 THEN 1 ELSE 0 END) AS overdueCount,
                     IFNULL(SUM(cb.bill_amount), 0) AS totalBillAmount,
                     IFNULL(SUM(cb.fee_amount), 0) AS totalFeeAmount,
-                    IFNULL(SUM(cb.pos_cost_amount), 0) AS totalPosCostAmount,
+                    IFNULL(SUM(ROUND(IFNULL(cb.bill_amount, 0) * 0.0055, 2)), 0) AS totalPosCostAmount,
                     IFNULL(SUM(cb.other_fee_amount), 0) AS totalOtherFeeAmount,
-                    IFNULL(SUM(cb.net_profit), 0) AS totalNetProfit
+                    IFNULL(SUM(ROUND(IFNULL(cb.fee_amount, 0) - ROUND(IFNULL(cb.bill_amount, 0) * 0.0055, 2) - IFNULL(cb.other_fee_amount, 0), 2)), 0) AS totalNetProfit
                 FROM card_bill cb
                 LEFT JOIN bank_card bc ON bc.id = cb.card_id AND bc.is_deleted = 0
                 LEFT JOIN card_user cu ON cu.id = cb.owner_id AND cu.is_deleted = 0
