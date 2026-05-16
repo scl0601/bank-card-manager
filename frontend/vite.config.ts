@@ -8,10 +8,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 export default defineConfig({
   plugins: [vue()],
   base: './',
-  // Win7 兼容：ES2019 目标，确保生成的代码在旧浏览器可运行
+  // Modern desktop targets match Vue 3 + Element Plus support.
   build: {
-    target: 'es2019',
-    cssTarget: 'chrome49',
+    target: 'es2020',
+    cssTarget: 'chrome107',
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -33,7 +33,7 @@ export default defineConfig({
   css: {
     preprocessorOptions: {
       scss: {
-        // 使用 legacy API，兼容 Win7 / 旧版 Node.js
+        // Keep default Sass options; project styles rely on standard compiler behavior.
       }
     }
   },

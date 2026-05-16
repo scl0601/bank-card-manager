@@ -846,7 +846,7 @@ const inlineEditId = ref<number | null>(null)
 const inlineEditTitle = ref('')
 
 // [M] 月视图模式
-const viewMode = ref<'day'|'month'>('day')
+const viewMode = ref<'day'|'month'>('month')
 const moFilterCategory = ref<number | undefined>(undefined)
 // [M] 状态筛选（月视图工具栏按钮）
 const moFilterStatus = ref<number | undefined>(undefined)
@@ -867,6 +867,7 @@ const moPopoverPlacement = ref<'top' | 'bottom'>('bottom')
 const moPopoverStyle = ref<Record<string,string>>({})
 const moPopoverRef = ref<HTMLElement | null>(null)
 const moCellFlash = ref(false)
+let moCellFlashTimer: ReturnType<typeof setTimeout> | null = null
 const eventStatusPendingIds = ref<Set<number>>(new Set())
 const moQuickStatusActions = [
   { key: 'todo', value: EVENT_STATUS_VALUE.TODO, shortLabel: '待办', label: '设为待办' },
@@ -1406,7 +1407,7 @@ function getMoDayHasVisibleData(dateKey:string):boolean {
   return getMoDayEvents(dateKey).length > 0
 }
 function shouldShowMoTodayState(dateKey?: string | null):boolean {
-  return !!dateKey && getMoDayHasVisibleData(dateKey)
+  return !!dateKey
 }
 function isMoCellFilteredMatch(dateKey:string):boolean {
   return hasMoMonthFilter.value && getMoDayHasVisibleData(dateKey)
@@ -1612,9 +1613,15 @@ async function goToday(){
   const targetMonth=t.getMonth()+1
   selectedDate.value=todayStr
   syncDayListFiltersFromCalendar()
+  if (moCellFlashTimer) clearTimeout(moCellFlashTimer)
+  moCellFlash.value = false
+  await nextTick()
   moCellFlash.value = true
 
-  setTimeout(() => { moCellFlash.value = false }, 3000)
+  moCellFlashTimer = setTimeout(() => {
+    moCellFlash.value = false
+    moCellFlashTimer = null
+  }, 3000)
   // 如果已在当前月份，仍需刷新当天右侧列表
   if(currentYear.value===targetYear&&currentMonth.value===targetMonth){
     await loadDayEvents(todayStr)
@@ -1908,7 +1915,10 @@ onMounted(async()=>{
   document.addEventListener('click',handleDocClick)
   await refreshAll()
 })
-onBeforeUnmount(()=>{ document.removeEventListener('click',handleDocClick) })
+onBeforeUnmount(()=>{
+  document.removeEventListener('click',handleDocClick)
+  if (moCellFlashTimer) clearTimeout(moCellFlashTimer)
+})
 </script>
 
 <style scoped lang="scss">
@@ -1934,17 +1944,18 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .calendar-page {
   display:flex; flex-direction:column;
   margin:-20px; width:calc(100% + 40px); height:calc(100% + 40px);
-  min-height:0; background:$bg; overflow:hidden; outline:none; box-sizing:border-box;
+  min-height:0; min-width:0; background:$bg; overflow:hidden; outline:none; box-sizing:border-box;
 }
 .page-header {
   display:flex; align-items:center; justify-content:space-between;
+  gap:12px;
   padding:16px 28px;
   background:linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(248,250,253,.98) 100%);
   border-bottom:1px solid rgba(211,223,238,.92);
   flex-shrink:0;
   box-shadow:0 10px 24px rgba(15,23,42,.04);
 }
-.header-left { display:flex; align-items:center; gap:12px; }
+.header-left { display:flex; align-items:center; gap:12px; min-width:0; }
 .header-title-group { display:flex; flex-direction:column; gap:0; min-width:0; }
 .page-title-icon {
   width:34px; height:34px; border-radius:12px;
@@ -1984,7 +1995,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   .badge-dot { width:6px; height:6px; border-radius:50%; background:$primary; }
 }
 
-.header-actions { display:flex; align-items:center; gap:10px; }
+.header-actions { display:flex; align-items:center; gap:10px; min-width:0; flex-wrap:wrap; justify-content:flex-end; }
 .search-box {
   display:flex; align-items:center; gap:7px;
   background:$bg; border:1.5px solid transparent;
@@ -2004,13 +2015,14 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   &:hover { border-color:$primary; color:$primary; background:$primary-light; }
   &.icon-btn-active { border-color:$primary; color:$primary; background:$primary-light; }
 }
-.main-body { display:flex; flex:1; overflow:hidden; min-height:0; }
+.main-body { display:flex; flex:1; overflow:hidden; min-height:0; min-width:0; }
 .main-day {
   display:grid;
   grid-template-columns:minmax(280px, 0.42fr) minmax(0, 0.58fr);
   gap:12px;
   padding:12px 16px 16px;
   min-height:0;
+  min-width:0;
   align-items:stretch;
 }
 
@@ -2293,10 +2305,12 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .toolbar {
   display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap;
   margin-top:2px; padding:4px 2px 0;
+  min-width:0;
 }
 .toolbar-right {
   display:flex; align-items:center; gap:8px; margin-left:auto;
   padding:8px 10px; border-radius:14px; background:rgba(255,255,255,.76); border:1px solid rgba(219,226,234,.88);
+  min-width:0; flex-wrap:wrap; justify-content:flex-end;
 }
 
 .kbd-hints-wrap {
@@ -2323,7 +2337,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 
 
 .right-panel {
-  flex:none; display:flex; flex-direction:column; min-width:0;
+  flex:none; display:flex; flex-direction:column; min-width:0; min-height:0;
   background:linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(247,250,254,.98) 100%);
   border:1px solid rgba(211,223,238,.94); border-radius:18px; overflow:hidden; box-shadow:0 12px 28px rgba(15,23,42,.06);
 }
@@ -2876,6 +2890,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .month-overview {
   width:100%; height:100%;
   display:flex; flex-direction:column;
+  min-width:0; min-height:0;
   padding:6px 16px 10px;
   gap:6px;
   overflow:hidden;
@@ -2892,6 +2907,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .mo-calendar-stage {
   flex:1;
   min-height:0;
+  min-width:0;
   display:flex;
   align-items:center;
   justify-content:center;
@@ -2900,6 +2916,7 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
 .mo-calendar-panel {
   width:min(100%, 1680px);
   min-height:0;
+  min-width:0;
   height:min(100%, clamp(480px, calc(100vh - 220px), 85vh));
   display:flex;
   flex-direction:column;

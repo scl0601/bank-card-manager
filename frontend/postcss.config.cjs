@@ -1,4 +1,4 @@
-// Win7 兼容：PostCSS 配置，自动添加浏览器前缀
+// PostCSS configuration for the supported modern browser targets.
 module.exports = {
   plugins: {
     autoprefixer: {

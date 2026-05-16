@@ -113,12 +113,22 @@ async function handleCommand(cmd: string) {
 .main-layout {
   display: flex;
   height: 100vh;
+  min-height: 100vh;
   overflow: hidden;
+  min-width: 1024px;
+  width: 100%;
+}
+
+@supports (height: 100dvh) {
+  .main-layout {
+    height: 100dvh;
+    min-height: 100dvh;
+  }
 }
 
 .sidebar {
   width: var(--sidebar-width);
-  min-height: 100vh;
+  min-height: 100%;
   background-color: #001529;
   transition: width 0.3s;
   overflow: hidden;
@@ -153,6 +163,8 @@ async function handleCommand(cmd: string) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-width: 0;
+  min-height: 0;
 }
 
 .header {
@@ -170,6 +182,7 @@ async function handleCommand(cmd: string) {
     display: flex;
     align-items: center;
     gap: 16px;
+    min-width: 0;
   }
 
   .collapse-btn {
@@ -186,20 +199,26 @@ async function handleCommand(cmd: string) {
     cursor: pointer;
     color: #333;
     font-size: 14px;
+    min-width: 0;
+    white-space: nowrap;
   }
 }
 
 .content-area {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px;
   background: var(--color-bg);
+  scrollbar-gutter: stable;
 }
 
 .content-area.dense-content-area {
   display: flex;
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
   padding: 8px;
 }

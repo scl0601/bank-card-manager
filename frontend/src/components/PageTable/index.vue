@@ -139,11 +139,37 @@ defineExpose({
   padding: 16px 20px;
   border-radius: var(--border-radius);
   box-shadow: var(--shadow-card);
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+
+  :deep(.el-table) {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  :deep(.el-table__body-wrapper) {
+    min-width: 0;
+  }
 
   .pagination-wrapper {
     margin-top: 16px;
     display: flex;
     justify-content: flex-end;
+    align-items: center;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+  }
+
+  :deep(.el-pagination) {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px 0;
+    min-width: 0;
   }
 }
 </style>

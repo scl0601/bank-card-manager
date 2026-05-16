@@ -1519,6 +1519,7 @@ watch(userSortOrder, () => {
   width: 100%;
   height: 100%;
   min-height: 0;
+  min-width: 0;
   padding: 6px;
   overflow: hidden;
   background: #f5f7fb;
@@ -1545,6 +1546,7 @@ watch(userSortOrder, () => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
 }
 
 .header-copy,
@@ -1571,6 +1573,9 @@ watch(userSortOrder, () => {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .action-btn,
@@ -1640,14 +1645,16 @@ watch(userSortOrder, () => {
   gap: 6px;
   padding: 6px 8px;
   flex-shrink: 0;
+  min-width: 0;
 }
 
 .profit-filter-grid {
   width: 100%;
   min-height: 28px;
   gap: 6px;
-  flex-wrap: nowrap;
-  overflow: hidden;
+  flex-wrap: wrap;
+  overflow: visible;
+  min-width: 0;
 }
 
 .profit-filter-panel .app-search-title {
@@ -1719,6 +1726,7 @@ watch(userSortOrder, () => {
 .main-panel {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   padding: 4px;
@@ -1767,6 +1775,7 @@ watch(userSortOrder, () => {
   --profit-pager-h: 34px;
   flex: 1;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1777,6 +1786,7 @@ watch(userSortOrder, () => {
 
 .table-shell :deep(.el-table) {
   flex: 1;
+  min-width: 0;
   --el-table-border-color: #e5eaf1;
   font-size: 11px;
   color: #344054;
@@ -1834,6 +1844,10 @@ watch(userSortOrder, () => {
 .pager-wrap {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
   height: var(--profit-pager-h);
   min-height: var(--profit-pager-h);
   padding: 3px 6px;
@@ -1845,6 +1859,8 @@ watch(userSortOrder, () => {
 .pager-wrap :deep(.el-pagination) {
   transform: scale(0.9);
   transform-origin: right center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .sortable-header {

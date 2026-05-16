@@ -1707,6 +1707,7 @@ function formatRate(value: number | string | null | undefined) {
   width: 100%;
   height: 100%;
   min-height: 0;
+  min-width: 0;
   padding: 8px;
   overflow: hidden;
   background: #f5f7fb;
@@ -1733,6 +1734,7 @@ function formatRate(value: number | string | null | undefined) {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
   min-height: 58px;
   padding: 8px 10px;
   flex-shrink: 0;
@@ -1765,15 +1767,20 @@ function formatRate(value: number | string | null | undefined) {
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .user-select {
   width: 260px;
+  max-width: 100%;
 }
 
 .special-tabs {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1791,6 +1798,7 @@ function formatRate(value: number | string | null | undefined) {
 .special-tabs :deep(.el-tabs__content) {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   padding-top: 6px;
   overflow: hidden;
 }
@@ -1798,6 +1806,7 @@ function formatRate(value: number | string | null | undefined) {
 .special-tabs :deep(.el-tab-pane) {
   height: 100%;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1809,6 +1818,7 @@ function formatRate(value: number | string | null | undefined) {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
   min-height: 44px;
   padding: 6px 8px;
   flex-shrink: 0;
@@ -1819,6 +1829,7 @@ function formatRate(value: number | string | null | undefined) {
   grid-template-columns: repeat(3, minmax(120px, 1fr));
   gap: 8px;
   min-width: 0;
+  width: 100%;
 }
 
 .stat-item,
@@ -1856,6 +1867,7 @@ function formatRate(value: number | string | null | undefined) {
 .special-card-grid {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 7px;
@@ -2171,6 +2183,7 @@ function formatRate(value: number | string | null | undefined) {
   flex-wrap: wrap;
   gap: 6px;
   min-height: 36px;
+  min-width: 0;
   padding: 4px 8px;
   flex-shrink: 0;
 }
@@ -2208,6 +2221,7 @@ function formatRate(value: number | string | null | undefined) {
 .bill-table-shell {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -2216,13 +2230,15 @@ function formatRate(value: number | string | null | undefined) {
 
 .bill-table-shell :deep(.el-table) {
   flex: 1;
+  min-width: 0;
   width: 100% !important;
   font-size: 13px;
 }
 
 .bill-table-shell :deep(.el-table__body-wrapper),
 .profit-table-block :deep(.el-table__body-wrapper) {
-  overflow-x: hidden;
+  overflow-x: auto;
+  scrollbar-gutter: stable;
 }
 
 .bill-table-shell :deep(.el-table th.el-table__cell) {
@@ -2498,6 +2514,7 @@ function formatRate(value: number | string | null | undefined) {
 
 .profit-table-block {
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -2518,6 +2535,7 @@ function formatRate(value: number | string | null | undefined) {
 
 .profit-table-block :deep(.el-table) {
   flex: 1;
+  min-width: 0;
   width: 100% !important;
   font-size: 13px;
 }

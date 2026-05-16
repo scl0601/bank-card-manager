@@ -1168,6 +1168,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   width: 100%;
   height: 100%;
   min-height: 0;
+  min-width: 0;
   padding: 0;
   background: #f5f7fb;
   overflow: hidden;
@@ -1227,6 +1228,9 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   display: flex;
   align-items: center;
   gap: 5px;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 /*noinspection CssUnusedSymbol*/
@@ -1241,6 +1245,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   flex-direction: column;
   align-items: stretch;
   flex-shrink: 0;
+  min-width: 0;
   gap: 6px;
   padding: 6px;
   border: 1px solid #e5eaf1;
@@ -1252,6 +1257,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 .user-search-panel .app-search-main {
   justify-content: space-between;
   gap: 6px;
+  min-width: 0;
 }
 
 .user-search-panel .app-search-extra,
@@ -1321,6 +1327,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   gap: var(--user-gap);
   flex: 1;
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
 }
 
@@ -1328,6 +1335,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
   padding: 0;
   overflow: hidden;
   border: 1px solid #dbe2ea;
@@ -1341,6 +1349,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
   min-height: 42px;
   padding: 9px 12px;
   border-bottom: 1px solid #e5eaf1;
@@ -1494,6 +1503,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 .user-table-wrap {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1557,6 +1567,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   justify-content: space-between;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   min-height: 34px;
   margin: 6px 10px 8px;
   padding: 4px 8px;
@@ -1581,6 +1592,8 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   font-size: var(--user-small-font-size);
   transform: scale(0.92);
   transform-origin: right center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 /*noinspection CssUnusedSymbol*/

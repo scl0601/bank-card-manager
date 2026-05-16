@@ -2606,6 +2606,7 @@ watch(
   width: 100%;
   height: 100%;
   min-height: 0;
+  min-width: 0;
   padding: 0;
   background: #f5f7fb;
   overflow: hidden;
@@ -2699,6 +2700,9 @@ watch(
   display: flex;
   align-items: center;
   gap: 5px;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .action-btn {
@@ -2719,6 +2723,7 @@ watch(
   flex-direction: column;
   align-items: stretch;
   flex-shrink: 0;
+  min-width: 0;
   gap: 6px 10px;
   padding: 4px;
 }
@@ -2728,6 +2733,7 @@ watch(
   grid-template-columns: auto repeat(4, minmax(0, 1fr)) auto;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
 .bill-search-panel .app-search-extra,
@@ -2798,6 +2804,7 @@ watch(
   gap: var(--bill-gap);
   flex: 1;
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
 }
 
@@ -2805,6 +2812,7 @@ watch(
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
   padding: 4px;
   overflow: hidden;
 }
@@ -2930,6 +2938,7 @@ watch(
   flex: 1 1 0;
   height: 100%;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   padding: 4px 6px !important;
@@ -3157,17 +3166,19 @@ watch(
 /*noinspection CssUnusedSymbol*/
 .bill-page-table :deep(.el-table__body-wrapper),
 .bill-page-table :deep(.el-scrollbar__wrap) {
-  overflow-x: hidden !important;
+  overflow-x: auto !important;
   overflow-y: auto !important;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 /*noinspection CssUnusedSymbol*/
 .bill-page-table.bill-page-table-scrollable :deep(.el-table__body-wrapper),
 .bill-page-table.bill-page-table-scrollable :deep(.el-scrollbar__wrap) {
-  overflow-x: hidden !important;
+  overflow-x: auto !important;
   overflow-y: auto !important;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 /*noinspection CssUnusedSymbol*/
@@ -3233,6 +3244,7 @@ watch(
   justify-content: space-between;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   min-height: 28px;
   padding-top: 3px;
   flex-shrink: 0;
@@ -3252,6 +3264,8 @@ watch(
   --el-pagination-button-height: 20px;
   --el-pagination-button-width: 20px;
   font-size: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .owner-cell {

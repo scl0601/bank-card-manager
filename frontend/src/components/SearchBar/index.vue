@@ -73,18 +73,41 @@ defineExpose({
   border-radius: var(--border-radius);
   margin-bottom: 16px;
   box-shadow: var(--shadow-card);
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 
   .search-form {
     display: flex;
     flex-wrap: wrap;
+    align-items: flex-start;
+    min-width: 0;
+    width: 100%;
+    gap: 0 16px;
 
     :deep(.el-form-item) {
       margin-bottom: 12px;
-      margin-right: 16px;
+      margin-right: 0;
+      max-width: 100%;
+      min-width: 0;
     }
 
     :deep(.el-form-item:last-child) {
       margin-right: 0;
+      flex-shrink: 0;
+    }
+
+    :deep(.el-form-item__content) {
+      min-width: 0;
+      max-width: 100%;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    :deep(.el-input),
+    :deep(.el-select),
+    :deep(.el-date-editor) {
+      max-width: 100%;
     }
   }
 }

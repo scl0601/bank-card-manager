@@ -2437,6 +2437,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   width: 100%;
   height: 100%;
   min-height: 0;
+  min-width: 0;
   background: $bg;
   overflow: hidden;
   box-sizing: border-box;
@@ -2452,6 +2453,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 12px 20px;
   background: linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(248,250,253,.98) 100%);
   border-bottom: 1px solid rgba(211,223,238,.92);
@@ -2519,6 +2521,9 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .panel-search {
@@ -2589,6 +2594,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   flex: 1;
   overflow: hidden;
   min-height: 0;
+  min-width: 0;
 }
 
 .cards-grid {
@@ -2599,6 +2605,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   gap: 10px;
   padding: 10px 12px 12px;
   min-height: 0;
+  min-width: 0;
 }
 
 /* 持卡人信息面板：更紧凑，避免第4行裁切 */
