@@ -136,12 +136,26 @@
 
       <el-tab-pane label="特殊账单" name="bills">
         <section class="filter-line">
-          <el-select v-model="billQuery.year" class="filter-item" placeholder="年份" clearable>
-            <el-option v-for="year in yearOptions" :key="year" :label="`${year}年`" :value="year" />
-          </el-select>
-          <el-select v-model="billQuery.month" class="filter-item" placeholder="月份" clearable>
-            <el-option v-for="month in monthOptions" :key="month" :label="`${month}月`" :value="month" />
-          </el-select>
+          <el-date-picker
+            v-model="billFilterYear"
+            class="filter-year-time"
+            type="year"
+            value-format="YYYY"
+            format="YYYY年"
+            placeholder="选择年份"
+            clearable
+            :disabled-date="isFilterMonthDisabled"
+          />
+          <el-date-picker
+            v-model="billFilterMonth"
+            class="filter-month-time"
+            type="month"
+            value-format="YYYY-MM"
+            format="YYYY年MM月"
+            placeholder="选择月份"
+            clearable
+            :disabled-date="isFilterMonthDisabled"
+          />
           <el-select v-model="billQuery.cardId" class="filter-card" placeholder="银行卡" clearable filterable>
             <el-option v-for="card in cards" :key="card.id" :label="cardLabel(card)" :value="card.id" />
           </el-select>
@@ -231,7 +245,9 @@
             </el-table-column>
             <el-table-column prop="totalAmount" label="卡片额度" align="right">
               <template #default="{ row }">
-                <span v-if="!row.__summary" class="money-text">{{ formatMoney(row.totalAmount) }}</span>
+                <el-tooltip v-if="!row.__summary" :content="formatMoney(row.totalAmount)" placement="top" :show-after="250">
+                  <span class="money-text">{{ formatMoney(row.totalAmount) }}</span>
+                </el-tooltip>
               </template>
             </el-table-column>
             <el-table-column label="账单日" width="48" align="center">
@@ -246,7 +262,9 @@
             </el-table-column>
             <el-table-column prop="billAmount" label="账单金额" align="right">
               <template #default="{ row }">
-                <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.billAmount) }}</span>
+                <el-tooltip v-if="row.__summary" :content="formatMoney(row.billAmount)" placement="top" :show-after="250">
+                  <span class="money-text summary-number">{{ formatMoney(row.billAmount) }}</span>
+                </el-tooltip>
                 <div v-else class="amount-verify-cell">
                   <el-input-number v-model="row.billAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialBillRow(row)" @update:model-value="refreshBillSummary" />
                   <el-switch v-model="row.billAmountVerified" size="small" :disabled="!canEditSpecialBillRow(row)" />
@@ -255,7 +273,9 @@
             </el-table-column>
             <el-table-column prop="xiaohuanRepayAmount" label="小焕还款" align="right">
               <template #default="{ row }">
-                <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.xiaohuanRepayAmount) }}</span>
+                <el-tooltip v-if="row.__summary" :content="formatMoney(row.xiaohuanRepayAmount)" placement="top" :show-after="250">
+                  <span class="money-text summary-number">{{ formatMoney(row.xiaohuanRepayAmount) }}</span>
+                </el-tooltip>
                 <div v-else class="amount-verify-cell">
                   <el-input-number v-model="row.xiaohuanRepayAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialBillRow(row)" @update:model-value="refreshBillSummary" />
                   <el-switch v-model="row.xiaohuanRepayVerified" size="small" :disabled="!canEditSpecialBillRow(row)" />
@@ -264,7 +284,9 @@
             </el-table-column>
             <el-table-column prop="xiaohuanConsumeAmount" label="小焕消费" align="right">
               <template #default="{ row }">
-                <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.xiaohuanConsumeAmount) }}</span>
+                <el-tooltip v-if="row.__summary" :content="formatMoney(row.xiaohuanConsumeAmount)" placement="top" :show-after="250">
+                  <span class="money-text summary-number">{{ formatMoney(row.xiaohuanConsumeAmount) }}</span>
+                </el-tooltip>
                 <div v-else class="amount-verify-cell">
                   <el-input-number v-model="row.xiaohuanConsumeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialBillRow(row)" @update:model-value="refreshBillSummary" />
                   <el-switch v-model="row.xiaohuanConsumeVerified" size="small" :disabled="!canEditSpecialBillRow(row)" />
@@ -273,14 +295,18 @@
             </el-table-column>
             <el-table-column prop="diffAmount" label="差额" width="74" align="right">
               <template #default="{ row }">
-                <span class="money-text" :class="billDiffValue(row) >= 0 ? 'amount-income' : 'amount-cost'">
-                  {{ formatMoney(billDiffValue(row)) }}
-                </span>
+                <el-tooltip :content="formatMoney(billDiffValue(row))" placement="top" :show-after="250">
+                  <span class="money-text" :class="billDiffValue(row) >= 0 ? 'amount-income' : 'amount-cost'">
+                    {{ formatMoney(billDiffValue(row)) }}
+                  </span>
+                </el-tooltip>
               </template>
             </el-table-column>
             <el-table-column prop="customerNeedAmount" label="客户需要" align="right">
               <template #default="{ row }">
-                <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.customerNeedAmount) }}</span>
+                <el-tooltip v-if="row.__summary" :content="formatMoney(row.customerNeedAmount)" placement="top" :show-after="250">
+                  <span class="money-text summary-number">{{ formatMoney(row.customerNeedAmount) }}</span>
+                </el-tooltip>
                 <div v-else class="amount-verify-cell">
                   <el-input-number v-model="row.customerNeedAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialBillRow(row)" @update:model-value="refreshBillSummary" />
                   <el-switch v-model="row.customerNeedVerified" size="small" :disabled="!canEditSpecialBillRow(row)" />
@@ -289,7 +315,9 @@
             </el-table-column>
             <el-table-column prop="customerRepayAmount" label="客户还款" align="right">
               <template #default="{ row }">
-                <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.customerRepayAmount) }}</span>
+                <el-tooltip v-if="row.__summary" :content="formatMoney(row.customerRepayAmount)" placement="top" :show-after="250">
+                  <span class="money-text summary-number">{{ formatMoney(row.customerRepayAmount) }}</span>
+                </el-tooltip>
                 <div v-else class="amount-verify-cell">
                   <el-input-number v-model="row.customerRepayAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialBillRow(row)" @update:model-value="refreshBillSummary" />
                   <el-switch v-model="row.customerRepayVerified" size="small" :disabled="!canEditSpecialBillRow(row)" />
@@ -298,7 +326,9 @@
             </el-table-column>
             <el-table-column prop="customerConsumeAmount" label="客户消费" align="right">
               <template #default="{ row }">
-                <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.customerConsumeAmount) }}</span>
+                <el-tooltip v-if="row.__summary" :content="formatMoney(row.customerConsumeAmount)" placement="top" :show-after="250">
+                  <span class="money-text summary-number">{{ formatMoney(row.customerConsumeAmount) }}</span>
+                </el-tooltip>
                 <div v-else class="amount-verify-cell">
                   <el-input-number v-model="row.customerConsumeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialBillRow(row)" @update:model-value="refreshBillSummary" />
                   <el-switch v-model="row.customerConsumeVerified" size="small" :disabled="!canEditSpecialBillRow(row)" />
@@ -307,25 +337,33 @@
             </el-table-column>
             <el-table-column prop="balance" label="余额" width="78" align="right">
               <template #default="{ row }">
-                <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.balance) }}</span>
+                <el-tooltip v-if="row.__summary" :content="formatMoney(row.balance)" placement="top" :show-after="250">
+                  <span class="money-text summary-number">{{ formatMoney(row.balance) }}</span>
+                </el-tooltip>
                 <el-input-number v-else v-model="row.balance" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialBillRow(row)" @update:model-value="refreshBillSummary" />
               </template>
             </el-table-column>
             <el-table-column prop="interestAmount" label="利息" width="70" align="right">
               <template #default="{ row }">
-                <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.interestAmount) }}</span>
+                <el-tooltip v-if="row.__summary" :content="formatMoney(row.interestAmount)" placement="top" :show-after="250">
+                  <span class="money-text summary-number">{{ formatMoney(row.interestAmount) }}</span>
+                </el-tooltip>
                 <el-input-number v-else v-model="row.interestAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialBillRow(row)" @update:model-value="refreshBillSummary" />
               </template>
             </el-table-column>
             <el-table-column prop="lateFeeAmount" label="滞纳金" width="70" align="right">
               <template #default="{ row }">
-                <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.lateFeeAmount) }}</span>
+                <el-tooltip v-if="row.__summary" :content="formatMoney(row.lateFeeAmount)" placement="top" :show-after="250">
+                  <span class="money-text summary-number">{{ formatMoney(row.lateFeeAmount) }}</span>
+                </el-tooltip>
                 <el-input-number v-else v-model="row.lateFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialBillRow(row)" @update:model-value="refreshBillSummary" />
               </template>
             </el-table-column>
             <el-table-column prop="installmentFeeAmount" label="分期费" width="70" align="right">
               <template #default="{ row }">
-                <span v-if="row.__summary" class="money-text summary-number">{{ formatMoney(row.installmentFeeAmount) }}</span>
+                <el-tooltip v-if="row.__summary" :content="formatMoney(row.installmentFeeAmount)" placement="top" :show-after="250">
+                  <span class="money-text summary-number">{{ formatMoney(row.installmentFeeAmount) }}</span>
+                </el-tooltip>
                 <el-input-number v-else v-model="row.installmentFeeAmount" class="money-input" size="small" :precision="2" :controls="false" :disabled="!canEditSpecialBillRow(row)" @update:model-value="refreshBillSummary" />
               </template>
             </el-table-column>
@@ -359,12 +397,26 @@
 
       <el-tab-pane label="特殊收益" name="profit">
         <section class="filter-line">
-          <el-select v-model="profitQuery.year" class="filter-item" placeholder="全部年份" clearable>
-            <el-option v-for="year in yearOptions" :key="year" :label="`${year}年`" :value="year" />
-          </el-select>
-          <el-select v-model="profitQuery.month" class="filter-item" placeholder="月份" clearable>
-            <el-option v-for="month in monthOptions" :key="month" :label="`${month}月`" :value="month" />
-          </el-select>
+          <el-date-picker
+            v-model="profitFilterYear"
+            class="filter-year-time"
+            type="year"
+            value-format="YYYY"
+            format="YYYY年"
+            placeholder="选择年份"
+            clearable
+            :disabled-date="isFilterMonthDisabled"
+          />
+          <el-date-picker
+            v-model="profitFilterMonth"
+            class="filter-month-time"
+            type="month"
+            value-format="YYYY-MM"
+            format="YYYY年MM月"
+            placeholder="选择月份"
+            clearable
+            :disabled-date="isFilterMonthDisabled"
+          />
           <el-select v-model="profitQuery.cardId" class="filter-card" placeholder="银行卡" clearable filterable>
             <el-option v-for="card in cards" :key="card.id" :label="cardLabel(card)" :value="card.id" />
           </el-select>
@@ -376,7 +428,9 @@
           <section class="profit-summary-grid" v-loading="profitLoading">
             <div v-for="item in profitSummaryCards" :key="item.label" :class="['profit-summary-item', item.gridClass]">
               <span>{{ item.label }}</span>
-              <strong :class="item.className">{{ item.value }}</strong>
+              <el-tooltip :content="item.value" placement="top" :show-after="250">
+                <strong :class="item.className">{{ item.value }}</strong>
+              </el-tooltip>
             </div>
           </section>
 
@@ -402,19 +456,39 @@
                   <template #default="{ row }">{{ formatDayOfMonth(row.repaymentDay) }}</template>
                 </el-table-column>
                 <el-table-column label="账单总金额" min-width="104" align="right">
-                  <template #default="{ row }">{{ formatMoney(row.totalAmount) }}</template>
+                  <template #default="{ row }">
+                    <el-tooltip :content="formatMoney(row.totalAmount)" placement="top" :show-after="250">
+                      <span class="money-text">{{ formatMoney(row.totalAmount) }}</span>
+                    </el-tooltip>
+                  </template>
                 </el-table-column>
                 <el-table-column label="小焕还款" min-width="96" align="right">
-                  <template #default="{ row }">{{ formatMoney(row.xiaohuanRepayAmount) }}</template>
+                  <template #default="{ row }">
+                    <el-tooltip :content="formatMoney(row.xiaohuanRepayAmount)" placement="top" :show-after="250">
+                      <span class="money-text">{{ formatMoney(row.xiaohuanRepayAmount) }}</span>
+                    </el-tooltip>
+                  </template>
                 </el-table-column>
                 <el-table-column label="还款手续费" min-width="104" align="right">
-                  <template #default="{ row }">{{ formatMoney(row.repaymentFee) }}</template>
+                  <template #default="{ row }">
+                    <el-tooltip :content="formatMoney(row.repaymentFee)" placement="top" :show-after="250">
+                      <span class="money-text">{{ formatMoney(row.repaymentFee) }}</span>
+                    </el-tooltip>
+                  </template>
                 </el-table-column>
                 <el-table-column label="小焕消费" min-width="96" align="right">
-                  <template #default="{ row }">{{ formatMoney(row.xiaohuanConsumeAmount) }}</template>
+                  <template #default="{ row }">
+                    <el-tooltip :content="formatMoney(row.xiaohuanConsumeAmount)" placement="top" :show-after="250">
+                      <span class="money-text">{{ formatMoney(row.xiaohuanConsumeAmount) }}</span>
+                    </el-tooltip>
+                  </template>
                 </el-table-column>
                 <el-table-column label="消费手续费" min-width="104" align="right">
-                  <template #default="{ row }">{{ formatMoney(row.consumeFee) }}</template>
+                  <template #default="{ row }">
+                    <el-tooltip :content="formatMoney(row.consumeFee)" placement="top" :show-after="250">
+                      <span class="money-text">{{ formatMoney(row.consumeFee) }}</span>
+                    </el-tooltip>
+                  </template>
                 </el-table-column>
                 <el-table-column label="利息" min-width="82" align="right">
                   <template #default="{ row }">
@@ -433,7 +507,9 @@
                 </el-table-column>
                 <el-table-column label="总计" min-width="90" align="right">
                   <template #default="{ row }">
-                    <span class="amount-income">{{ formatMoney(calcProfitTotal(row)) }}</span>
+                    <el-tooltip :content="formatMoney(calcProfitTotal(row))" placement="top" :show-after="250">
+                      <span class="money-text amount-income">{{ formatMoney(calcProfitTotal(row)) }}</span>
+                    </el-tooltip>
                   </template>
                 </el-table-column>
                 <el-table-column label="操作" width="54" align="center">
@@ -670,7 +746,6 @@ const maxYear = 2100
 const currentYear = new Date().getFullYear()
 const yearOptions = Array.from({ length: maxYear - minYear + 1 }, (_, index) => minYear + index)
 const deleteBoundaryYearOptions = [...yearOptions]
-const monthOptions = Array.from({ length: 12 }, (_, index) => index + 1)
 const billListSize = 10
 const billPageSizeOptions = [10, 20, 50, 100]
 
@@ -689,6 +764,31 @@ const profitQuery = reactive({
   year: undefined as number | undefined,
   month: undefined as number | undefined,
   cardId: undefined as number | undefined
+})
+
+interface MonthQuery {
+  year?: number
+  month?: number
+}
+
+const billFilterYear = computed<string | undefined>({
+  get: () => formatQueryYear(billQuery.year),
+  set: (value) => applyQueryYear(billQuery, value)
+})
+
+const billFilterMonth = computed<string | undefined>({
+  get: () => formatQueryMonth(billQuery.year, billQuery.month),
+  set: (value) => applyQueryMonth(billQuery, value)
+})
+
+const profitFilterYear = computed<string | undefined>({
+  get: () => formatQueryYear(profitQuery.year),
+  set: (value) => applyQueryYear(profitQuery, value)
+})
+
+const profitFilterMonth = computed<string | undefined>({
+  get: () => formatQueryMonth(profitQuery.year, profitQuery.month),
+  set: (value) => applyQueryMonth(profitQuery, value)
 })
 
 const profitPage = reactive({
@@ -1366,6 +1466,44 @@ function formatDayInput(value: number | string | null | undefined) {
   return text === '-' ? '' : text
 }
 
+function formatQueryYear(year?: number) {
+  return year ? String(year) : undefined
+}
+
+function applyQueryYear(query: MonthQuery, value?: string | null) {
+  if (!value) {
+    query.year = undefined
+    query.month = undefined
+    return
+  }
+  const year = Number(value)
+  query.year = Number.isFinite(year) ? year : undefined
+  query.month = undefined
+}
+
+function formatQueryMonth(year?: number, month?: number) {
+  if (!year || !month) return undefined
+  return `${year}-${String(month).padStart(2, '0')}`
+}
+
+function applyQueryMonth(query: MonthQuery, value?: string | null) {
+  if (!value) {
+    query.year = undefined
+    query.month = undefined
+    return
+  }
+  const [yearPart, monthPart] = value.split('-')
+  const year = Number(yearPart)
+  const month = Number(monthPart)
+  query.year = Number.isFinite(year) ? year : undefined
+  query.month = Number.isFinite(month) ? month : undefined
+}
+
+function isFilterMonthDisabled(date: Date) {
+  const year = date.getFullYear()
+  return year < minYear || year > maxYear
+}
+
 function parseDayInput(value: string) {
   return value.replace(/[^\d]/g, '')
 }
@@ -2041,8 +2179,12 @@ function formatRate(value: number | string | null | undefined) {
   margin-left: 0;
 }
 
-.filter-item {
-  width: 108px;
+.filter-year-time {
+  width: 112px;
+}
+
+.filter-month-time {
+  width: 148px;
 }
 
 .filter-delete-year {
