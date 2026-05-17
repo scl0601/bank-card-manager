@@ -59,7 +59,7 @@ async function handleLogin() {
   try {
     await authStore.login(form)
     ElMessage.success('登录成功')
-    router.push('/')
+    router.replace(authStore.role === 'MONITOR' ? '/monitor' : '/')
   } finally {
     loading.value = false
   }

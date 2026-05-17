@@ -19,6 +19,7 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
     private static final String CARD_USER_MODEL_PATCH_KEY = "20260427_card_user_model";
     private static final String FEE_RATE_PERCENT_PATCH_KEY = "20260419_fee_rate_percent";
     private static final String TEST_ACCOUNT_PASSWORD_HASH = "$2a$10$gX5wW4SAPR.eeXW1.c5x8eRaQIzrNHyHYat2Axq6IfH20oIePAzHS";
+    private static final String MONITOR_ACCOUNT_PASSWORD_HASH = "$2a$10$YqSoxXaVEaZLntYw0OB7Rebe9XV/qvs7QeXhur/dVzJovBzyuter.";
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -32,6 +33,7 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
         ensureSysUserOpenidColumn();
         ensureSysUserDataScope();
         ensureFunctionalTestAccount();
+        ensureMonitorAccount();
         ensureCardUserModelCompatibility();
         ensureBankCardUserIdColumn();
         ensureBankCardColumns();
@@ -124,6 +126,36 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
                 "VALUES ('test', ?, '功能测试账号', 'ADMIN', 'SELF', 0, 0, 'system', NOW(), NOW(), '')"
         ), TEST_ACCOUNT_PASSWORD_HASH);
         log.info("Created functional test account: test");
+    }
+
+    private void ensureMonitorAccount() {
+        if (!tableExists("bank_sys_user")) {
+            return;
+        }
+
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM `bank_sys_user` WHERE `username` = 'monitor'",
+                Integer.class
+        );
+        if (count != null && count > 0) {
+            jdbcTemplate.update(sql(
+                    "UPDATE `bank_sys_user`",
+                    "SET `role` = 'MONITOR',",
+                    "    `data_scope` = 'ALL',",
+                    "    `status` = 0,",
+                    "    `is_deleted` = 0,",
+                    "    `update_time` = NOW()",
+                    "WHERE `username` = 'monitor'"
+            ));
+            return;
+        }
+
+        jdbcTemplate.update(sql(
+                "INSERT INTO `bank_sys_user`",
+                "(`username`, `password`, `nickname`, `role`, `data_scope`, `status`, `is_deleted`, `create_by`, `create_time`, `update_time`, `_openid`)",
+                "VALUES ('monitor', ?, '监控账号', 'MONITOR', 'ALL', 0, 0, 'system', NOW(), NOW(), '')"
+        ), MONITOR_ACCOUNT_PASSWORD_HASH);
+        log.info("Created monitor account: monitor");
     }
 
     private void ensureCardUserTable() {

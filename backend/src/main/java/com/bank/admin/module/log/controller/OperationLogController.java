@@ -29,14 +29,14 @@ public class OperationLogController {
 
     @Operation(summary = "分页查询操作日志")
     @GetMapping("/page")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','MONITOR')")
     public Result<PageResult<OperationLog>> page(@Valid OperationLogQueryDTO query) {
         return Result.success(operationLogService.page(query));
     }
 
     @Operation(summary = "导出操作日志Excel")
     @GetMapping("/export")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','MONITOR')")
     public void export(OperationLogQueryDTO query, HttpServletResponse response) throws Exception {
         String fileName = URLEncoder.encode("操作日志", StandardCharsets.UTF_8).replaceAll("\\+", "%20");
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");

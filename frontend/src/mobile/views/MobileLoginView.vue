@@ -49,7 +49,7 @@ async function handleLogin() {
   try {
     await authStore.login(form)
     ElMessage.success('登录成功')
-    router.replace('/m/calendar')
+    router.replace(authStore.role === 'MONITOR' ? '/monitor' : '/m/calendar')
   } finally {
     loading.value = false
   }

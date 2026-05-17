@@ -15,8 +15,17 @@ const router = createRouter({
       path: '/',
       component: () => import('@/layout/MainLayout.vue'),
       meta: { requiresAuth: true },
-      redirect: '/dashboard',
+      redirect: () => {
+        const authStore = useAuthStore()
+        return authStore.role === 'MONITOR' ? '/monitor' : '/dashboard'
+      },
       children: [
+        {
+          path: 'monitor',
+          name: 'Monitor',
+          component: () => import('@/views/monitor/MonitorView.vue'),
+          meta: { title: '监控列表', icon: 'Monitor', roles: ['ADMIN', 'MONITOR'] }
+        },
         {
           path: 'dashboard',
           name: 'Dashboard',
@@ -148,7 +157,19 @@ router.beforeEach((to) => {
     return loginPath
   }
   if ((to.path === '/login' || to.path === '/m/login') && authStore.token) {
+    if (authStore.role === 'MONITOR') {
+      return '/monitor'
+    }
     return isMobileRoute ? '/m/calendar' : '/'
+  }
+  if (authStore.role === 'MONITOR' && isMobileRoute) {
+    return '/monitor'
+  }
+  if (authStore.role === 'MONITOR' && !isMobileRoute) {
+    const allowedPaths = new Set(['/monitor', '/logs'])
+    if (!allowedPaths.has(to.path)) {
+      return '/monitor'
+    }
   }
 })
 

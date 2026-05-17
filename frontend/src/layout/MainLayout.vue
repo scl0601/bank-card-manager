@@ -53,7 +53,7 @@
       <!-- 主内容 -->
       <main class="content-area" :class="{ 'dense-content-area': isDenseRoute }">
         <router-view v-slot="{ Component, route }">
-          <keep-alive :include="['Dashboard','Cards','CardUsers','Transactions','Books','Bills','ProfitStats','SpecialChannel','Reminders','Feedbacks','Calendar','Logs']">
+          <keep-alive :include="['Monitor','Dashboard','Cards','CardUsers','Transactions','Books','Bills','ProfitStats','SpecialChannel','Reminders','Feedbacks','Calendar','Logs']">
             <component :is="Component" :key="route.name || route.path" />
           </keep-alive>
         </router-view>
@@ -61,7 +61,7 @@
     </div>
 
     <!-- 全局 AI 悬浮助手 -->
-    <AiFloatWidget />
+    <AiFloatWidget v-if="authStore.role !== 'MONITOR'" />
   </div>
 </template>
 
@@ -77,7 +77,8 @@ const router = useRouter()
 const authStore = useAuthStore()
 const isCollapsed = ref(false)
 
-const menuItems = [
+const allMenuItems = [
+  { path: '/monitor',      title: '监控列表',   icon: 'Monitor', roles: ['ADMIN', 'MONITOR'] },
   { path: '/dashboard',    title: '首页看板',   icon: 'House' },
   { path: '/users',        title: '用户信息',   icon: 'UserFilled' },
   { path: '/cards',        title: '卡务管理',   icon: 'CreditCard' },
@@ -92,12 +93,18 @@ const menuItems = [
   { path: '/logs',         title: '系统日志',   icon: 'Tickets' }
 ]
 
+const menuItems = computed(() => {
+  if (authStore.role === 'MONITOR') {
+    return allMenuItems.filter(item => item.roles?.includes('MONITOR') || item.path === '/logs')
+  }
+  return allMenuItems
+})
 
 const activeMenu = computed(() => route.path)
 const denseRouteNames = new Set(['Cards', 'CardUsers', 'Bills', 'ProfitStats', 'SpecialChannel'])
 const isDenseRoute = computed(() => denseRouteNames.has(String(route.name || '')))
 const currentTitle = computed(() =>
-  menuItems.find(m => m.path === route.path)?.title || ''
+  menuItems.value.find(m => m.path === route.path)?.title || ''
 )
 
 async function handleCommand(cmd: string) {
