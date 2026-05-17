@@ -7,16 +7,16 @@
         </span>
         <div class="header-title-group">
           <h1 class="page-title">日历计划</h1>
-          <span class="page-subtitle" v-if="yearStats">
+          <span class="page-subtitle" :class="{ 'is-loading': !yearStats }">
             {{ currentYear }} 年 · 共 <strong>{{ yearTotal }}</strong> 项
             <i class="sub-divider"></i>
-            完成 <strong>{{ yearStats.doneCount || 0 }}</strong>
+            完成 <strong>{{ yearStats?.doneCount || 0 }}</strong>
             <i class="sub-divider"></i>
-            进行中 <strong>{{ yearStats.doingCount || 0 }}</strong>
+            进行中 <strong>{{ yearStats?.doingCount || 0 }}</strong>
             <i class="sub-divider"></i>
-            待办 <strong>{{ yearStats.todoCount || 0 }}</strong>
+            待办 <strong>{{ yearStats?.todoCount || 0 }}</strong>
             <i class="sub-divider"></i>
-            已取消 <strong>{{ yearStats.cancelledCount || 0 }}</strong>
+            已取消 <strong>{{ yearStats?.cancelledCount || 0 }}</strong>
           </span>
         </div>
       </div>
@@ -134,7 +134,7 @@
             </div>
 
             <!-- 月视图网格 -->
-            <transition name="mo-grid-fade" mode="out-in">
+            <transition :name="monthGridTransitionName" mode="out-in">
             <div
               class="mo-grid"
               ref="moGridRef"
@@ -790,7 +790,7 @@
 <script setup lang="ts">
 defineOptions({ name: 'Calendar' })
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/plugins/element-feedback'
 import {
   getMonthEventsApi, getDayEventsApi, deleteEventApi, updateEventStatusApi,
   getCalendarStatsApi, getYearStatsApi, updateEventApi
@@ -816,6 +816,7 @@ const monthLoading = ref(false)
 const listLoading = ref(false)
 const monthChanging = ref(false)
 const loadError = ref(false)
+const monthGridTransitionEnabled = ref(false)
 const dayCalendarQuickFilter = ref<'all'|'todo'|'doing'|'done'|'cancelled'>('all')
 const quickFilter = ref<'all'|'todo'|'doing'|'done'|'cancelled'>('all')
 const editingId = ref<number | null>(null)
@@ -833,6 +834,7 @@ const yearTotal = computed(() => {
   if (!yearStats.value) return 0
   return (yearStats.value.todoCount || 0) + (yearStats.value.doingCount || 0) + (yearStats.value.doneCount || 0) + (yearStats.value.cancelledCount || 0)
 })
+const monthGridTransitionName = computed(() => monthGridTransitionEnabled.value ? 'mo-grid-fade' : '')
 async function fetchYearStats() {
   try { const res:any=await getYearStatsApi(String(currentYear.value)); if(res.data)yearStats.value=res.data }catch{}
 }
@@ -1910,10 +1912,12 @@ function handleKeydown(e:KeyboardEvent){
 }
 
 onMounted(async()=>{
-  pageRef.value?.focus()
+  pageRef.value?.focus({ preventScroll: true })
   mpYear.value=currentYear.value
   document.addEventListener('click',handleDocClick)
   await refreshAll()
+  await nextTick()
+  monthGridTransitionEnabled.value = true
 })
 onBeforeUnmount(()=>{
   document.removeEventListener('click',handleDocClick)
@@ -1969,7 +1973,11 @@ $shadow-lg:     0 18px 40px rgba(15,23,42,.14);
   display:flex; align-items:center; gap:6px;
   margin-top:2px; font-size:13px; color:$sub; font-weight:400;
   line-height:1.4;
+  min-height:18px;
   strong { font-weight:600; }
+  &.is-loading {
+    visibility:hidden;
+  }
 }
 .sub-dot {
   display:inline-block; width:6px; height:6px; border-radius:50%;

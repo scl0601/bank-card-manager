@@ -37,5 +37,15 @@ public class ProfitOverviewVO {
     private BigDecimal totalOtherFeeAmount;
 
     @Schema(description = "净利润总额")
+    private BigDecimal expectedNetProfit;
+
     private BigDecimal totalNetProfit;
+
+    private BigDecimal paidFeeAmount;
+
+    private BigDecimal unpaidFeeAmount;
+
+    private Long paidFeeCount;
+
+    private Long unpaidFeeCount;
 }

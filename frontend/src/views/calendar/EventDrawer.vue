@@ -211,7 +211,7 @@
 <script setup lang="ts">
 import { ref, reactive, watch, computed, h } from 'vue'
 
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/plugins/element-feedback'
 
 import type { FormInstance, FormRules } from 'element-plus'
 import {

@@ -580,7 +580,8 @@
 defineOptions({ name: 'SpecialChannel' })
 
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/plugins/element-feedback'
+import type { FormInstance, FormRules } from 'element-plus'
 import { CreditCard, Plus, RefreshRight } from '@element-plus/icons-vue'
 import { getUserTreeApi } from '@/api/card'
 import {

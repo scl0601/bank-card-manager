@@ -34,6 +34,19 @@ jwt:
   secret: ${JWT_SECRET:bank-admin-jwt-secret-key-2024-very-long-secret}
   expiration: ${JWT_EXPIRATION:86400000}
 
+app:
+  schema-patch:
+    enabled: true
+  bootstrap-users:
+    enabled: true
+  cors:
+    allowed-origin-patterns:
+      - "http://localhost:*"
+      - "http://127.0.0.1:*"
+      - "http://192.168.*.*:*"
+      - "http://10.*.*.*:*"
+    allowed-origins: []
+
 # 日志
 logging:
   level:

@@ -44,7 +44,12 @@ public class ProfitStatsServiceImpl implements ProfitStatsService {
         vo.setTotalFeeAmount(defaultZero(vo.getTotalFeeAmount()));
         vo.setTotalPosCostAmount(defaultZero(vo.getTotalPosCostAmount()));
         vo.setTotalOtherFeeAmount(defaultZero(vo.getTotalOtherFeeAmount()));
+        vo.setExpectedNetProfit(defaultZero(vo.getExpectedNetProfit()));
         vo.setTotalNetProfit(defaultZero(vo.getTotalNetProfit()));
+        vo.setPaidFeeAmount(defaultZero(vo.getPaidFeeAmount()));
+        vo.setUnpaidFeeAmount(defaultZero(vo.getUnpaidFeeAmount()));
+        vo.setPaidFeeCount(defaultZero(vo.getPaidFeeCount()));
+        vo.setUnpaidFeeCount(defaultZero(vo.getUnpaidFeeCount()));
         return vo;
     }
 
@@ -64,6 +69,22 @@ public class ProfitStatsServiceImpl implements ProfitStatsService {
         IPage<CardProfitVO> result = profitStatsMapper.selectCardProfitPage(page, normalized);
         normalizeCardRows(result.getRecords());
         return PageResult.of((Page<CardProfitVO>) result);
+    }
+
+    @Override
+    public List<UserProfitVO> listUserMonthProfit(ProfitQueryDTO query) {
+        ProfitQueryDTO normalized = normalizeQuery(query);
+        List<UserProfitVO> rows = profitStatsMapper.selectUserMonthProfit(normalized);
+        normalizeUserRows(rows);
+        return rows;
+    }
+
+    @Override
+    public List<CardProfitVO> listCardMonthProfit(ProfitQueryDTO query) {
+        ProfitQueryDTO normalized = normalizeQuery(query);
+        List<CardProfitVO> rows = profitStatsMapper.selectCardMonthProfit(normalized);
+        normalizeCardRows(rows);
+        return rows;
     }
 
     @Override
@@ -102,7 +123,26 @@ public class ProfitStatsServiceImpl implements ProfitStatsService {
         if (target.getMonth() != null && (target.getMonth() < 1 || target.getMonth() > 12)) {
             target.setMonth(null);
         }
+        target.setCardIdList(parseCardIds(target.getCardIds()));
         return target;
+    }
+
+    private List<Long> parseCardIds(String rawCardIds) {
+        if (rawCardIds == null || rawCardIds.isBlank()) {
+            return List.of();
+        }
+        List<Long> ids = new ArrayList<>();
+        for (String item : rawCardIds.split(",")) {
+            try {
+                long id = Long.parseLong(item.trim());
+                if (id > 0) {
+                    ids.add(id);
+                }
+            } catch (NumberFormatException ignored) {
+                // Ignore malformed IDs from query strings; valid IDs still apply.
+            }
+        }
+        return ids;
     }
 
     private void normalizeUserRows(List<UserProfitVO> rows) {
@@ -114,6 +154,7 @@ public class ProfitStatsServiceImpl implements ProfitStatsService {
             row.setBillMonthCount(defaultZero(row.getBillMonthCount()));
             row.setTotalBillAmount(defaultZero(row.getTotalBillAmount()));
             row.setTotalFeeAmount(defaultZero(row.getTotalFeeAmount()));
+            row.setPaidFeeAmount(defaultZero(row.getPaidFeeAmount()));
             row.setTotalPosCostAmount(defaultZero(row.getTotalPosCostAmount()));
             row.setTotalOtherFeeAmount(defaultZero(row.getTotalOtherFeeAmount()));
             row.setTotalNetProfit(defaultZero(row.getTotalNetProfit()));
@@ -128,6 +169,7 @@ public class ProfitStatsServiceImpl implements ProfitStatsService {
             row.setBillCount(defaultZero(row.getBillCount()));
             row.setTotalBillAmount(defaultZero(row.getTotalBillAmount()));
             row.setTotalFeeAmount(defaultZero(row.getTotalFeeAmount()));
+            row.setPaidFeeAmount(defaultZero(row.getPaidFeeAmount()));
             row.setTotalPosCostAmount(defaultZero(row.getTotalPosCostAmount()));
             row.setTotalOtherFeeAmount(defaultZero(row.getTotalOtherFeeAmount()));
             row.setTotalNetProfit(defaultZero(row.getTotalNetProfit()));

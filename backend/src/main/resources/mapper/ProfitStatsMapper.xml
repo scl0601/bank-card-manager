@@ -21,6 +21,12 @@
         <if test="query.cardId != null">
             AND cb.card_id = #{query.cardId}
         </if>
+        <if test="query.cardIdList != null and query.cardIdList.size() > 0">
+            AND cb.card_id IN
+            <foreach collection="query.cardIdList" item="cardId" open="(" separator="," close=")">
+                #{cardId}
+            </foreach>
+        </if>
         <if test="query.userId != null">
             AND IFNULL(top_user.id, owner_user.id) = #{query.userId}
         </if>
@@ -36,7 +42,22 @@
             COALESCE(SUM(cb.fee_amount), 0) AS total_fee_amount,
             COALESCE(SUM(cb.pos_cost_amount), 0) AS total_pos_cost_amount,
             COALESCE(SUM(cb.other_fee_amount), 0) AS total_other_fee_amount,
-            COALESCE(SUM(cb.net_profit), 0) AS total_net_profit
+            COALESCE(SUM(cb.fee_amount), 0)
+                - COALESCE(SUM(cb.pos_cost_amount), 0)
+                - COALESCE(SUM(cb.other_fee_amount), 0) AS expected_net_profit,
+            COALESCE(SUM(cb.net_profit), 0) AS total_net_profit,
+            COALESCE(SUM(CASE
+                WHEN COALESCE(cb.fee_paid_amount, 0) > 0 THEN cb.fee_paid_amount
+                WHEN cb.fee_paid = 1 THEN cb.fee_amount
+                ELSE 0
+            END), 0) AS paid_fee_amount,
+            COALESCE(SUM(cb.fee_amount), 0) - COALESCE(SUM(CASE
+                WHEN COALESCE(cb.fee_paid_amount, 0) > 0 THEN cb.fee_paid_amount
+                WHEN cb.fee_paid = 1 THEN cb.fee_amount
+                ELSE 0
+            END), 0) AS unpaid_fee_amount,
+            COALESCE(SUM(CASE WHEN cb.fee_paid = 1 AND COALESCE(cb.fee_amount, 0) > 0 THEN 1 ELSE 0 END), 0) AS paid_fee_count,
+            COALESCE(SUM(CASE WHEN cb.fee_paid != 1 AND COALESCE(cb.fee_amount, 0) > 0 THEN 1 ELSE 0 END), 0) AS unpaid_fee_count
         <include refid="profitBaseJoin"/>
         <include refid="profitWhere"/>
     </select>
@@ -51,6 +72,17 @@
             COALESCE(SUM(cb.bill_amount), 0) AS total_bill_amount,
             COALESCE(AVG(cb.fee_rate), 0) AS avg_fee_rate,
             COALESCE(SUM(cb.fee_amount), 0) AS total_fee_amount,
+            COALESCE(SUM(CASE
+                WHEN COALESCE(cb.fee_paid_amount, 0) > 0 THEN cb.fee_paid_amount
+                WHEN cb.fee_paid = 1 THEN cb.fee_amount
+                ELSE 0
+            END), 0) AS paid_fee_amount,
+            MAX(cb.fee_pay_time) AS latest_fee_pay_time,
+            GROUP_CONCAT(DISTINCT CASE
+                WHEN (COALESCE(cb.fee_paid_amount, 0) > 0 OR cb.fee_paid = 1) AND cb.fee_pay_method IS NOT NULL AND cb.fee_pay_method != ''
+                THEN cb.fee_pay_method
+                ELSE NULL
+            END ORDER BY cb.fee_pay_method SEPARATOR ',') AS fee_pay_methods,
             COALESCE(SUM(CASE WHEN cb.fee_paid = 1 THEN 1 ELSE 0 END), 0) AS fee_paid_count,
             COALESCE(SUM(CASE WHEN cb.fee_paid = 1 THEN 0 ELSE 1 END), 0) AS fee_unpaid_count,
             COALESCE(SUM(cb.pos_cost_amount), 0) AS total_pos_cost_amount,
@@ -75,6 +107,17 @@
             COALESCE(SUM(cb.bill_amount), 0) AS total_bill_amount,
             COALESCE(AVG(cb.fee_rate), 0) AS avg_fee_rate,
             COALESCE(SUM(cb.fee_amount), 0) AS total_fee_amount,
+            COALESCE(SUM(CASE
+                WHEN COALESCE(cb.fee_paid_amount, 0) > 0 THEN cb.fee_paid_amount
+                WHEN cb.fee_paid = 1 THEN cb.fee_amount
+                ELSE 0
+            END), 0) AS paid_fee_amount,
+            MAX(cb.fee_pay_time) AS latest_fee_pay_time,
+            GROUP_CONCAT(DISTINCT CASE
+                WHEN (COALESCE(cb.fee_paid_amount, 0) > 0 OR cb.fee_paid = 1) AND cb.fee_pay_method IS NOT NULL AND cb.fee_pay_method != ''
+                THEN cb.fee_pay_method
+                ELSE NULL
+            END ORDER BY cb.fee_pay_method SEPARATOR ',') AS fee_pay_methods,
             COALESCE(SUM(CASE WHEN cb.fee_paid = 1 THEN 1 ELSE 0 END), 0) AS fee_paid_count,
             COALESCE(SUM(CASE WHEN cb.fee_paid = 1 THEN 0 ELSE 1 END), 0) AS fee_unpaid_count,
             COALESCE(SUM(cb.pos_cost_amount), 0) AS total_pos_cost_amount,
@@ -90,6 +133,82 @@
                  bc.bank_name,
                  bc.card_no_last4
         ORDER BY total_net_profit DESC, total_bill_amount DESC, cb.card_id DESC
+    </select>
+
+    <select id="selectUserMonthProfit" resultType="com.bank.admin.module.profit.vo.UserProfitVO">
+        SELECT
+            IFNULL(top_user.id, owner_user.id) AS user_id,
+            IFNULL(top_user.name, owner_user.name) AS user_name,
+            cb.bill_month,
+            COUNT(DISTINCT cb.card_id) AS card_count,
+            COUNT(*) AS bill_count,
+            COUNT(DISTINCT cb.bill_month) AS bill_month_count,
+            COALESCE(SUM(cb.bill_amount), 0) AS total_bill_amount,
+            COALESCE(AVG(cb.fee_rate), 0) AS avg_fee_rate,
+            COALESCE(SUM(cb.fee_amount), 0) AS total_fee_amount,
+            COALESCE(SUM(CASE
+                WHEN COALESCE(cb.fee_paid_amount, 0) > 0 THEN cb.fee_paid_amount
+                WHEN cb.fee_paid = 1 THEN cb.fee_amount
+                ELSE 0
+            END), 0) AS paid_fee_amount,
+            MAX(cb.fee_pay_time) AS latest_fee_pay_time,
+            GROUP_CONCAT(DISTINCT CASE
+                WHEN (COALESCE(cb.fee_paid_amount, 0) > 0 OR cb.fee_paid = 1) AND cb.fee_pay_method IS NOT NULL AND cb.fee_pay_method != ''
+                THEN cb.fee_pay_method
+                ELSE NULL
+            END ORDER BY cb.fee_pay_method SEPARATOR ',') AS fee_pay_methods,
+            COALESCE(SUM(CASE WHEN cb.fee_paid = 1 THEN 1 ELSE 0 END), 0) AS fee_paid_count,
+            COALESCE(SUM(CASE WHEN cb.fee_paid = 1 THEN 0 ELSE 1 END), 0) AS fee_unpaid_count,
+            COALESCE(SUM(cb.pos_cost_amount), 0) AS total_pos_cost_amount,
+            COALESCE(SUM(cb.other_fee_amount), 0) AS total_other_fee_amount,
+            COALESCE(SUM(cb.net_profit), 0) AS total_net_profit
+        <include refid="profitBaseJoin"/>
+        <include refid="profitWhere"/>
+        GROUP BY IFNULL(top_user.id, owner_user.id), IFNULL(top_user.name, owner_user.name), cb.bill_month
+        ORDER BY cb.bill_month ASC, user_id ASC
+    </select>
+
+    <select id="selectCardMonthProfit" resultType="com.bank.admin.module.profit.vo.CardProfitVO">
+        SELECT
+            cb.card_id,
+            IFNULL(top_user.id, owner_user.id) AS user_id,
+            IFNULL(top_user.name, owner_user.name) AS user_name,
+            owner_user.id AS owner_id,
+            owner_user.name AS owner_name,
+            bc.bank_name,
+            bc.card_no_last4,
+            cb.bill_month,
+            COUNT(*) AS bill_count,
+            COALESCE(SUM(cb.bill_amount), 0) AS total_bill_amount,
+            COALESCE(AVG(cb.fee_rate), 0) AS avg_fee_rate,
+            COALESCE(SUM(cb.fee_amount), 0) AS total_fee_amount,
+            COALESCE(SUM(CASE
+                WHEN COALESCE(cb.fee_paid_amount, 0) > 0 THEN cb.fee_paid_amount
+                WHEN cb.fee_paid = 1 THEN cb.fee_amount
+                ELSE 0
+            END), 0) AS paid_fee_amount,
+            MAX(cb.fee_pay_time) AS latest_fee_pay_time,
+            GROUP_CONCAT(DISTINCT CASE
+                WHEN (COALESCE(cb.fee_paid_amount, 0) > 0 OR cb.fee_paid = 1) AND cb.fee_pay_method IS NOT NULL AND cb.fee_pay_method != ''
+                THEN cb.fee_pay_method
+                ELSE NULL
+            END ORDER BY cb.fee_pay_method SEPARATOR ',') AS fee_pay_methods,
+            COALESCE(SUM(CASE WHEN cb.fee_paid = 1 THEN 1 ELSE 0 END), 0) AS fee_paid_count,
+            COALESCE(SUM(CASE WHEN cb.fee_paid = 1 THEN 0 ELSE 1 END), 0) AS fee_unpaid_count,
+            COALESCE(SUM(cb.pos_cost_amount), 0) AS total_pos_cost_amount,
+            COALESCE(SUM(cb.other_fee_amount), 0) AS total_other_fee_amount,
+            COALESCE(SUM(cb.net_profit), 0) AS total_net_profit
+        <include refid="profitBaseJoin"/>
+        <include refid="profitWhere"/>
+        GROUP BY cb.card_id,
+                 IFNULL(top_user.id, owner_user.id),
+                 IFNULL(top_user.name, owner_user.name),
+                 owner_user.id,
+                 owner_user.name,
+                 bc.bank_name,
+                 bc.card_no_last4,
+                 cb.bill_month
+        ORDER BY cb.bill_month ASC, cb.card_id DESC
     </select>
 
     <select id="selectMonthlyProfit" resultType="com.bank.admin.module.profit.vo.MonthlyProfitVO">

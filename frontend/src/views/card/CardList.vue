@@ -259,7 +259,7 @@
                       <span class="amt-value font-mono">{{ formatMoneySafe(cardDisplayAmount(c)) }}</span>
                     </div>
                     <div class="li-actions">
-                      <button class="mini-icon" @click.stop="openCardBillsPage(c)" title="详情">
+                      <button class="mini-icon" @pointerdown.stop.prevent @click.stop="openCardBillsPage(c)" title="详情">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                           <polyline points="14 2 14 8 20 8" />
@@ -267,13 +267,13 @@
                           <line x1="16" y1="17" x2="8" y2="17" />
                         </svg>
                       </button>
-                      <button class="mini-icon" @click.stop="openEditCard(c)" title="编辑">
+                      <button class="mini-icon" @pointerdown.stop.prevent @click.stop="openEditCard(c)" title="编辑">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                           <path d="M12 20h9" />
                           <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
                         </svg>
                       </button>
-                      <button class="mini-icon danger" @click.stop="confirmDeleteCard(c)" title="删除">
+                      <button class="mini-icon danger" @pointerdown.stop.prevent @click.stop="confirmDeleteCard(c)" title="删除">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                           <polyline points="3 6 5 6 21 6" />
                           <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
@@ -673,7 +673,7 @@
 defineOptions({ name: 'Cards' })
 import { computed, onActivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/plugins/element-feedback'
 import CrudDialog from '@/components/CrudDialog/index.vue'
 import StatusTag from '@/components/StatusTag/index.vue'
 import {
@@ -683,7 +683,8 @@ import {
   deleteCardApi,
   getUserTreeApi
 } from '@/api/card'
-import { getBillPageApi, updateBillApi } from '@/api/bill'
+import { getBillOverviewApi, getBillPageApi, updateBillApi } from '@/api/bill'
+import { getProfitOverviewApi } from '@/api/profit'
 import { formatMoney, formatRate } from '@/utils/formatters'
 import { getCardExpireStatus } from '@/utils/cardExpiry'
 import {
@@ -779,6 +780,7 @@ const currentMonth = new Date().getMonth() + 1
 const currentBillMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}`
 const BILL_SORT_CURRENT_FIRST = 'currentFirst'
 const BILL_SORT_MONTH_ASC = 'monthAsc'
+const RECENT_BILL_LIMIT = 20
 const yearOptions = Array.from({ length: 6 }, (_, index) => currentYear - 2 + index)
 const monthOptions = Array.from({ length: 12 }, (_, index) => index + 1)
 const uiText = {
@@ -845,11 +847,18 @@ const activeOwnerId = ref<number | null>(null)
 const hasActivatedOnce = ref(false)
 const groupsFetchedAt = ref(0)
 const userTreeFetchedAt = ref(0)
-const VIEW_CACHE_TTL = 5 * 1000
+const VIEW_CACHE_TTL = 60 * 1000
+const ACTIVATE_REFRESH_DELAY = 300
 
 let groupsLoadingPromise: Promise<void> | null = null
 let groupsLoadingKey = ''
+let groupsLoadedKey = ''
 let groupsRequestSeq = 0
+let billScopeLoadingPromise: Promise<void> | null = null
+let billScopeLoadingKey = ''
+let profitScopeLoadingPromise: Promise<void> | null = null
+let profitScopeLoadingKey = ''
+let activateRefreshTimer = 0
 const groupsVisibleLoading = computed(() => loadingGroups.value && !groupsReady.value)
 const triggerGroupSearch = createDebouncedTask(() => {
   fetchGroups({ silent: true })
@@ -1023,7 +1032,7 @@ const userTreeVisibleLoading = computed(() => userTreeLoading.value && !userTree
 
 async function ensureUserTree(force = false, silent = false) {
   if (userTreeLoadingPromise) return userTreeLoadingPromise
-  if (!force && userTreeLoaded.value) return
+  if (!force && userTreeLoaded.value && Date.now() - userTreeFetchedAt.value < VIEW_CACHE_TTL) return
 
   const showLoading = !silent
   if (showLoading) userTreeLoading.value = true
@@ -1342,25 +1351,36 @@ function syncActiveSelection() {
 
 async function fetchGroups(options: { silent?: boolean } = {}) {
   const params = { ...query }
+  const requestKey = JSON.stringify(params)
+  if (groupsLoadingPromise && groupsLoadingKey === requestKey) {
+    return groupsLoadingPromise
+  }
+  if (options.silent && groupsReady.value && groupsLoadedKey === requestKey && Date.now() - groupsFetchedAt.value < VIEW_CACHE_TTL) {
+    return
+  }
   const requestSeq = ++groupsRequestSeq
   const showLoading = !options.silent && !groupsReady.value
-  groupsLoadingKey = JSON.stringify(params)
+  groupsLoadingKey = requestKey
   if (showLoading) loadingGroups.value = true
 
-  try {
-    const res: any = await getCardsGroupedByUserApi(params)
-    if (requestSeq !== groupsRequestSeq) return
-    groupList.value = (res.data || []).filter((item: UserGroup) => Number(item?.status ?? 0) === 0)
-    groupsReady.value = true
-    groupsFetchedAt.value = Date.now()
-    syncActiveSelection()
-  } finally {
-    if (requestSeq === groupsRequestSeq) {
-      loadingGroups.value = false
-      groupsLoadingPromise = null
-      groupsLoadingKey = ''
+  groupsLoadingPromise = (async () => {
+    try {
+      const res: any = await getCardsGroupedByUserApi(params)
+      if (requestSeq !== groupsRequestSeq) return
+      groupList.value = (res.data || []).filter((item: UserGroup) => Number(item?.status ?? 0) === 0)
+      groupsReady.value = true
+      groupsLoadedKey = requestKey
+      groupsFetchedAt.value = Date.now()
+      syncActiveSelection()
+    } finally {
+      if (requestSeq === groupsRequestSeq) {
+        loadingGroups.value = false
+        groupsLoadingPromise = null
+        groupsLoadingKey = ''
+      }
     }
-  }
+  })()
+  return groupsLoadingPromise
 }
 
 async function refreshCardPageData(options: { silent?: boolean; keepCardId?: number | null; keepUserId?: number | null } = {}) {
@@ -1382,6 +1402,19 @@ async function refreshCardPageData(options: { silent?: boolean; keepCardId?: num
     fetchBillScopeData({ silent: true }),
     fetchProfitScopeData({ silent: true })
   ])
+}
+
+function scheduleActivationRefresh() {
+  window.clearTimeout(activateRefreshTimer)
+  activateRefreshTimer = window.setTimeout(() => {
+    activateRefreshTimer = 0
+    if (Date.now() - groupsFetchedAt.value >= VIEW_CACHE_TTL) {
+      void refreshCardPageData({ silent: true, keepCardId: activeCardId.value, keepUserId: activeUserId.value })
+    }
+    if (Date.now() - userTreeFetchedAt.value >= VIEW_CACHE_TTL) {
+      void ensureUserTree(false, true)
+    }
+  }, ACTIVATE_REFRESH_DELAY)
 }
 
 async function refreshAll() {
@@ -1445,16 +1478,6 @@ function buildBillQueryParams() {
   return params
 }
 
-function buildBillOverviewFromRows(list: BillRow[]): BillOverview {
-  return list.reduce((acc, item) => {
-    acc.billCount += 1
-    if (Number(item?.status) === 0) acc.pendingCount += 1
-    if (Number(item?.status) === 3) acc.overdueCount += 1
-    acc.totalBillAmount += Number(item?.billAmount ?? 0)
-    return acc
-  }, emptyBillOverview())
-}
-
 function billMonthOrder(row: BillRow) {
   const match = String(row?.billMonth || '').match(/^(\d{4})-(\d{2})$/)
   if (!match) return 999999
@@ -1473,6 +1496,14 @@ function billRepayDayOrder(row: BillRow) {
 
 async function fetchBillScopeData(options: { silent?: boolean } = {}) {
   const cardIds = scopedCardIds.value
+  const requestKey = JSON.stringify({
+    cardIds: cardIds.join(','),
+    year: billFilter.year,
+    month: billFilter.month
+  })
+  if (billScopeLoadingPromise && billScopeLoadingKey === requestKey) {
+    return billScopeLoadingPromise
+  }
   const requestSeq = ++billScopeRequestSeq
   if (!cardIds.length) {
     billOverviewLoading.value = false
@@ -1483,39 +1514,55 @@ async function fetchBillScopeData(options: { silent?: boolean } = {}) {
     recentBillsReady.value = groupsReady.value
     return
   }
+  billScopeLoadingKey = requestKey
 
   const showLoading = !options.silent && (!billOverviewReady.value || !recentBillsReady.value)
   if (showLoading) {
     billOverviewLoading.value = true
     recentBillsLoading.value = true
   }
-  try {
-    const res: any = await getBillPageApi({
-      current: 1,
-      size: 100,
-      ...buildBillQueryParams()
-    })
-    if (requestSeq !== billScopeRequestSeq) return
-    const records = ((res.data?.records || []) as BillRow[]).sort((a, b) => {
-      const repayDayOrder = billRepayDayOrder(a) - billRepayDayOrder(b)
-      if (repayDayOrder !== 0) return repayDayOrder
-      const monthOrder = billMonthOrder(a) - billMonthOrder(b)
-      if (monthOrder !== 0) return monthOrder
-      const aCard = `${a.bankName || ''}${a.cardNoLast4 || ''}`
-      const bCard = `${b.bankName || ''}${b.cardNoLast4 || ''}`
-      return aCard.localeCompare(bCard)
-    })
-    recentBills.value = records
-    syncBillAmountDrafts(records)
-    billOverview.value = buildBillOverviewFromRows(records)
-    billOverviewReady.value = true
-    recentBillsReady.value = true
-  } finally {
-    if (requestSeq === billScopeRequestSeq) {
-      billOverviewLoading.value = false
-      recentBillsLoading.value = false
+  billScopeLoadingPromise = (async () => {
+    try {
+      const params = buildBillQueryParams()
+      const [listRes, overviewRes]: any[] = await Promise.all([
+        getBillPageApi({
+          current: 1,
+          size: RECENT_BILL_LIMIT,
+          ...params
+        }),
+        getBillOverviewApi(params)
+      ])
+      if (requestSeq !== billScopeRequestSeq) return
+      const records = ((listRes.data?.records || []) as BillRow[]).sort((a, b) => {
+        const repayDayOrder = billRepayDayOrder(a) - billRepayDayOrder(b)
+        if (repayDayOrder !== 0) return repayDayOrder
+        const monthOrder = billMonthOrder(a) - billMonthOrder(b)
+        if (monthOrder !== 0) return monthOrder
+        const aCard = `${a.bankName || ''}${a.cardNoLast4 || ''}`
+        const bCard = `${b.bankName || ''}${b.cardNoLast4 || ''}`
+        return aCard.localeCompare(bCard)
+      })
+      recentBills.value = records
+      syncBillAmountDrafts(records)
+      const overview = overviewRes.data || {}
+      billOverview.value = {
+        billCount: Number(overview.billCount ?? 0),
+        pendingCount: Number(overview.pendingCount ?? 0),
+        overdueCount: Number(overview.overdueCount ?? 0),
+        totalBillAmount: Number(overview.totalBillAmount ?? 0)
+      }
+      billOverviewReady.value = true
+      recentBillsReady.value = true
+    } finally {
+      if (requestSeq === billScopeRequestSeq) {
+        billOverviewLoading.value = false
+        recentBillsLoading.value = false
+        billScopeLoadingPromise = null
+        billScopeLoadingKey = ''
+      }
     }
-  }
+  })()
+  return billScopeLoadingPromise
 }
 
 function fmtRepayDay(date: string | null | undefined) {
@@ -1661,7 +1708,6 @@ function openCardBillsPage(card: any) {
 const profitLoading = ref(false)
 const profitReady = ref(false)
 const profitScope = ref<ProfitScope>('month')
-const profitRows = ref<BillRow[]>([])
 const profitOverview = ref<ProfitOverview>({
   year: currentYear,
   month: currentMonth,
@@ -1730,17 +1776,35 @@ function emptyProfitOverview(scope = currentProfitScopeSnapshot()): ProfitOvervi
 
 function buildProfitQueryParams() {
   const params: Record<string, any> = {
-    cardIds: scopedCardIds.value.join(','),
-    ownerId: undefined,
-    cardName: '',
-    status: undefined
+    year: billFilter.year,
+    cardIds: scopedCardIds.value.join(',')
   }
-  if (selectedBillMonth.value) {
-    params.billMonth = selectedBillMonth.value
-  } else {
-    params.year = billFilter.year
+  if (billFilter.month) {
+    params.month = billFilter.month
   }
   return params
+}
+
+function normalizeProfitOverview(raw: any, scope = currentProfitScopeSnapshot()): ProfitOverview {
+  const totalFeeAmount = Number(raw?.totalFeeAmount ?? 0)
+  const totalPosCostAmount = Number(raw?.totalPosCostAmount ?? 0)
+  const totalOtherFeeAmount = Number(raw?.totalOtherFeeAmount ?? 0)
+  return {
+    year: Number(raw?.year ?? scope.year),
+    month: raw?.month == null ? scope.month : Number(raw.month),
+    userCount: Number(raw?.userCount ?? 0),
+    cardCount: Number(raw?.cardCount ?? 0),
+    totalBillAmount: Number(raw?.totalBillAmount ?? 0),
+    totalFeeAmount,
+    totalPosCostAmount,
+    totalOtherFeeAmount,
+    expectedNetProfit: Number(raw?.expectedNetProfit ?? (totalFeeAmount - totalPosCostAmount - totalOtherFeeAmount)),
+    totalNetProfit: Number(raw?.totalNetProfit ?? 0),
+    paidFeeAmount: Number(raw?.paidFeeAmount ?? 0),
+    unpaidFeeAmount: Number(raw?.unpaidFeeAmount ?? 0),
+    paidFeeCount: Number(raw?.paidFeeCount ?? 0),
+    unpaidFeeCount: Number(raw?.unpaidFeeCount ?? 0)
+  }
 }
 
 function setProfitScope(scope: ProfitScope) {
@@ -1762,122 +1826,47 @@ function setProfitScope(scope: ProfitScope) {
 
 async function fetchProfitScopeData(options: { silent?: boolean } = {}) {
   const cardIds = scopedCardIds.value
+  const requestKey = JSON.stringify({
+    cardIds: cardIds.join(','),
+    year: billFilter.year,
+    month: billFilter.month
+  })
+  if (profitScopeLoadingPromise && profitScopeLoadingKey === requestKey) {
+    return profitScopeLoadingPromise
+  }
   const requestSeq = ++profitScopeRequestSeq
   const scopeSnapshot = currentProfitScopeSnapshot()
   if (!cardIds.length) {
     profitLoading.value = false
-    profitRows.value = []
     profitOverview.value = emptyProfitOverview(scopeSnapshot)
     profitDisplayScope.value = scopeSnapshot
     profitReady.value = groupsReady.value
     return
   }
+  profitScopeLoadingKey = requestKey
 
   const showLoading = !options.silent && !profitReady.value
   if (showLoading) {
     profitLoading.value = true
   }
 
-  try {
-    const records = await fetchAllProfitBillRows()
-    if (requestSeq !== profitScopeRequestSeq) return
+  profitScopeLoadingPromise = (async () => {
+    try {
+      const res: any = await getProfitOverviewApi(buildProfitQueryParams())
+      if (requestSeq !== profitScopeRequestSeq) return
 
-    records.sort((a, b) => {
-      const monthDelta = billMonthOrder(a) - billMonthOrder(b)
-      if (monthDelta !== 0) return monthDelta
-      const aCard = `${a.ownerName || ''}${a.bankName || ''}${a.cardNoLast4 || ''}`
-      const bCard = `${b.ownerName || ''}${b.bankName || ''}${b.cardNoLast4 || ''}`
-      return aCard.localeCompare(bCard)
-    })
-    if (requestSeq !== profitScopeRequestSeq) return
-
-    profitRows.value = records
-    profitOverview.value = buildProfitOverviewFromRows(records, scopeSnapshot)
-    profitDisplayScope.value = scopeSnapshot
-    profitReady.value = true
-  } finally {
-    if (requestSeq === profitScopeRequestSeq) {
-      profitLoading.value = false
-    }
-  }
-}
-
-async function fetchAllProfitBillRows() {
-  const pageSize = 100
-  const params = buildProfitQueryParams()
-  const records: BillRow[] = []
-  let current = 1
-  let total = 0
-
-  while (true) {
-    const res: any = await getBillPageApi({
-      current,
-      size: pageSize,
-      ...params
-    })
-    const pageRecords = (res.data?.records || []) as BillRow[]
-    total = Number(res.data?.total ?? total)
-    records.push(...pageRecords)
-
-    if (!pageRecords.length) break
-    if (total > 0 && records.length >= total) break
-    if (pageRecords.length < pageSize) break
-    current += 1
-  }
-
-  return records
-}
-
-function buildProfitOverviewFromRows(list: BillRow[], scope = currentProfitScopeSnapshot()): ProfitOverview {
-  const ownerIds = new Set<number>()
-  let paidFeeAmount = 0
-  let unpaidFeeAmount = 0
-  let paidFeeCount = 0
-  let unpaidFeeCount = 0
-
-  for (const row of list) {
-    const ownerId = Number(row?.ownerId || 0)
-    if (ownerId > 0) ownerIds.add(ownerId)
-    const feeAmount = billFeeAmount(row)
-    if (feeAmount > 0) {
-      if (row.feePaid === true) {
-        paidFeeAmount += feeAmount
-        paidFeeCount += 1
-      } else {
-        unpaidFeeAmount += feeAmount
-        unpaidFeeCount += 1
+      profitOverview.value = normalizeProfitOverview(res.data || {}, scopeSnapshot)
+      profitDisplayScope.value = scopeSnapshot
+      profitReady.value = true
+    } finally {
+      if (requestSeq === profitScopeRequestSeq) {
+        profitLoading.value = false
+        profitScopeLoadingPromise = null
+        profitScopeLoadingKey = ''
       }
     }
-  }
-
-  const overview = list.reduce((acc, item) => {
-    acc.totalBillAmount += Number(item?.billAmount ?? 0)
-    acc.totalFeeAmount += billFeeAmount(item)
-    acc.totalPosCostAmount += Number(item?.posCostAmount ?? 0)
-    acc.totalOtherFeeAmount += Number(item?.otherFeeAmount ?? 0)
-    return acc
-  }, {
-    ...emptyProfitOverview(scope),
-    userCount: ownerIds.size,
-    cardCount: scopedCardIds.value.length
-  })
-
-  overview.expectedNetProfit = overview.totalFeeAmount - overview.totalPosCostAmount - overview.totalOtherFeeAmount
-  overview.paidFeeAmount = paidFeeAmount
-  overview.unpaidFeeAmount = unpaidFeeAmount
-  overview.paidFeeCount = paidFeeCount
-  overview.unpaidFeeCount = unpaidFeeCount
-  overview.totalNetProfit = overview.paidFeeAmount - overview.totalPosCostAmount - overview.totalOtherFeeAmount
-  return overview
-}
-
-function billFeeAmount(row: BillRow) {
-  const billAmount = toAmount(row.billAmount)
-  const feeRate = Number(row.feeRate)
-  if (Number.isFinite(feeRate)) {
-    return Number(((billAmount * feeRate) / 100).toFixed(2))
-  }
-  return toAmount(row.feeAmount)
+  })()
+  return profitScopeLoadingPromise
 }
 
 function goProfits() {
@@ -2308,22 +2297,6 @@ watch(
   { immediate: true }
 )
 
-watch(
-  () => [scopedCardIds.value.join(','), profitScope.value],
-  () => {
-    if (profitScope.value === 'month' && !billFilter.month) {
-      billFilter.month = billFilter.year === currentYear ? currentMonth : 1
-      return
-    }
-    if (profitScope.value === 'year' && billFilter.month) {
-      billFilter.month = undefined
-      return
-    }
-    fetchProfitScopeData()
-  },
-  { immediate: true }
-)
-
 onMounted(() => {
   refreshCardPageData({ silent: true })
   ensureUserTree(false, true)
@@ -2331,6 +2304,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   triggerGroupSearch.cancel()
+  window.clearTimeout(activateRefreshTimer)
 })
 
 onActivated(() => {
@@ -2340,7 +2314,7 @@ onActivated(() => {
   }
   // 从其他页面（如持卡人管理）返回时始终刷新，确保数据最新
   refreshCardPageData({ silent: true, keepCardId: activeCardId.value, keepUserId: activeUserId.value })
-  ensureUserTree(true, true)
+  scheduleActivationRefresh()
 })
 </script>
 
@@ -3235,6 +3209,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 
 .card-item {
   padding: 8px 10px;
+  transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
 
   &.is-expire-warning {
     border-color: rgba(217, 119, 6, .45);
@@ -3258,6 +3233,10 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
     color: #cf1322;
     background: #fff1f0;
     border-color: #ffa39e;
+  }
+
+  &:hover {
+    transform: none;
   }
 }
 
@@ -3627,7 +3606,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all .15s;
+  transition: border-color .15s ease, background-color .15s ease, color .15s ease;
   &:hover {
     border-color: rgba($primary,.25);
     background: $primary-soft;

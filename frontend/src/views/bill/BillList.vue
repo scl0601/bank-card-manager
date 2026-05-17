@@ -692,7 +692,7 @@
 defineOptions({ name: 'Bills' })
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/plugins/element-feedback'
 import { ArrowDown, ArrowRight, UserFilled, CreditCard, Delete, RefreshRight, Edit, Plus, Back } from '@element-plus/icons-vue'
 import PageTable from '@/components/PageTable/index.vue'
 import ExportButton from '@/components/ExportButton/index.vue'
@@ -893,6 +893,7 @@ const {
     sortMode: BILL_SORT_CURRENT_FIRST as BillSortMode,
     status: undefined as any
   },
+  immediate: false,
   autoSearch: false,
   beforeFetch: (params) => {
     params.pageSize = resolveBillPageSize(params)

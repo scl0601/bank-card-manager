@@ -160,7 +160,7 @@
 defineOptions({ name: 'Books' })
 import { ref, reactive, computed, onMounted } from 'vue'
 import { Plus, Setting } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/plugins/element-feedback'
 import SearchBar from '@/components/SearchBar/index.vue'
 import PageTable from '@/components/PageTable/index.vue'
 import CrudDialog from '@/components/CrudDialog/index.vue'

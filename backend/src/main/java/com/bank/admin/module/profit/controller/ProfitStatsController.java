@@ -19,10 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * 收益统计 Controller
- */
-@Tag(name = "收益统计")
+@Tag(name = "Profit stats")
 @RestController
 @RequestMapping("/api/profits")
 @RequiredArgsConstructor
@@ -30,28 +27,42 @@ public class ProfitStatsController {
 
     private final ProfitStatsService profitStatsService;
 
-    @Operation(summary = "收益总览")
+    @Operation(summary = "Profit overview")
     @GetMapping("/overview")
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR','VIEWER')")
     public Result<ProfitOverviewVO> overview(@Valid ProfitQueryDTO query) {
         return Result.success(profitStatsService.getOverview(query));
     }
 
-    @Operation(summary = "按用户分页统计收益")
+    @Operation(summary = "User profit page")
     @GetMapping("/users")
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR','VIEWER')")
     public Result<PageResult<UserProfitVO>> userPage(@Valid ProfitQueryDTO query) {
         return Result.success(profitStatsService.pageUserProfit(query));
     }
 
-    @Operation(summary = "按银行卡分页统计收益")
+    @Operation(summary = "Card profit page")
     @GetMapping("/cards")
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR','VIEWER')")
     public Result<PageResult<CardProfitVO>> cardPage(@Valid ProfitQueryDTO query) {
         return Result.success(profitStatsService.pageCardProfit(query));
     }
 
-    @Operation(summary = "按月份汇总收益")
+    @Operation(summary = "User monthly profit list")
+    @GetMapping("/user-months")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR','VIEWER')")
+    public Result<List<UserProfitVO>> userMonths(@Valid ProfitQueryDTO query) {
+        return Result.success(profitStatsService.listUserMonthProfit(query));
+    }
+
+    @Operation(summary = "Card monthly profit list")
+    @GetMapping("/card-months")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR','VIEWER')")
+    public Result<List<CardProfitVO>> cardMonths(@Valid ProfitQueryDTO query) {
+        return Result.success(profitStatsService.listCardMonthProfit(query));
+    }
+
+    @Operation(summary = "Monthly profit list")
     @GetMapping("/months")
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR','VIEWER')")
     public Result<List<MonthlyProfitVO>> months(@Valid ProfitQueryDTO query) {

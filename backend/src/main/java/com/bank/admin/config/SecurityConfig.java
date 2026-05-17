@@ -39,6 +39,7 @@ public class SecurityConfig {
     private final JwtUtil jwtUtil;
     private final UserDetailsService userDetailsService;
     private final ObjectMapper objectMapper;
+    private final AppProperties appProperties;
 
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter() {
@@ -103,7 +104,13 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("*"));
+        AppProperties.Cors cors = appProperties.getCors();
+        if (!cors.getAllowedOrigins().isEmpty()) {
+            config.setAllowedOrigins(cors.getAllowedOrigins());
+        }
+        if (!cors.getAllowedOriginPatterns().isEmpty()) {
+            config.setAllowedOriginPatterns(cors.getAllowedOriginPatterns());
+        }
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

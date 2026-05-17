@@ -28,7 +28,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/modules/auth'
-import { ElMessageBox } from 'element-plus'
+import { ElMessageBox } from '@/plugins/element-feedback'
 import { ArrowLeft } from '@element-plus/icons-vue'
 
 withDefaults(defineProps<{

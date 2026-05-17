@@ -5,6 +5,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.util.List;
+
 /**
  * 收益统计查询参数
  */
@@ -24,4 +26,10 @@ public class ProfitQueryDTO extends PageDTO {
 
     @Schema(description = "银行卡ID")
     private Long cardId;
+
+    @Schema(description = "Card IDs, comma separated")
+    private String cardIds;
+
+    @Schema(hidden = true)
+    private List<Long> cardIdList;
 }

@@ -155,7 +155,7 @@
 defineOptions({ name: 'Reminders' })
 import { ref, onMounted, computed } from 'vue'
 import { Bell, Warning, Clock, CreditCard, ArrowDown } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/plugins/element-feedback'
 import SearchBar from '@/components/SearchBar/index.vue'
 import PageTable from '@/components/PageTable/index.vue'
 import StatusTag from '@/components/StatusTag/index.vue'

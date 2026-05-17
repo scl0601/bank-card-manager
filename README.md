@@ -84,6 +84,18 @@
 
 详细环境说明见：[`DEV_SETUP.md`](./DEV_SETUP.md)
 
+### 生产安全配置
+
+生产环境必须显式配置 `JWT_SECRET`、`SPRING_DATASOURCE_URL`、`SPRING_DATASOURCE_USERNAME`、`SPRING_DATASOURCE_PASSWORD`。默认生产配置不会自动执行数据库结构补丁，也不会创建或重置内置测试账号。
+
+```text
+APP_SCHEMA_PATCH_ENABLED=false
+APP_BOOTSTRAP_USERS_ENABLED=false
+APP_CORS_ALLOWED_ORIGINS=https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com,https://api.bankaiscl.top
+```
+
+仅在受控维护窗口内临时打开 `APP_SCHEMA_PATCH_ENABLED`。`APP_BOOTSTRAP_USERS_ENABLED` 只建议用于本地开发或测试环境。
+
 ### 前端
 ```bash
 cd frontend
@@ -107,6 +119,15 @@ java -jar target/bank-admin-1.0.0.jar
 ### 重置数据库
 ```bash
 reset-db.bat
+```
+
+### 测试
+```bash
+cd frontend
+npm run test
+
+cd ../backend
+mvn test
 ```
 
 ## 部署记录

@@ -204,12 +204,12 @@ public class BankCardServiceImpl
         List<BankCardVO> visibleCardVOs = allCardVOs.stream()
                 .filter(card -> userToTopMap.containsKey(card.getUserId()))
                 .toList();
+        Map<Long, List<BankCardVO>> cardsByTopUser = visibleCardVOs.stream()
+                .collect(Collectors.groupingBy(card -> userToTopMap.get(card.getUserId())));
 
         List<UserCardGroupVO> result = new ArrayList<>();
         for (CardUser topUser : topUsers) {
-            List<BankCardVO> groupCards = visibleCardVOs.stream()
-                    .filter(card -> topUser.getId().equals(userToTopMap.get(card.getUserId())))
-                    .toList();
+            List<BankCardVO> groupCards = cardsByTopUser.getOrDefault(topUser.getId(), List.of());
 
             UserCardGroupVO group = new UserCardGroupVO();
             group.setUserId(topUser.getId());
@@ -441,6 +441,17 @@ public class BankCardServiceImpl
             for (CardUser user : users) {
                 userMap.put(user.getId(), user);
             }
+            Set<Long> parentIds = users.stream()
+                    .map(CardUser::getParentId)
+                    .filter(Objects::nonNull)
+                    .filter(parentId -> !userMap.containsKey(parentId))
+                    .collect(Collectors.toSet());
+            if (!parentIds.isEmpty()) {
+                List<CardUser> parents = cardUserMapper.selectBatchIds(parentIds);
+                for (CardUser parent : parents) {
+                    userMap.put(parent.getId(), parent);
+                }
+            }
         }
         return cards.stream().map(card -> toVOWithUser(card, userMap)).toList();
     }
@@ -463,10 +474,21 @@ public class BankCardServiceImpl
             CardUser user = userMap != null ? userMap.get(card.getUserId()) : cardUserMapper.selectById(card.getUserId());
             if (user != null) {
                 vo.setUserName(user.getName());
-                vo.setEffectiveFeeRate(resolveEffectiveFeeRate(user));
+                vo.setEffectiveFeeRate(resolveEffectiveFeeRate(user, userMap));
             }
         }
         return vo;
+    }
+
+    private BigDecimal resolveEffectiveFeeRate(CardUser user, Map<Long, CardUser> userMap) {
+        if (user == null) {
+            return BigDecimal.ZERO;
+        }
+        if (user.getParentId() == null) {
+            return defaultZero(user.getFeeRate());
+        }
+        CardUser parent = userMap == null ? cardUserMapper.selectById(user.getParentId()) : userMap.get(user.getParentId());
+        return parent == null ? defaultZero(user.getFeeRate()) : defaultZero(parent.getFeeRate());
     }
 
     private String normalizeApp(String value) {

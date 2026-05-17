@@ -3,7 +3,7 @@
  * 封装 Excel 导出逻辑
  */
 import { ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/plugins/element-feedback'
 
 export interface ExportOptions {
   /** 导出接口函数 */

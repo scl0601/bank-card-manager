@@ -24,5 +24,9 @@ public interface ProfitStatsMapper {
 
     IPage<CardProfitVO> selectCardProfitPage(Page<CardProfitVO> page, @Param("query") ProfitQueryDTO query);
 
+    List<UserProfitVO> selectUserMonthProfit(@Param("query") ProfitQueryDTO query);
+
+    List<CardProfitVO> selectCardMonthProfit(@Param("query") ProfitQueryDTO query);
+
     List<MonthlyProfitVO> selectMonthlyProfit(@Param("query") ProfitQueryDTO query);
 }

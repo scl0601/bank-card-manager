@@ -3,9 +3,9 @@
 
 spring:
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://sh-cynosdbmysql-grp-81wbjz68.sql.tencentcdb.com:20721/bank_admin?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
-    username: ${SPRING_DATASOURCE_USERNAME:dev}
-    password: ${SPRING_DATASOURCE_PASSWORD:}
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
   servlet:
     multipart:
@@ -16,6 +16,19 @@ spring:
 mybatis-plus:
   configuration:
     log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION:86400000}
+
+app:
+  schema-patch:
+    enabled: ${APP_SCHEMA_PATCH_ENABLED:false}
+  bootstrap-users:
+    enabled: ${APP_BOOTSTRAP_USERS_ENABLED:false}
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com,https://api.bankaiscl.top,https://bank-admin-backend-239413-10-1411764939.sh.run.tcloudbase.com}
+    allowed-origin-patterns: []
 
 logging:
   level:

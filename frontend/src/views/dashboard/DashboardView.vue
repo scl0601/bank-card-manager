@@ -70,7 +70,7 @@
         <!-- 卡片类型分布 -->
         <div class="page-card no-top-margin">
           <div class="card-title">卡片类型分布</div>
-          <v-chart :option="cardTypeOption" style="height: 200px" autoresize />
+          <DashboardChart :option="cardTypeOption" height="200px" />
         </div>
 
         <!-- 提醒概况 -->
@@ -119,7 +119,7 @@
         <!-- 近7日收支趋势 -->
         <div class="page-card chart-card">
           <div class="card-title">近7日收支趋势</div>
-          <v-chart :option="trendOption" style="height: 300px" autoresize />
+          <DashboardChart :option="trendOption" height="300px" />
         </div>
 
         <!-- 银行分布 + 即将到期账单 -->
@@ -127,7 +127,7 @@
           <el-col :span="12">
             <div class="page-card no-top-margin">
               <div class="card-title">银行分布</div>
-              <v-chart :option="bankDistOption" style="height: 280px" autoresize />
+              <DashboardChart :option="bankDistOption" height="280px" />
             </div>
           </el-col>
           <el-col :span="12">
@@ -162,18 +162,13 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'Dashboard' })
-import { ref, computed, onMounted } from 'vue'
+import { defineAsyncComponent, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { use } from 'echarts/core'
-import { CanvasRenderer } from 'echarts/renderers'
-import { LineChart, BarChart, PieChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
-import VChart from 'vue-echarts'
 import { getDashboardStatsApi } from '@/api/dashboard'
 import { formatAmount } from '@/utils/formatters'
 import { BILL_STATUS_MAP, BILL_STATUS_TAG_TYPE } from '@/constants/dict'
 
-use([CanvasRenderer, LineChart, BarChart, PieChart, GridComponent, TooltipComponent, LegendComponent])
+const DashboardChart = defineAsyncComponent(() => import('./components/DashboardChart.vue'))
 const router = useRouter()
 
 interface DailyTrendItem { date: string; income: number; expense: number }

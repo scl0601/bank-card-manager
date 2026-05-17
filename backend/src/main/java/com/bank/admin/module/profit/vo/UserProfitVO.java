@@ -18,6 +18,8 @@ public class UserProfitVO {
     @Schema(description = "一级用户名称")
     private String userName;
 
+    private String billMonth;
+
     @Schema(description = "银行卡数量")
     private Long cardCount;
 
@@ -35,6 +37,12 @@ public class UserProfitVO {
 
     @Schema(description = "手续费总收入")
     private BigDecimal totalFeeAmount;
+
+    private BigDecimal paidFeeAmount;
+
+    private String latestFeePayTime;
+
+    private String feePayMethods;
 
     @Schema(description = "手续费已支付账单数")
     private Long feePaidCount;

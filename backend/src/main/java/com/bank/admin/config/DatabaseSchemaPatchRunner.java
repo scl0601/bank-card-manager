@@ -22,18 +22,29 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
     private static final String MONITOR_ACCOUNT_PASSWORD_HASH = "$2a$10$YqSoxXaVEaZLntYw0OB7Rebe9XV/qvs7QeXhur/dVzJovBzyuter.";
 
     private final JdbcTemplate jdbcTemplate;
+    private final AppProperties appProperties;
 
-    public DatabaseSchemaPatchRunner(JdbcTemplate jdbcTemplate) {
+    public DatabaseSchemaPatchRunner(JdbcTemplate jdbcTemplate, AppProperties appProperties) {
         this.jdbcTemplate = jdbcTemplate;
+        this.appProperties = appProperties;
     }
 
     @Override
     public void run(ApplicationArguments args) {
+        if (!appProperties.getSchemaPatch().isEnabled()) {
+            log.info("Database schema patch runner is disabled by app.schema-patch.enabled=false");
+            return;
+        }
+
         ensurePatchHistoryTable();
         ensureSysUserOpenidColumn();
         ensureSysUserDataScope();
-        ensureFunctionalTestAccount();
-        ensureMonitorAccount();
+        if (appProperties.getBootstrapUsers().isEnabled()) {
+            ensureFunctionalTestAccount();
+            ensureMonitorAccount();
+        } else {
+            log.info("Bootstrap users are disabled by app.bootstrap-users.enabled=false");
+        }
         ensureCardUserModelCompatibility();
         ensureBankCardUserIdColumn();
         ensureBankCardColumns();

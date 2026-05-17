@@ -32,8 +32,17 @@ mybatis-plus:
 
 # JWT 配置
 jwt:
-  secret: ${JWT_SECRET:bank-admin-jwt-secret-key-2024-very-long-secret}
+  secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION:86400000}
+
+app:
+  schema-patch:
+    enabled: false
+  bootstrap-users:
+    enabled: false
+  cors:
+    allowed-origin-patterns: []
+    allowed-origins: []
 
 # AI 配置（使用腾讯云混元大模型）
 cloudbase:

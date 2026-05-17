@@ -1,4 +1,4 @@
-import { ElNotification } from 'element-plus'
+import { ElNotification } from '@/plugins/element-feedback'
 
 export enum ErrorType {
   VALIDATION = 'validation',

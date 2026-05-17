@@ -204,7 +204,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/plugins/element-feedback'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Upload, Close, Document, Picture, Files } from '@element-plus/icons-vue'
 import {

@@ -280,7 +280,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/plugins/element-feedback'
 import { Refresh, Plus, Document, Picture, Files } from '@element-plus/icons-vue'
 import {
   getFeedbackPageApi,

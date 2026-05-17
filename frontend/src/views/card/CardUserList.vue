@@ -387,7 +387,7 @@ import {
   Fold,
   Expand
 } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/plugins/element-feedback'
 import {
   getUserTreeApi,
   saveUserApi,
@@ -629,6 +629,9 @@ type FetchDataOptions = { silent?: boolean; force?: boolean }
 
 async function fetchData(options: FetchDataOptions = {}) {
   if (dataLoadingPromise && !options.force) return dataLoadingPromise
+  if (!options.force && dataReady.value && Date.now() - lastFetchedAt.value < VIEW_CACHE_TTL) {
+    return
+  }
 
   const requestSeq = ++dataRequestSeq
   loading.value = true
@@ -1116,6 +1119,7 @@ async function handleDeleteUser(id: number) {
 }
 
 onMounted(() => {
+  void fetchData({ silent: true })
   // 始终拉取最新数据，sessionStorage 缓存仅用于渲染初始占位，不阻止请求
   fetchData({ silent: true })
   nextTick(initTableResize)
@@ -1129,6 +1133,7 @@ onActivated(() => {
   }
   // 切换回此页面时始终刷新数据
   fetchData({ silent: true })
+  void fetchData({ silent: true })
   nextTick(updateTableLayout)
 })
 onBeforeUnmount(() => {

@@ -33,6 +33,8 @@ public class CardProfitVO {
     @Schema(description = "卡号后四位")
     private String cardNoLast4;
 
+    private String billMonth;
+
     @Schema(description = "账单数量")
     private Long billCount;
 
@@ -44,6 +46,12 @@ public class CardProfitVO {
 
     @Schema(description = "手续费总收入")
     private BigDecimal totalFeeAmount;
+
+    private BigDecimal paidFeeAmount;
+
+    private String latestFeePayTime;
+
+    private String feePayMethods;
 
     @Schema(description = "手续费已支付账单数")
     private Long feePaidCount;

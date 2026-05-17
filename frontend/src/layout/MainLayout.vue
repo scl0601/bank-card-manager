@@ -66,11 +66,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, defineAsyncComponent, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/modules/auth'
-import { ElMessageBox } from 'element-plus'
-import AiFloatWidget from '@/components/AiFloatWidget.vue'
+import { ElMessageBox } from '@/plugins/element-feedback'
+import { getProfitUserMonthListApi } from '@/api/profit'
+
+const AiFloatWidget = defineAsyncComponent(() => import('@/components/AiFloatWidget.vue'))
 
 const route = useRoute()
 const router = useRouter()
@@ -78,7 +80,6 @@ const authStore = useAuthStore()
 const isCollapsed = ref(false)
 
 const allMenuItems = [
-  { path: '/monitor',      title: '监控列表',   icon: 'Monitor', roles: ['ADMIN', 'MONITOR'] },
   { path: '/dashboard',    title: '首页看板',   icon: 'House' },
   { path: '/users',        title: '用户信息',   icon: 'UserFilled' },
   { path: '/cards',        title: '卡务管理',   icon: 'CreditCard' },
@@ -90,6 +91,7 @@ const allMenuItems = [
   { path: '/reminders',    title: '提醒中心',   icon: 'Bell' },
   { path: '/feedbacks',    title: '用户反馈',   icon: 'ChatDotRound' },
   { path: '/calendar',     title: '日历计划',   icon: 'Calendar' },
+  { path: '/monitor',      title: '监控列表',   icon: 'Monitor', roles: ['ADMIN', 'MONITOR'] },
   { path: '/logs',         title: '系统日志',   icon: 'Tickets' }
 ]
 
@@ -106,6 +108,63 @@ const isDenseRoute = computed(() => denseRouteNames.has(String(route.name || '')
 const currentTitle = computed(() =>
   menuItems.value.find(m => m.path === route.path)?.title || ''
 )
+let routePrefetchTimers: number[] = []
+const currentYear = new Date().getFullYear()
+
+function requestIdle(task: () => void, timeout = 1200) {
+  const ric = (window as any).requestIdleCallback
+  if (typeof ric === 'function') {
+    routePrefetchTimers.push(ric(task, { timeout }))
+    return
+  }
+  routePrefetchTimers.push(window.setTimeout(task, timeout))
+}
+
+function cancelIdle() {
+  const cic = (window as any).cancelIdleCallback
+  for (const timer of routePrefetchTimers) {
+    if (typeof cic === 'function') cic(timer)
+    else window.clearTimeout(timer)
+  }
+  routePrefetchTimers = []
+}
+
+function prefetchRouteChunks() {
+  requestIdle(() => {
+    void Promise.allSettled([
+      import('@/views/card/CardList.vue'),
+      import('@/views/bill/BillList.vue'),
+      import('@/views/profit/ProfitStatsView.vue'),
+      import('@/views/special/SpecialChannelView.vue'),
+      import('@/views/calendar/CalendarView.vue')
+    ])
+  })
+}
+
+function prefetchProfitStats() {
+  if (authStore.role === 'MONITOR') return
+  requestIdle(() => {
+    const params = { year: currentYear }
+    const key = `userMonths|${JSON.stringify(params)}`
+    const cache = ((window as any).__profitStatsPrefetchCache ||= {
+      key: '',
+      rows: [],
+      fetchedAt: 0,
+      promise: null
+    })
+    if (cache.key === key && (cache.promise || Date.now() - cache.fetchedAt < 30 * 1000)) return
+    cache.key = key
+    cache.promise = getProfitUserMonthListApi(params)
+      .then((res: any) => {
+        cache.rows = res.data || []
+        cache.fetchedAt = Date.now()
+        return cache.rows
+      })
+      .finally(() => {
+        cache.promise = null
+      })
+  }, 1800)
+}
 
 async function handleCommand(cmd: string) {
   if (cmd === 'logout') {
@@ -114,6 +173,12 @@ async function handleCommand(cmd: string) {
     router.push('/login')
   }
 }
+
+onMounted(() => {
+  prefetchRouteChunks()
+  prefetchProfitStats()
+})
+onUnmounted(cancelIdle)
 </script>
 
 <style scoped lang="scss">

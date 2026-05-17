@@ -91,7 +91,7 @@
       <div class="panel-head">
         <div>
           <div class="panel-title">{{ activeViewTitle }}</div>
-          <div class="panel-desc">{{ tableRows.length }} 行 · {{ billRows.length }} 条账单</div>
+          <div class="panel-desc">{{ tableRows.length }} 行 · {{ summary.billCount }} 条账单</div>
         </div>
         <div class="inline-summary">
           <span>用户 {{ summary.userCount }}</span>
@@ -100,8 +100,8 @@
         </div>
       </div>
 
-      <div ref="tableShellRef" class="table-shell">
-        <el-table :data="pagedRows" border stripe height="100%" table-layout="fixed" size="small" row-key="id">
+      <div ref="tableShellRef" class="table-shell" :class="{ 'is-layout-pending': !tableLayoutReady }">
+        <el-table ref="profitTableRef" :data="visiblePagedRows" border stripe height="100%" table-layout="fixed" size="small" row-key="id">
           <el-table-column prop="userName" width="70" align="center" header-align="center" show-overflow-tooltip>
             <template #header>
               <div class="sortable-header" @click="toggleUserSort">
@@ -306,10 +306,11 @@
 defineOptions({ name: 'ProfitStats' })
 import { computed, nextTick, onActivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/plugins/element-feedback'
 import { CreditCard, Money, RefreshRight, TrendCharts, Wallet } from '@element-plus/icons-vue'
 import { getUserTreeApi, getCardListApi } from '@/api/card'
 import { getBillPageApi, updateBillApi } from '@/api/bill'
+import { getProfitCardMonthListApi, getProfitUserMonthListApi } from '@/api/profit'
 
 type ViewKey = 'userMonths' | 'cardMonths' | 'monthUsers'
 type UserSortOrder = 'default' | 'asc' | 'desc'
@@ -364,6 +365,27 @@ interface BillRow {
   expenseVerified?: boolean | null
   status: number
   remark?: string | null
+}
+
+interface ProfitStatsRow {
+  userId: number
+  userName: string
+  ownerId?: number
+  ownerName?: string
+  cardId?: number
+  bankName?: string
+  cardNoLast4?: string
+  billMonth: string
+  billCount: number
+  cardCount?: number
+  totalBillAmount: number
+  totalFeeAmount: number
+  paidFeeAmount?: number
+  latestFeePayTime?: string | null
+  feePayMethods?: string | null
+  totalOtherFeeAmount: number
+  totalPosCostAmount: number
+  totalNetProfit: number
 }
 
 interface ProfitDetailRow {
@@ -442,7 +464,10 @@ const queryYearDate = ref(String(currentYear))
 const userTree = ref<UserNode[]>([])
 const cardOptions = ref<CardOption[]>([])
 const billRows = ref<BillRow[]>([])
+const profitRows = ref<ProfitStatsRow[]>([])
 const tableShellRef = ref<HTMLElement | null>(null)
+const profitTableRef = ref<{ doLayout?: () => void } | null>(null)
+const tableLayoutReady = ref(false)
 const profitEditorVisible = ref(false)
 const profitEditorLoading = ref(false)
 const profitEditorRows = ref<BillRow[]>([])
@@ -482,12 +507,41 @@ const TABLE_HEADER_HEIGHT = 29
 const TABLE_PAGER_HEIGHT = 34
 const TABLE_ROW_HEIGHT = 30
 const SEARCH_DEBOUNCE_MS = 80
+const BILL_FETCH_PAGE_SIZE = 100
+const BILL_FETCH_CONCURRENCY = 4
+const BASE_OPTIONS_CACHE_TTL = 60 * 1000
+const ACTIVATION_REFRESH_TTL = 60 * 1000
+const PREFETCH_CACHE_TTL = 30 * 1000
+
+type ProfitPrefetchCache = {
+  key: string
+  rows: ProfitStatsRow[]
+  fetchedAt: number
+  promise: Promise<ProfitStatsRow[]> | null
+}
+
+const profitPrefetchCache: ProfitPrefetchCache = ((window as any).__profitStatsPrefetchCache ||= {
+  key: '',
+  rows: [],
+  fetchedAt: 0,
+  promise: null
+})
 
 let tableResizeObserver: ResizeObserver | null = null
 let fitPageFrame = 0
 let searchSeq = 0
 let searchTimer = 0
 let initialLoadPending = true
+let suppressAutoSearch = false
+let revealTableFrame = 0
+let baseOptionsPromise: Promise<void> | null = null
+let baseOptionsFetchedAt = 0
+let profitRowsLoadingKey = ''
+let profitRowsLoadingPromise: Promise<ProfitStatsRow[]> | null = null
+let profitRowsAppliedKey = ''
+let profitRowsFetchedAt = 0
+let billRowsLoadingKey = ''
+let billRowsLoadingPromise: Promise<BillRow[]> | null = null
 
 const sortedTopUserOptions = computed(() => normalizeTopUsers(userTree.value, userSortOrder.value))
 const userLookup = computed(() => buildUserLookup(userTree.value))
@@ -530,10 +584,14 @@ const tableRows = computed(() => {
   return buildUserMonthRows()
 })
 
+const billRowIndexes = computed(() => buildBillRowIndexes(billRows.value))
+const profitRowIndexes = computed(() => buildProfitRowIndexes(profitRows.value))
+
 const pagedRows = computed(() => {
   const start = (detailPage.current - 1) * detailPage.size
   return tableRows.value.slice(start, start + detailPage.size)
 })
+const visiblePagedRows = ref<ProfitDetailRow[]>([])
 
 const summary = computed(() => {
   const userIds = new Set<number>()
@@ -544,21 +602,22 @@ const summary = computed(() => {
   let totalPosCostAmount = 0
   let totalOtherFeeAmount = 0
 
-  for (const bill of billRows.value) {
-    const topUser = topUserForBill(bill)
-    if (topUser?.id) userIds.add(Number(topUser.id))
-    if (bill.cardId) cardIds.add(Number(bill.cardId))
-    totalBillAmount += toAmount(bill.billAmount)
-    totalFeeAmount += billFeeAmount(bill)
-    feePaidAmount += billPaidAmount(bill)
-    totalPosCostAmount += toAmount(bill.posCostAmount)
-    totalOtherFeeAmount += toAmount(bill.otherFeeAmount)
+  let billCount = 0
+  for (const row of profitRows.value) {
+    if (row.userId) userIds.add(Number(row.userId))
+    if (row.cardId) cardIds.add(Number(row.cardId))
+    totalBillAmount += toAmount(row.totalBillAmount)
+    totalFeeAmount += toAmount(row.totalFeeAmount)
+    feePaidAmount += toAmount(row.paidFeeAmount)
+    totalPosCostAmount += toAmount(row.totalPosCostAmount)
+    totalOtherFeeAmount += toAmount(row.totalOtherFeeAmount)
+    billCount += Number(row.billCount || 0)
   }
 
   return {
     userCount: userIds.size,
     cardCount: cardIds.size,
-    billCount: billRows.value.length,
+    billCount,
     totalBillAmount,
     totalFeeAmount,
     feePaidAmount,
@@ -707,22 +766,78 @@ function buildCardCountByTopUser() {
   return new Map(Array.from(map.entries()).map(([key, value]) => [key, value.size]))
 }
 
+function profitIndexKey(id: number, billMonth: string) {
+  return `${Number(id || 0)}|${billMonth}`
+}
+
+function buildBillRowIndexes(rows: BillRow[]) {
+  const byTopUserMonth = new Map<string, BillRow[]>()
+  const byCardMonth = new Map<string, BillRow[]>()
+  const topUsersWithBills = new Set<number>()
+  const cardsWithBills = new Set<number>()
+
+  for (const bill of rows) {
+    const billMonth = String(bill.billMonth || '')
+    const topUserId = Number(topUserForBill(bill)?.id || 0)
+    const cardId = Number(bill.cardId || 0)
+    if (topUserId > 0) {
+      topUsersWithBills.add(topUserId)
+      const key = profitIndexKey(topUserId, billMonth)
+      const list = byTopUserMonth.get(key)
+      if (list) list.push(bill)
+      else byTopUserMonth.set(key, [bill])
+    }
+    if (cardId > 0) {
+      cardsWithBills.add(cardId)
+      const key = profitIndexKey(cardId, billMonth)
+      const list = byCardMonth.get(key)
+      if (list) list.push(bill)
+      else byCardMonth.set(key, [bill])
+    }
+  }
+
+  return { byTopUserMonth, byCardMonth, topUsersWithBills, cardsWithBills }
+}
+
+function buildProfitRowIndexes(rows: ProfitStatsRow[]) {
+  const byTopUserMonth = new Map<string, ProfitStatsRow>()
+  const byCardMonth = new Map<string, ProfitStatsRow>()
+  const topUsersWithProfit = new Set<number>()
+  const cardsWithProfit = new Set<number>()
+
+  for (const row of rows) {
+    const billMonth = String(row.billMonth || '')
+    const topUserId = Number(row.userId || 0)
+    const cardId = Number(row.cardId || 0)
+    if (topUserId > 0) {
+      topUsersWithProfit.add(topUserId)
+      byTopUserMonth.set(profitIndexKey(topUserId, billMonth), row)
+    }
+    if (cardId > 0) {
+      cardsWithProfit.add(cardId)
+      byCardMonth.set(profitIndexKey(cardId, billMonth), row)
+    }
+  }
+
+  return { byTopUserMonth, byCardMonth, topUsersWithProfit, cardsWithProfit }
+}
+
 function buildUserMonthRows() {
   const targetUsers = baseUsersForRows()
   const rows: ProfitDetailRow[] = []
   for (const user of targetUsers) {
     for (const month of selectedMonths.value) {
       const billMonth = buildBillMonth(appliedQuery.year, month)
-      const bills = billRows.value.filter((bill) => Number(topUserForBill(bill)?.id || 0) === Number(user.id) && bill.billMonth === billMonth)
+      const stat = profitRowIndexes.value.byTopUserMonth.get(profitIndexKey(Number(user.id), billMonth))
       rows.push(buildProfitRow({
         id: `user-${user.id}-${billMonth}`,
         userId: Number(user.id),
         userName: user.name,
         cardId: appliedQuery.cardId ? Number(appliedQuery.cardId) : undefined,
-        cardCount: appliedQuery.cardId ? 1 : (cardCountByTopUser.value.get(Number(user.id)) || distinctCount(bills.map((bill) => bill.cardId))),
+        cardCount: appliedQuery.cardId ? 1 : (cardCountByTopUser.value.get(Number(user.id)) || Number(stat?.cardCount || 0)),
         billMonth,
         cardLabel: '-',
-        bills
+        stat
       }))
     }
   }
@@ -736,7 +851,7 @@ function buildCardMonthRows() {
     const topUser = topUserForOwner(Number(card.userId || 0))
     for (const month of selectedMonths.value) {
       const billMonth = buildBillMonth(appliedQuery.year, month)
-      const bills = billRows.value.filter((bill) => Number(bill.cardId || 0) === Number(card.id) && bill.billMonth === billMonth)
+      const stat = profitRowIndexes.value.byCardMonth.get(profitIndexKey(Number(card.id), billMonth))
       rows.push(buildProfitRow({
         id: `card-${card.id}-${billMonth}`,
         userId: Number(topUser?.id || 0),
@@ -745,7 +860,7 @@ function buildCardMonthRows() {
         cardLabel: cardLabel(card),
         cardCount: 1,
         billMonth,
-        bills
+        stat
       }))
     }
   }
@@ -758,16 +873,16 @@ function buildMonthUserRows() {
   for (const month of selectedMonths.value) {
     const billMonth = buildBillMonth(appliedQuery.year, month)
     for (const user of targetUsers) {
-      const bills = billRows.value.filter((bill) => Number(topUserForBill(bill)?.id || 0) === Number(user.id) && bill.billMonth === billMonth)
+      const stat = profitRowIndexes.value.byTopUserMonth.get(profitIndexKey(Number(user.id), billMonth))
       rows.push(buildProfitRow({
         id: `month-user-${billMonth}-${user.id}`,
         userId: Number(user.id),
         userName: user.name,
         cardId: appliedQuery.cardId ? Number(appliedQuery.cardId) : undefined,
-        cardCount: appliedQuery.cardId ? 1 : (cardCountByTopUser.value.get(Number(user.id)) || distinctCount(bills.map((bill) => bill.cardId))),
+        cardCount: appliedQuery.cardId ? 1 : (cardCountByTopUser.value.get(Number(user.id)) || Number(stat?.cardCount || 0)),
         billMonth,
         cardLabel: '-',
-        bills
+        stat
       }))
     }
   }
@@ -778,26 +893,59 @@ function baseUsersForRows() {
   if (appliedQuery.cardId) {
     const card = cardOptions.value.find((item) => Number(item.id) === Number(appliedQuery.cardId))
     const top = topUserForOwner(Number(card?.userId || billRows.value[0]?.ownerId || 0))
-    return top ? [top] : []
+    if (top) return [top]
+    return profitUsersForRows().slice(0, 1)
   }
   if (appliedQuery.userId) {
-    return sortedTopUserOptions.value.filter((user) => Number(user.id) === Number(appliedQuery.userId))
+    const matched = sortedTopUserOptions.value.filter((user) => Number(user.id) === Number(appliedQuery.userId))
+    return matched.length ? matched : profitUsersForRows().filter((user) => Number(user.id) === Number(appliedQuery.userId))
   }
-  return sortedTopUserOptions.value.filter((user) => {
+  const optionUsers = sortedTopUserOptions.value.filter((user) => {
     const cardCount = cardCountByTopUser.value.get(Number(user.id)) || 0
-    const hasBill = billRows.value.some((bill) => Number(topUserForBill(bill)?.id || 0) === Number(user.id))
+    const hasBill = profitRowIndexes.value.topUsersWithProfit.has(Number(user.id))
     return cardCount > 0 || hasBill
   })
+  return optionUsers.length ? optionUsers : profitUsersForRows()
 }
 
 function baseCardsForRows() {
   if (appliedQuery.cardId) {
-    return filteredAppliedCardOptions.value.filter((card) => Number(card.id) === Number(appliedQuery.cardId))
+    const matched = filteredAppliedCardOptions.value.filter((card) => Number(card.id) === Number(appliedQuery.cardId))
+    return matched.length ? matched : profitCardsForRows().filter((card) => Number(card.id) === Number(appliedQuery.cardId))
   }
-  return filteredAppliedCardOptions.value.filter((card) => {
-    const hasBill = billRows.value.some((bill) => Number(bill.cardId) === Number(card.id))
+  const optionCards = filteredAppliedCardOptions.value.filter((card) => {
+    const hasBill = profitRowIndexes.value.cardsWithProfit.has(Number(card.id))
     return hasBill || Number(card.id) > 0
   })
+  return optionCards.length ? optionCards : profitCardsForRows()
+}
+
+function profitUsersForRows() {
+  const map = new Map<number, UserNode>()
+  for (const row of profitRows.value) {
+    const id = Number(row.userId || 0)
+    if (!id || map.has(id)) continue
+    map.set(id, { id, name: row.userName || '-' })
+  }
+  return Array.from(map.values())
+}
+
+function profitCardsForRows() {
+  const map = new Map<number, CardOption>()
+  for (const row of profitRows.value) {
+    const id = Number(row.cardId || 0)
+    if (!id || map.has(id)) continue
+    map.set(id, {
+      id,
+      userId: Number(row.ownerId || row.userId || 0),
+      userName: row.userName,
+      ownerName: row.ownerName,
+      bankName: row.bankName,
+      cardNoLast4: row.cardNoLast4,
+      cardType: 2
+    })
+  }
+  return Array.from(map.values())
 }
 
 function isProfitCardOption(card: CardOption) {
@@ -819,25 +967,19 @@ function buildProfitRow(input: {
   cardLabel?: string
   cardCount: number
   billMonth: string
-  bills: BillRow[]
+  stat?: ProfitStatsRow
 }): ProfitDetailRow {
-  let totalBillAmount = 0
-  let totalFeeAmount = 0
-  let feePaidAmount = 0
-  let totalOtherFeeAmount = 0
-  let totalPosCostAmount = 0
-  const payTimes: string[] = []
-  const payMethods = new Set<string>()
-
-  for (const bill of input.bills) {
-    totalBillAmount += toAmount(bill.billAmount)
-    totalFeeAmount += billFeeAmount(bill)
-    feePaidAmount += billPaidAmount(bill)
-    totalOtherFeeAmount += toAmount(bill.otherFeeAmount)
-    totalPosCostAmount += toAmount(bill.posCostAmount)
-    if (bill.feePayTime) payTimes.push(String(bill.feePayTime))
-    if (bill.feePayMethod && billPaidAmount(bill) > 0) payMethods.add(paymentMethodText(String(bill.feePayMethod)))
-  }
+  const stat = input.stat
+  const totalBillAmount = toAmount(stat?.totalBillAmount)
+  const totalFeeAmount = toAmount(stat?.totalFeeAmount)
+  const feePaidAmount = toAmount(stat?.paidFeeAmount)
+  const totalOtherFeeAmount = toAmount(stat?.totalOtherFeeAmount)
+  const totalPosCostAmount = toAmount(stat?.totalPosCostAmount)
+  const payMethods = String(stat?.feePayMethods || '')
+    .split(',')
+    .map((method) => method.trim())
+    .filter(Boolean)
+    .map(paymentMethodText)
 
   const remainingFeeAmount = Math.max(0, totalFeeAmount - feePaidAmount)
   return {
@@ -846,23 +988,23 @@ function buildProfitRow(input: {
     userName: input.userName || '-',
     cardId: input.cardId,
     cardLabel: input.cardLabel,
-    holderLabel: buildHolderLabel(input.userId, input.cardId, input.bills),
-    cardInfoLabel: buildCardInfoLabel(input.userId, input.cardId, input.cardCount, input.bills),
+    holderLabel: buildHolderLabel(input.userId, input.cardId, stat),
+    cardInfoLabel: buildCardInfoLabel(input.userId, input.cardId, input.cardCount, stat),
     cardCount: input.cardCount,
     billMonth: input.billMonth,
     monthLabel: monthLabel(input.billMonth),
-    billCount: input.bills.length,
+    billCount: Number(stat?.billCount || 0),
     totalBillAmount,
     totalFeeAmount,
     feePaidAmount,
     remainingFeeAmount,
     feePayStatus: feePayStatus(totalFeeAmount, feePaidAmount),
-    latestFeePayTime: latestTime(payTimes),
-    feePayMethodText: Array.from(payMethods).join(' / '),
+    latestFeePayTime: stat?.latestFeePayTime || '',
+    feePayMethodText: payMethods.join(' / '),
     totalOtherFeeAmount,
     totalPosCostAmount,
     totalNetProfit: totalFeeAmount - totalPosCostAmount - totalOtherFeeAmount,
-    bills: input.bills
+    bills: stat && Number(stat.billCount || 0) > 0 ? [buildPlaceholderBill(rowBillScope(input, stat))] : []
   }
 }
 
@@ -924,22 +1066,58 @@ function cardsForTopUser(userId: number) {
   return profitCardOptions.value.filter((card) => Number(topUserForOwner(Number(card.userId || 0))?.id || 0) === Number(userId))
 }
 
-function buildHolderLabel(userId: number, cardId: number | undefined, bills: BillRow[]) {
+function rowBillScope(input: { userId: number; userName: string; cardId?: number; billMonth: string }, stat: ProfitStatsRow) {
+  return {
+    userId: input.userId,
+    userName: input.userName,
+    cardId: input.cardId || stat.cardId,
+    ownerId: stat.ownerId,
+    ownerName: stat.ownerName,
+    bankName: stat.bankName,
+    cardNoLast4: stat.cardNoLast4,
+    billMonth: input.billMonth
+  }
+}
+
+function buildPlaceholderBill(scope: {
+  userId: number
+  userName: string
+  cardId?: number
+  ownerId?: number
+  ownerName?: string
+  bankName?: string
+  cardNoLast4?: string
+  billMonth: string
+}): BillRow {
+  return {
+    id: 0,
+    cardId: Number(scope.cardId || 0),
+    ownerId: scope.ownerId || scope.userId,
+    ownerName: scope.ownerName || scope.userName,
+    bankName: scope.bankName,
+    cardNoLast4: scope.cardNoLast4,
+    billMonth: scope.billMonth,
+    repayDate: null,
+    billAmount: 0,
+    status: 0
+  }
+}
+
+function buildHolderLabel(userId: number, cardId: number | undefined, stat?: ProfitStatsRow) {
   if (cardId) {
     const card = cardOptions.value.find((item) => Number(item.id) === Number(cardId))
-    return ownerNameForCard(card) || summarizeNames(bills.map((bill) => bill.ownerName || ownerNameForId(Number(bill.ownerId || 0))))
+    return ownerNameForCard(card) || stat?.ownerName || ownerNameForId(Number(stat?.ownerId || 0))
   }
-  if (bills.length) {
-    return summarizeNames(bills.map((bill) => bill.ownerName || ownerNameForId(Number(bill.ownerId || 0))))
+  if (stat?.ownerName || stat?.ownerId) {
+    return stat.ownerName || ownerNameForId(Number(stat.ownerId || 0))
   }
   return summarizeNames(cardsForTopUser(userId).map(ownerNameForCard), '全部持卡人')
 }
 
-function buildCardInfoLabel(userId: number, cardId: number | undefined, cardCount: number, bills: BillRow[]) {
-  const billCardCount = distinctCount(bills.map((bill) => bill.cardId))
+function buildCardInfoLabel(userId: number, cardId: number | undefined, cardCount: number, stat?: ProfitStatsRow) {
   const scopedCardCount = cardId ? 1 : cardCount
   const fallbackCardCount = cardId ? 1 : cardsForTopUser(userId).length
-  const count = scopedCardCount || billCardCount || fallbackCardCount
+  const count = scopedCardCount || Number(stat?.cardCount || 0) || fallbackCardCount
   return count > 0 ? `${count}张卡` : '-'
 }
 
@@ -966,13 +1144,74 @@ function applyRouteQuery() {
 }
 
 async function fetchBaseOptions() {
-  const [userRes, cardRes]: any = await Promise.all([getUserTreeApi(), getCardListApi()])
-  userTree.value = userRes.data || []
-  cardOptions.value = cardRes.data || []
+  if (baseOptionsPromise) return baseOptionsPromise
+  if (Date.now() - baseOptionsFetchedAt < BASE_OPTIONS_CACHE_TTL && userTree.value.length && cardOptions.value.length) {
+    return
+  }
+  baseOptionsPromise = (async () => {
+    try {
+      const [userRes, cardRes]: any = await Promise.all([getUserTreeApi(), getCardListApi()])
+      userTree.value = userRes.data || []
+      cardOptions.value = cardRes.data || []
+      baseOptionsFetchedAt = Date.now()
+    } finally {
+      baseOptionsPromise = null
+    }
+  })()
+  return baseOptionsPromise
 }
 
 async function fetchBillRows(snapshot: ProfitQuery) {
   return fetchAllBillRows(buildBillQueryParams(snapshot))
+}
+
+async function fetchProfitRows(snapshot: ProfitQuery, tab: ViewKey, force = false) {
+  const params = buildProfitQueryParams(snapshot)
+  const requestKey = `${tab}|${JSON.stringify(params)}`
+  if (!force && profitRowsAppliedKey === requestKey) {
+    return profitRows.value
+  }
+  if (!force && profitPrefetchCache.key === requestKey && Date.now() - profitPrefetchCache.fetchedAt < PREFETCH_CACHE_TTL) {
+    profitRowsAppliedKey = requestKey
+    profitRowsFetchedAt = profitPrefetchCache.fetchedAt
+    return profitPrefetchCache.rows
+  }
+  if (!force && profitPrefetchCache.key === requestKey && profitPrefetchCache.promise) {
+    const rows = await profitPrefetchCache.promise
+    profitRowsAppliedKey = requestKey
+    profitRowsFetchedAt = profitPrefetchCache.fetchedAt || Date.now()
+    return rows
+  }
+  if (!force && profitRowsLoadingPromise && profitRowsLoadingKey === requestKey) {
+    return profitRowsLoadingPromise
+  }
+
+  profitRowsLoadingKey = requestKey
+  profitRowsLoadingPromise = (async () => {
+    try {
+      const api = tab === 'cardMonths' ? getProfitCardMonthListApi : getProfitUserMonthListApi
+      const res: any = await api(params)
+      const rows = (res.data || []) as ProfitStatsRow[]
+      profitRowsAppliedKey = requestKey
+      profitRowsFetchedAt = Date.now()
+      profitPrefetchCache.key = requestKey
+      profitPrefetchCache.rows = rows
+      profitPrefetchCache.fetchedAt = profitRowsFetchedAt
+      return rows
+    } finally {
+      profitRowsLoadingPromise = null
+      profitRowsLoadingKey = ''
+    }
+  })()
+  return profitRowsLoadingPromise
+}
+
+function buildProfitQueryParams(snapshot: ProfitQuery) {
+  const params: Record<string, any> = { year: snapshot.year }
+  if (snapshot.month) params.month = snapshot.month
+  if (snapshot.userId) params.userId = snapshot.userId
+  if (snapshot.cardId) params.cardId = snapshot.cardId
+  return params
 }
 
 function buildBillQueryParams(snapshot: ProfitQuery) {
@@ -987,35 +1226,61 @@ function buildBillQueryParams(snapshot: ProfitQuery) {
 }
 
 async function fetchAllBillRows(params: Record<string, any>) {
-  const pageSize = 100
-  const records: BillRow[] = []
-  let current = 1
-  let total = 0
-  while (true) {
-    const res: any = await getBillPageApi({ current, size: pageSize, ...params })
-    const pageRecords = (res.data?.records || []) as BillRow[]
-    total = Number(res.data?.total ?? total)
-    records.push(...pageRecords)
-    if (!pageRecords.length) break
-    if (total > 0 && records.length >= total) break
-    if (pageRecords.length < pageSize) break
-    current += 1
+  const requestKey = JSON.stringify(params)
+  if (billRowsLoadingPromise && billRowsLoadingKey === requestKey) {
+    return billRowsLoadingPromise
   }
-  return records
+
+  billRowsLoadingKey = requestKey
+  billRowsLoadingPromise = (async () => {
+    try {
+      const firstRes: any = await getBillPageApi({ current: 1, size: BILL_FETCH_PAGE_SIZE, ...params })
+      const firstRecords = (firstRes.data?.records || []) as BillRow[]
+      const total = Number(firstRes.data?.total ?? firstRecords.length)
+      if (!firstRecords.length || firstRecords.length >= total) {
+        return firstRecords
+      }
+
+      const pageCount = Math.ceil(total / BILL_FETCH_PAGE_SIZE)
+      const remainingPages = Array.from({ length: pageCount - 1 }, (_, index) => index + 2)
+      const records = [...firstRecords]
+
+      for (let index = 0; index < remainingPages.length; index += BILL_FETCH_CONCURRENCY) {
+        const batch = remainingPages.slice(index, index + BILL_FETCH_CONCURRENCY)
+        const responses = await Promise.all(
+          batch.map((current) => getBillPageApi({ current, size: BILL_FETCH_PAGE_SIZE, ...params }))
+        )
+        for (const res of responses as any[]) {
+          records.push(...((res.data?.records || []) as BillRow[]))
+        }
+      }
+
+      return records
+    } finally {
+      billRowsLoadingPromise = null
+      billRowsLoadingKey = ''
+    }
+  })()
+  return billRowsLoadingPromise
 }
 
-async function handleSearch() {
+async function handleSearch(force = false, revealWhenSettled = true) {
   clearQueuedSearch()
   const snapshot = currentQuerySnapshot()
   const tabSnapshot = activeTab.value
   const seq = ++searchSeq
-  const rows = await fetchBillRows(snapshot)
+  tableLayoutReady.value = false
+  visiblePagedRows.value = []
+  const rows = await fetchProfitRows(snapshot, tabSnapshot, force)
   if (seq !== searchSeq) return
   detailPage.current = 1
   applyQuerySnapshot(snapshot)
   appliedTab.value = tabSnapshot
-  billRows.value = rows
-  scheduleFitPageSize()
+  profitRows.value = rows
+  billRows.value = []
+  if (revealWhenSettled) {
+    await settleTableLayout()
+  }
 }
 
 function queueSearch() {
@@ -1034,8 +1299,13 @@ function clearQueuedSearch() {
 
 async function refresh() {
   clearQueuedSearch()
-  await fetchBaseOptions()
-  await handleSearch()
+  tableLayoutReady.value = false
+  profitRowsAppliedKey = ''
+  await Promise.all([
+    fetchBaseOptions(),
+    handleSearch(true, false)
+  ])
+  await settleTableLayout()
 }
 
 function resetQuery() {
@@ -1050,7 +1320,7 @@ function resetQuery() {
 }
 
 async function openProfitEditor(row: ProfitDetailRow) {
-  if (!row.bills.length) return
+  if (!row.billCount) return
   profitEditorScopeRow.value = row
   profitEditorBaseTitle.value = `${row.userName} · ${row.monthLabel} · 统一收款`
   profitEditorRows.value = []
@@ -1073,14 +1343,16 @@ async function resolveProfitEditorRows(row: ProfitDetailRow) {
     return Number(topUserForBill(bill)?.id || 0) === Number(row.userId)
       && bill.billMonth === row.billMonth
   })
-  if (!appliedQuery.cardId && localRows.length >= row.bills.length) {
+  if (!appliedQuery.cardId && localRows.length >= row.billCount) {
     return localRows
   }
-  return fetchAllBillRows({
+  const params: Record<string, any> = {
     ownerId: row.userId,
     billMonth: row.billMonth,
     sortMode: 'monthAsc'
-  })
+  }
+  if (row.cardId) params.cardId = row.cardId
+  return fetchAllBillRows(params)
 }
 
 function sortProfitEditorRows(rows: BillRow[]) {
@@ -1234,6 +1506,7 @@ async function saveProfitCollection() {
     }
     syncProfitDrafts(profitEditorRows.value)
     syncProfitCollectDraft(profitEditorRows.value)
+    await handleSearch(true)
     profitEditorVisible.value = false
     ElMessage.success('洽谈人统一收款已保存')
   } catch (error: any) {
@@ -1255,6 +1528,7 @@ async function saveProfitBill(row: BillRow) {
     })
     await updateBillApi(payload)
     applySavedProfitDraft(row, payload)
+    await handleSearch(true)
     ElMessage.success('成本信息已保存')
   } catch (error: any) {
     ElMessage.error(error?.response?.data?.message || error?.message || '保存成本信息失败')
@@ -1276,6 +1550,7 @@ function applySavedProfitDraft(row: BillRow, payload: Record<string, any>, optio
   }
   if (target) Object.assign(target, patch)
   Object.assign(row, patch)
+  profitRowsAppliedKey = ''
   if (options.syncDrafts !== false) {
     syncProfitDrafts(profitEditorRows.value)
     syncProfitCollectDraft(profitEditorRows.value)
@@ -1423,6 +1698,7 @@ function scheduleFitPageSize() {
   fitPageFrame = window.requestAnimationFrame(() => {
     fitPageFrame = 0
     updateFitPageSize()
+    profitTableRef.value?.doLayout?.()
   })
 }
 
@@ -1441,6 +1717,61 @@ function updateFitPageSize() {
   }
 }
 
+async function settleTableLayout() {
+  if (revealTableFrame) {
+    window.cancelAnimationFrame(revealTableFrame)
+    revealTableFrame = 0
+  }
+  await nextTick()
+  updateFitPageSize()
+  await nextTick()
+  visiblePagedRows.value = pagedRows.value
+  await nextTick()
+  profitTableRef.value?.doLayout?.()
+  revealTableFrame = window.requestAnimationFrame(async () => {
+    profitTableRef.value?.doLayout?.()
+    await nextTick()
+    revealTableFrame = window.requestAnimationFrame(() => {
+      revealTableFrame = 0
+      profitTableRef.value?.doLayout?.()
+      tableLayoutReady.value = true
+    })
+  })
+}
+
+async function refreshInitialData() {
+  tableLayoutReady.value = false
+  await Promise.all([
+    fetchBaseOptions(),
+    handleSearch(false, false)
+  ])
+  await settleTableLayout()
+}
+
+async function refreshBaseOptionsSilently() {
+  await fetchBaseOptions()
+  if (tableRows.value.length) {
+    tableLayoutReady.value = false
+    await settleTableLayout()
+  }
+}
+
+async function refreshStaleProfitRowsSilently() {
+  await handleSearch(false, false)
+  await settleTableLayout()
+}
+
+function revealExistingTableAfterActivation() {
+  if (!tableRows.value.length) {
+    tableLayoutReady.value = true
+    visiblePagedRows.value = []
+    return
+  }
+  tableLayoutReady.value = false
+  visiblePagedRows.value = []
+  void settleTableLayout()
+}
+
 async function bindTableResizeObserver() {
   await nextTick()
   tableResizeObserver?.disconnect()
@@ -1449,28 +1780,35 @@ async function bindTableResizeObserver() {
   tableResizeObserver = new ResizeObserver(scheduleFitPageSize)
   tableResizeObserver.observe(shell)
   window.addEventListener('resize', scheduleFitPageSize)
-  scheduleFitPageSize()
+  updateFitPageSize()
+  profitTableRef.value?.doLayout?.()
 }
 
 onMounted(async () => {
   try {
+    suppressAutoSearch = true
     applyRouteQuery()
-    await fetchBaseOptions()
-    await handleSearch()
+    suppressAutoSearch = false
+    await refreshInitialData()
     await bindTableResizeObserver()
   } finally {
+    suppressAutoSearch = false
     initialLoadPending = false
   }
 })
 
 onActivated(async () => {
   if (initialLoadPending) {
-    scheduleFitPageSize()
+    revealExistingTableAfterActivation()
     return
   }
-  await fetchBaseOptions()
-  await handleSearch()
-  scheduleFitPageSize()
+  if (Date.now() - baseOptionsFetchedAt >= BASE_OPTIONS_CACHE_TTL) {
+    void refreshBaseOptionsSilently()
+  }
+  if (Date.now() - profitRowsFetchedAt >= ACTIVATION_REFRESH_TTL) {
+    void refreshStaleProfitRowsSilently()
+  }
+  revealExistingTableAfterActivation()
 })
 
 onUnmounted(() => {
@@ -1483,6 +1821,10 @@ onUnmounted(() => {
     window.cancelAnimationFrame(fitPageFrame)
     fitPageFrame = 0
   }
+  if (revealTableFrame) {
+    window.cancelAnimationFrame(revealTableFrame)
+    revealTableFrame = 0
+  }
 })
 
 watch(queryYearDate, (value) => {
@@ -1493,6 +1835,7 @@ watch(queryYearDate, (value) => {
 watch(
   () => [query.year, query.month, query.userId, query.cardId],
   () => {
+    if (suppressAutoSearch) return
     if (query.cardId && !filteredCardOptions.value.some((card) => Number(card.id) === Number(query.cardId))) {
       query.cardId = undefined
       return
@@ -1502,11 +1845,26 @@ watch(
 )
 
 watch(activeTab, () => {
+  if (suppressAutoSearch) return
   queueSearch()
 })
 
+watch(
+  () => [detailPage.current, detailPage.size],
+  () => {
+    if (tableLayoutReady.value) {
+      visiblePagedRows.value = pagedRows.value
+      void settleTableLayout()
+    }
+  }
+)
+
 watch(userSortOrder, () => {
   detailPage.current = 1
+  if (tableLayoutReady.value) {
+    visiblePagedRows.value = pagedRows.value
+    void settleTableLayout()
+  }
 })
 
 </script>
@@ -1784,18 +2142,32 @@ watch(userSortOrder, () => {
   background: #fff;
 }
 
+.table-shell.is-layout-pending :deep(.el-table),
+.table-shell.is-layout-pending .pager-wrap {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .table-shell :deep(.el-table) {
   flex: 1;
   min-width: 0;
   --el-table-border-color: #e5eaf1;
   font-size: 11px;
   color: #344054;
+  opacity: 1;
 }
 
 .table-shell :deep(.el-table .cell) {
   padding: 0 var(--profit-cell-x);
   overflow: hidden;
   line-height: calc(var(--profit-row-h) - 2px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-shell :deep(.el-table .cell > *) {
+  max-width: 100%;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

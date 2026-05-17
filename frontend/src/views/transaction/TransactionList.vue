@@ -110,7 +110,7 @@
 defineOptions({ name: 'Transactions' })
 import { ref, reactive, onMounted, onActivated } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/plugins/element-feedback'
 import SearchBar from '@/components/SearchBar/index.vue'
 import PageTable from '@/components/PageTable/index.vue'
 import CrudDialog from '@/components/CrudDialog/index.vue'
@@ -125,6 +125,9 @@ import { TXN_TYPE_OPTIONS, TXN_TYPE_MAP, TXN_TYPE_TAG_TYPE } from '@/constants/d
 
 const cardList = ref<any[]>([])
 const dateRange = ref<string[]>([])
+const CARD_OPTIONS_CACHE_TTL = 60 * 1000
+let cardOptionsFetchedAt = 0
+let cardOptionsPromise: Promise<void> | null = null
 
 const {
   loading, list, total, query,
@@ -188,8 +191,18 @@ async function handleDelete(id: number) {
 }
 
 async function fetchCardOptions() {
-  const res: any = await getCardListApi()
-  cardList.value = res.data || []
+  if (cardOptionsPromise) return cardOptionsPromise
+  if (cardList.value.length && Date.now() - cardOptionsFetchedAt < CARD_OPTIONS_CACHE_TTL) return
+  cardOptionsPromise = (async () => {
+    try {
+      const res: any = await getCardListApi()
+      cardList.value = res.data || []
+      cardOptionsFetchedAt = Date.now()
+    } finally {
+      cardOptionsPromise = null
+    }
+  })()
+  return cardOptionsPromise
 }
 
 onMounted(() => {
@@ -197,6 +210,6 @@ onMounted(() => {
 })
 
 onActivated(() => {
-  fetchCardOptions()
+  void fetchCardOptions()
 })
 </script>

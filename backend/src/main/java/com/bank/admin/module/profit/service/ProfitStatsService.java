@@ -20,5 +20,9 @@ public interface ProfitStatsService {
 
     PageResult<CardProfitVO> pageCardProfit(ProfitQueryDTO query);
 
+    List<UserProfitVO> listUserMonthProfit(ProfitQueryDTO query);
+
+    List<CardProfitVO> listCardMonthProfit(ProfitQueryDTO query);
+
     List<MonthlyProfitVO> listMonthlyProfit(ProfitQueryDTO query);
 }

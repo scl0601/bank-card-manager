@@ -29,7 +29,7 @@ import { useRouter } from 'vue-router'
 import { User, Lock } from '@element-plus/icons-vue'
 import { CreditCard } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/store/modules/auth'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/plugins/element-feedback'
 import type { FormInstance } from 'element-plus'
 
 const router = useRouter()

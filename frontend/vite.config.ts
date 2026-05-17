@@ -1,12 +1,107 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import Components from 'unplugin-vue-components/vite'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
+function kebabCase(value: string) {
+  return value.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
+}
+
+function elementPlusComponentResolver() {
+  const componentDirMap: Record<string, string> = {
+    ElAvatarGroup: 'avatar',
+    ElBreadcrumbItem: 'breadcrumb',
+    ElButtonGroup: 'button',
+    ElCarouselItem: 'carousel',
+    ElCheckboxButton: 'checkbox',
+    ElCheckboxGroup: 'checkbox',
+    ElCol: 'col',
+    ElContainer: 'container',
+    ElAside: 'container',
+    ElFooter: 'container',
+    ElHeader: 'container',
+    ElMain: 'container',
+    ElDescriptionsItem: 'descriptions',
+    ElDropdownItem: 'dropdown',
+    ElDropdownMenu: 'dropdown',
+    ElFormItem: 'form',
+    ElMenuItem: 'menu',
+    ElMenuItemGroup: 'menu',
+    ElSubMenu: 'menu',
+    ElOption: 'select',
+    ElOptionGroup: 'select',
+    ElRadioButton: 'radio',
+    ElRadioGroup: 'radio',
+    ElSkeletonItem: 'skeleton',
+    ElStep: 'steps',
+    ElTabPane: 'tabs',
+    ElTableColumn: 'table',
+    ElTimelineItem: 'timeline'
+  }
+  const sideEffects = (name: string) => [
+    'element-plus/es/components/base/style/css',
+    `element-plus/es/components/${name}/style/css`
+  ]
+
+  return [
+    {
+      type: 'component' as const,
+      resolve(name: string) {
+        if (!/^El[A-Z]/.test(name) || /^ElIcon.+/.test(name)) return undefined
+        const componentName = componentDirMap[name] || kebabCase(name.slice(2))
+        return {
+          name,
+          from: `element-plus/es/components/${componentName}/index.mjs`,
+          sideEffects: sideEffects(componentName)
+        }
+      }
+    },
+    {
+      type: 'directive' as const,
+      resolve(name: string) {
+        const directives: Record<string, { importName: string; componentName: string }> = {
+          Loading: { importName: 'ElLoadingDirective', componentName: 'loading' },
+          Popover: { importName: 'ElPopoverDirective', componentName: 'popover' },
+          InfiniteScroll: { importName: 'ElInfiniteScroll', componentName: 'infinite-scroll' }
+        }
+        const directive = directives[name]
+        if (!directive) return undefined
+        return {
+          name: directive.importName,
+          from: `element-plus/es/components/${directive.componentName}/index.mjs`,
+          sideEffects: sideEffects(directive.componentName)
+        }
+      }
+    }
+  ]
+}
+
+function vendorChunk(id: string) {
+  const normalized = id.replace(/\\/g, '/')
+  if (!normalized.includes('node_modules')) return undefined
+
+  if (normalized.includes('@element-plus/icons-vue')) return 'vendor-element-icons'
+  if (normalized.includes('element-plus/es/components/')) return undefined
+  if (normalized.includes('element-plus/')) return 'vendor-ep-core'
+  if (normalized.includes('vue-echarts')) return 'vendor-vue-echarts'
+  if (normalized.includes('zrender')) return 'vendor-zrender'
+  if (normalized.includes('echarts')) return 'vendor-echarts'
+  if (normalized.includes('vue') || normalized.includes('vue-router') || normalized.includes('pinia')) return 'vendor-vue'
+  if (normalized.includes('axios')) return 'vendor-axios'
+  return 'vendor'
+}
+
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    vue(),
+    Components({
+      dts: false,
+      resolvers: elementPlusComponentResolver()
+    })
+  ],
   base: './',
   // Modern desktop targets match Vue 3 + Element Plus support.
   build: {
@@ -15,12 +110,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (!id.includes('node_modules')) return undefined
-          if (id.includes('element-plus') || id.includes('@element-plus')) return 'vendor-element-plus'
-          if (id.includes('echarts') || id.includes('zrender') || id.includes('vue-echarts')) return 'vendor-echarts'
-          if (id.includes('vue') || id.includes('vue-router') || id.includes('pinia')) return 'vendor-vue'
-          if (id.includes('axios')) return 'vendor-axios'
-          return 'vendor'
+          return vendorChunk(id)
         }
       }
     }

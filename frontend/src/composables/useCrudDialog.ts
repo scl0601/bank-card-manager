@@ -4,7 +4,7 @@
  */
 import { ref, reactive, computed } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/plugins/element-feedback'
 
 export interface CrudDialogOptions<T extends Record<string, any>> {
   /** 表单初始数据 */

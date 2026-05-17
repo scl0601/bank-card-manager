@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/plugins/element-feedback'
 import { useAuthStore } from '@/store/modules/auth'
 import router from '@/router'
 

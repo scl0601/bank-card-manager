@@ -103,7 +103,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/plugins/element-feedback'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
   updateFeedbackStatusApi,

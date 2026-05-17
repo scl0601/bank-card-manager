@@ -88,7 +88,7 @@
 defineOptions({ name: 'Monitor' })
 
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/plugins/element-feedback'
 import StatusTag from '@/components/StatusTag/index.vue'
 import { getMonitorTodayApi } from '@/api/monitor'
 import { formatTime } from '@/utils/formatters'

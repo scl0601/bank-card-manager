@@ -72,7 +72,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/plugins/element-feedback'
 import CrudDialog from '@/components/CrudDialog/index.vue'
 import StatusTag from '@/components/StatusTag/index.vue'
 import {

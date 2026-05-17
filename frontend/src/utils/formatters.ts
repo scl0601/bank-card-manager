@@ -39,20 +39,19 @@ export function formatDate(date: string | number[] | Date | null | undefined): s
 }
 
 /**
- * 卡号脱敏（显示后四位）
+ * 卡号展示（当前不脱敏）
  */
 export function maskCardNo(last4: string | null | undefined, prefix = '****'): string {
   if (!last4) return '-'
-  return `${prefix} ${last4}`
+  return last4
 }
 
 /**
- * 手机号脱敏
+ * 手机号展示（当前不脱敏）
  */
 export function maskPhone(phone: string | null | undefined): string {
   if (!phone) return '-'
-  if (phone.length !== 11) return phone
-  return phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')
+  return phone
 }
 
 /**

@@ -1,7 +1,6 @@
 <template>
   <span class="card-number-display" :class="{ 'is-compact': compact }">
-    <span class="card-mask">{{ maskPrefix }}</span>
-    <span class="card-last4">{{ displayLast4 }}</span>
+    <span class="card-last4">{{ displayCardNo }}</span>
   </span>
 </template>
 
@@ -11,11 +10,11 @@ import { computed } from 'vue'
 interface Props {
   /** 卡号后四位 */
   last4?: string | null
-  /** 脱敏前缀（compact模式默认 ●●●●，完整模式默认 **** **** ****） */
+  /** 保留兼容旧调用，当前不再显示脱敏前缀 */
   maskPrefix?: string
-  /** 完整卡号（如果传入，会自动取后四位） */
+  /** 完整卡号（如果传入则优先展示完整卡号） */
   fullCardNo?: string | null
-  /** 紧凑模式（适用于表格等窄列场景，显示为 ●●●● 1234） */
+  /** 紧凑模式（适用于表格等窄列场景） */
   compact?: boolean
 }
 
@@ -26,27 +25,14 @@ const props = withDefaults(defineProps<Props>(), {
   compact: false
 })
 
-// 显示的后四位
-const displayLast4 = computed(() => {
+const displayCardNo = computed(() => {
+  if (props.fullCardNo) {
+    return props.fullCardNo
+  }
   if (props.last4) {
     return props.last4
   }
-  if (props.fullCardNo && props.fullCardNo.length >= 4) {
-    return props.fullCardNo.slice(-4)
-  }
   return '-'
-})
-
-// 脱敏前缀
-const maskPrefix = computed(() => {
-  if (!displayLast4.value || displayLast4.value === '-') {
-    return ''
-  }
-  // 如果传入了自定义前缀则使用，否则根据模式决定
-  if (props.maskPrefix) {
-    return props.maskPrefix + (props.compact ? '' : ' ')
-  }
-  return props.compact ? '\u2022\u2022\u2022\u2022 ' : '**** **** **** '
 })
 </script>
 
@@ -55,12 +41,6 @@ const maskPrefix = computed(() => {
   font-family: 'Courier New', Courier, monospace;
   letter-spacing: 0.5px;
   white-space: nowrap;
-
-  .card-mask {
-    color: #909399;
-    margin-right: 4px;
-    user-select: none;
-  }
 
   .card-last4 {
     color: #303133;
@@ -72,13 +52,6 @@ const maskPrefix = computed(() => {
     align-items: baseline;
     letter-spacing: 0;
     font-size: 13px;
-
-    .card-mask {
-      color: #c0c4cc;
-      font-size: 11px;
-      margin-right: 4px;
-      letter-spacing: 1.5px;
-    }
 
     .card-last4 {
       color: #1d2129;
