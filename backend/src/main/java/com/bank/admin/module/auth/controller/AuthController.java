@@ -24,7 +24,6 @@ public class AuthController {
     private final AuthService authService;
 
     @Operation(summary = "登录")
-    @Log(module = "系统认证", type = ActionTypeEnum.LOGIN, description = "用户登录")
     @PostMapping("/login")
     public Result<LoginVO> login(@Valid @RequestBody LoginDTO dto) {
         return Result.success(authService.login(dto));

@@ -1,6 +1,7 @@
 package com.bank.admin.module.auth.entity;
 
 import com.bank.admin.common.entity.BaseEntity;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -24,6 +25,7 @@ public class SysUser extends BaseEntity {
     /**
      * ALL = all data, SELF = only records created by this account.
      */
+    @TableField("data_scope")
     private String dataScope;
 
     /**

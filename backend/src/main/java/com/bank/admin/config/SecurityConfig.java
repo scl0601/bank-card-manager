@@ -105,12 +105,16 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         AppProperties.Cors cors = appProperties.getCors();
-        if (!cors.getAllowedOrigins().isEmpty()) {
-            config.setAllowedOrigins(cors.getAllowedOrigins());
+        List<String> allowedOrigins = new java.util.ArrayList<>(cors.getAllowedOrigins());
+        allowedOrigins.add("https://bankaiscl.top");
+        allowedOrigins.add("https://www.bankaiscl.top");
+        allowedOrigins.add("https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com");
+        allowedOrigins.add("https://api.bankaiscl.top");
+        allowedOrigins.add("https://bank-admin-backend-239413-10-1411764939.sh.run.tcloudbase.com");
+        if (!allowedOrigins.isEmpty()) {
+            config.setAllowedOrigins(allowedOrigins.stream().distinct().toList());
         }
-        if (!cors.getAllowedOriginPatterns().isEmpty()) {
-            config.setAllowedOriginPatterns(cors.getAllowedOriginPatterns());
-        }
+        config.setAllowedOriginPatterns(List.of("*"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

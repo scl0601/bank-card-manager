@@ -21,10 +21,15 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        SysUser user = sysUserMapper.selectOne(
-                new LambdaQueryWrapper<SysUser>()
-                        .eq(SysUser::getUsername, username)
-                        .eq(SysUser::getIsDeleted, 0));
+        SysUser user = sysUserMapper.selectList(
+                        new LambdaQueryWrapper<SysUser>()
+                                .eq(SysUser::getUsername, username)
+                                .eq(SysUser::getIsDeleted, 0)
+                                .orderByDesc(SysUser::getUpdateTime)
+                                .orderByDesc(SysUser::getId))
+                .stream()
+                .findFirst()
+                .orElse(null);
 
         if (user == null) {
             throw new UsernameNotFoundException("User not found: " + username);
