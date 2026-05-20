@@ -36,6 +36,8 @@ public interface SpecialChannelService {
 
     void updateBill(SpecialBillUpdateDTO dto);
 
+    void batchUpdateBills(List<SpecialBillUpdateDTO> dtos);
+
     SpecialBillImportResultVO importBills(MultipartFile file, Integer year);
 
     int deleteBillsBeforeYear(SpecialBillBatchDeleteDTO dto);
@@ -45,6 +47,8 @@ public interface SpecialChannelService {
     void batchDeleteBills(List<Long> ids);
 
     void updateProfitExtraFees(SpecialProfitExtraFeeUpdateDTO dto);
+
+    void batchUpdateProfitExtraFees(List<SpecialProfitExtraFeeUpdateDTO> dtos);
 
     SpecialProfitStatsVO stats(SpecialProfitQueryDTO query);
 }

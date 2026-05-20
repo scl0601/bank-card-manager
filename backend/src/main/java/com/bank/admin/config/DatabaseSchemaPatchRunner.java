@@ -56,6 +56,7 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
         migrateLegacyFeeRateData();
         alignFeeRateColumns();
         ensureSpecialChannelTables();
+        ensureAnnouncementTables();
         ensureCommonOpenidColumns();
     }
 
@@ -753,6 +754,48 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
         );
     }
 
+    private void ensureAnnouncementTables() {
+        jdbcTemplate.execute(sql(
+                "CREATE TABLE IF NOT EXISTS `system_announcement` (",
+                "    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'primary key',",
+                "    `content` TEXT NOT NULL COMMENT 'announcement content',",
+                "    `status` TINYINT NOT NULL DEFAULT 0 COMMENT '0 draft, 1 published, 2 offline',",
+                "    `pinned` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'pinned flag',",
+                "    `sort_order` INT NOT NULL DEFAULT 0 COMMENT 'sort order, bigger first',",
+                "    `publish_time` DATETIME DEFAULT NULL COMMENT 'publish time',",
+                "    `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,",
+                "    `create_by` VARCHAR(64) DEFAULT NULL,",
+                "    `create_time` DATETIME DEFAULT NULL,",
+                "    `update_by` VARCHAR(64) DEFAULT NULL,",
+                "    `update_time` DATETIME DEFAULT NULL,",
+                "    `_openid` VARCHAR(64) NOT NULL DEFAULT '',",
+                "    PRIMARY KEY (`id`),",
+                "    KEY `idx_status_publish` (`status`, `publish_time`),",
+                "    KEY `idx_sort` (`pinned`, `sort_order`)",
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='system announcements'"
+        ));
+
+        jdbcTemplate.execute(sql(
+                "CREATE TABLE IF NOT EXISTS `system_announcement_user_state` (",
+                "    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'primary key',",
+                "    `announcement_id` BIGINT NOT NULL COMMENT 'announcement id',",
+                "    `username` VARCHAR(64) NOT NULL COMMENT 'system username',",
+                "    `read_time` DATETIME DEFAULT NULL COMMENT 'read time',",
+                "    `popup_date` DATE DEFAULT NULL COMMENT 'last popup date',",
+                "    `silent_date` DATE DEFAULT NULL COMMENT 'silent date',",
+                "    `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,",
+                "    `create_by` VARCHAR(64) DEFAULT NULL,",
+                "    `create_time` DATETIME DEFAULT NULL,",
+                "    `update_by` VARCHAR(64) DEFAULT NULL,",
+                "    `update_time` DATETIME DEFAULT NULL,",
+                "    `_openid` VARCHAR(64) NOT NULL DEFAULT '',",
+                "    PRIMARY KEY (`id`),",
+                "    UNIQUE KEY `uk_announcement_user` (`announcement_id`, `username`),",
+                "    KEY `idx_username` (`username`)",
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='system announcement user state'"
+        ));
+    }
+
     private void ensureCommonOpenidColumns() {
         String[] baseEntityTables = {
                 "bank_sys_user",
@@ -770,7 +813,9 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
                 "user_feedback_process_log",
                 "special_user_config",
                 "special_bank_card",
-                "special_card_bill"
+                "special_card_bill",
+                "system_announcement",
+                "system_announcement_user_state"
         };
         for (String tableName : baseEntityTables) {
             ensureOpenidColumnIfTableExists(tableName);

@@ -175,6 +175,44 @@ CREATE TABLE `operation_log` (
   KEY `idx_create_time` (`create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志表';
 
+-- ===================== 系统公告表 =====================
+CREATE TABLE `system_announcement` (
+  `id`           BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `content`      TEXT         NOT NULL COMMENT '公告内容',
+  `status`       TINYINT      NOT NULL DEFAULT 0 COMMENT '状态：0草稿 1已发布 2已下线',
+  `pinned`       TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '是否置顶',
+  `sort_order`   INT          NOT NULL DEFAULT 0 COMMENT '排序号，越大越靠前',
+  `publish_time` DATETIME     DEFAULT NULL COMMENT '发布时间',
+  `is_deleted`   TINYINT(1)   NOT NULL DEFAULT 0,
+  `create_by`    VARCHAR(64)  DEFAULT NULL,
+  `create_time`  DATETIME     DEFAULT NULL,
+  `update_by`    VARCHAR(64)  DEFAULT NULL,
+  `update_time`  DATETIME     DEFAULT NULL,
+  `_openid`      VARCHAR(64)  NOT NULL DEFAULT '',
+  PRIMARY KEY (`id`),
+  KEY `idx_status_publish` (`status`, `publish_time`),
+  KEY `idx_sort` (`pinned`, `sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统公告表';
+
+-- ===================== 系统公告用户状态表 =====================
+CREATE TABLE `system_announcement_user_state` (
+  `id`              BIGINT      NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `announcement_id` BIGINT      NOT NULL COMMENT '公告ID',
+  `username`        VARCHAR(64) NOT NULL COMMENT '系统用户名',
+  `read_time`       DATETIME    DEFAULT NULL COMMENT '阅读时间',
+  `popup_date`      DATE        DEFAULT NULL COMMENT '最近弹窗日期',
+  `silent_date`     DATE        DEFAULT NULL COMMENT '今日不弹日期',
+  `is_deleted`      TINYINT(1)  NOT NULL DEFAULT 0,
+  `create_by`       VARCHAR(64) DEFAULT NULL,
+  `create_time`     DATETIME    DEFAULT NULL,
+  `update_by`       VARCHAR(64) DEFAULT NULL,
+  `update_time`     DATETIME    DEFAULT NULL,
+  `_openid`         VARCHAR(64) NOT NULL DEFAULT '',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_announcement_user` (`announcement_id`, `username`),
+  KEY `idx_username` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统公告用户状态表';
+
 -- ===================== 初始账号 =====================
 -- admin 密码：admin123（BCrypt加密），test 密码：test123456（BCrypt加密）
 INSERT INTO `bank_sys_user` (`username`, `password`, `nickname`, `role`, `data_scope`, `status`, `is_deleted`, `create_time`) VALUES

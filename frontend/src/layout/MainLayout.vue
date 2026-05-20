@@ -35,6 +35,13 @@
           </el-breadcrumb>
         </div>
         <div class="header-right">
+          <el-badge :value="unreadCount" :max="99" :hidden="unreadCount <= 0" class="announcement-badge">
+            <el-tooltip content="更新记录" placement="bottom">
+              <el-button class="announcement-btn" circle @click="openAnnouncementHistory">
+                <el-icon><Bell /></el-icon>
+              </el-button>
+            </el-tooltip>
+          </el-badge>
           <el-dropdown @command="handleCommand">
             <span class="user-info">
               <el-avatar :size="28" icon="UserFilled" />
@@ -53,7 +60,7 @@
       <!-- 主内容 -->
       <main class="content-area" :class="{ 'dense-content-area': isDenseRoute }">
         <router-view v-slot="{ Component, route }">
-          <keep-alive :include="['Monitor','Dashboard','Cards','CardUsers','Transactions','Books','Bills','ProfitStats','SpecialChannel','Reminders','Feedbacks','Calendar','Logs']">
+          <keep-alive :include="['Monitor','Dashboard','Cards','CardUsers','Transactions','Books','Bills','ProfitStats','SpecialChannel','Reminders','Feedbacks','Calendar','Logs','Announcements']">
             <component :is="Component" :key="route.name || route.path" />
           </keep-alive>
         </router-view>
@@ -62,6 +69,17 @@
 
     <!-- 全局 AI 悬浮助手 -->
     <AiFloatWidget v-if="authStore.role !== 'MONITOR'" />
+    <AnnouncementDialog
+      v-if="latestAnnouncement"
+      v-model="announcementDialogVisible"
+      :announcement="latestAnnouncement"
+      @read="handleAnnouncementRead"
+      @silent-today="handleAnnouncementSilentToday"
+    />
+    <AnnouncementHistoryDrawer
+      v-model="announcementHistoryVisible"
+      @changed="refreshAnnouncementUnread"
+    />
   </div>
 </template>
 
@@ -71,13 +89,26 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/modules/auth'
 import { ElMessageBox } from '@/plugins/element-feedback'
 import { getProfitUserMonthListApi } from '@/api/profit'
+import type { Announcement } from '@/api/announcement'
+import {
+  getLatestAnnouncementApi,
+  getAnnouncementUnreadCountApi,
+  markAnnouncementReadApi,
+  silentAnnouncementTodayApi
+} from '@/api/announcement'
 
 const AiFloatWidget = defineAsyncComponent(() => import('@/components/AiFloatWidget.vue'))
+const AnnouncementDialog = defineAsyncComponent(() => import('@/components/AnnouncementDialog.vue'))
+const AnnouncementHistoryDrawer = defineAsyncComponent(() => import('@/components/AnnouncementHistoryDrawer.vue'))
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const isCollapsed = ref(false)
+const unreadCount = ref(0)
+const latestAnnouncement = ref<Announcement | null>(null)
+const announcementDialogVisible = ref(false)
+const announcementHistoryVisible = ref(false)
 
 const allMenuItems = [
   { path: '/dashboard',    title: '首页看板',   icon: 'House' },
@@ -92,6 +123,7 @@ const allMenuItems = [
   { path: '/feedbacks',    title: '用户反馈',   icon: 'ChatDotRound' },
   { path: '/calendar',     title: '日历计划',   icon: 'Calendar' },
   { path: '/monitor',      title: '监控列表',   icon: 'Monitor', roles: ['ADMIN', 'MONITOR'] },
+  { path: '/announcements', title: '公告管理',   icon: 'Bell', roles: ['MONITOR'] },
   { path: '/logs',         title: '系统日志',   icon: 'Tickets' }
 ]
 
@@ -99,7 +131,7 @@ const menuItems = computed(() => {
   if (authStore.role === 'MONITOR') {
     return allMenuItems.filter(item => item.roles?.includes('MONITOR') || item.path === '/logs')
   }
-  return allMenuItems
+  return allMenuItems.filter(item => !item.roles || item.roles.includes(authStore.role))
 })
 
 const activeMenu = computed(() => route.path)
@@ -166,6 +198,45 @@ function prefetchProfitStats() {
   }, 1800)
 }
 
+async function loadAnnouncementEntry() {
+  try {
+    await Promise.all([loadLatestAnnouncement(), refreshAnnouncementUnread()])
+  } catch {
+    // 公告加载失败不影响主流程
+  }
+}
+
+async function loadLatestAnnouncement() {
+  const res = await getLatestAnnouncementApi()
+  latestAnnouncement.value = res.data || null
+  if (authStore.role !== 'MONITOR' && latestAnnouncement.value?.shouldPopup) {
+    announcementDialogVisible.value = true
+  }
+}
+
+async function refreshAnnouncementUnread() {
+  const res = await getAnnouncementUnreadCountApi()
+  unreadCount.value = Number(res.data || 0)
+}
+
+function openAnnouncementHistory() {
+  announcementHistoryVisible.value = true
+}
+
+async function handleAnnouncementRead(id: number) {
+  await markAnnouncementReadApi(id)
+  announcementDialogVisible.value = false
+  if (latestAnnouncement.value?.id === id) {
+    latestAnnouncement.value.read = true
+  }
+  await refreshAnnouncementUnread()
+}
+
+async function handleAnnouncementSilentToday(id: number) {
+  await silentAnnouncementTodayApi(id)
+  announcementDialogVisible.value = false
+}
+
 async function handleCommand(cmd: string) {
   if (cmd === 'logout') {
     await ElMessageBox.confirm('确认退出登录？', '提示', { type: 'warning' })
@@ -177,6 +248,7 @@ async function handleCommand(cmd: string) {
 onMounted(() => {
   prefetchRouteChunks()
   prefetchProfitStats()
+  loadAnnouncementEntry()
 })
 onUnmounted(cancelIdle)
 </script>
@@ -257,6 +329,13 @@ onUnmounted(cancelIdle)
     min-width: 0;
   }
 
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+  }
+
   .collapse-btn {
     font-size: 18px;
     cursor: pointer;
@@ -273,6 +352,24 @@ onUnmounted(cancelIdle)
     font-size: 14px;
     min-width: 0;
     white-space: nowrap;
+  }
+}
+
+.announcement-badge {
+  display: inline-flex;
+}
+
+.announcement-btn.el-button {
+  width: 32px;
+  height: 32px;
+  color: #526074;
+  border-color: #d7dee8;
+  background: #fff;
+
+  &:hover {
+    color: var(--color-primary);
+    border-color: #9ec5ff;
+    background: #f3f8ff;
   }
 }
 

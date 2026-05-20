@@ -108,6 +108,15 @@ public class SpecialChannelController {
         return Result.success();
     }
 
+    @Operation(summary = "批量编辑特殊账单")
+    @Log(module = "特殊账单", type = ActionTypeEnum.UPDATE, description = "批量编辑特殊账单")
+    @PutMapping("/bills/batch")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public Result<Void> batchUpdateBills(@Valid @RequestBody List<SpecialBillUpdateDTO> dtos) {
+        specialChannelService.batchUpdateBills(dtos);
+        return Result.success();
+    }
+
     @Operation(summary = "导入特殊账单Excel")
     @Log(module = "特殊账单", type = ActionTypeEnum.IMPORT, description = "导入特殊账单Excel")
     @PostMapping("/bills/import")
@@ -156,6 +165,15 @@ public class SpecialChannelController {
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     public Result<Void> updateProfitExtraFees(@Valid @RequestBody SpecialProfitExtraFeeUpdateDTO dto) {
         specialChannelService.updateProfitExtraFees(dto);
+        return Result.success();
+    }
+
+    @Operation(summary = "批量编辑特殊收益额外费用")
+    @Log(module = "特殊收益", type = ActionTypeEnum.UPDATE, description = "批量编辑特殊收益额外费用")
+    @PutMapping("/profit/extra-fees/batch")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public Result<Void> batchUpdateProfitExtraFees(@Valid @RequestBody List<SpecialProfitExtraFeeUpdateDTO> dtos) {
+        specialChannelService.batchUpdateProfitExtraFees(dtos);
         return Result.success();
     }
 }

@@ -93,6 +93,12 @@ const router = createRouter({
           meta: { title: '系统日志', icon: 'Tickets' }
         },
         {
+          path: 'announcements',
+          name: 'Announcements',
+          component: () => import('@/views/announcement/AnnouncementManage.vue'),
+          meta: { title: '公告管理', icon: 'Bell', roles: ['MONITOR'] }
+        },
+        {
           path: 'calendar',
           name: 'Calendar',
           component: () => import('@/views/calendar/CalendarView.vue'),
@@ -156,6 +162,10 @@ router.beforeEach((to) => {
   if (to.meta.requiresAuth !== false && !authStore.token) {
     return loginPath
   }
+  const routeRoles = to.meta.roles as string[] | undefined
+  if (routeRoles?.length && !routeRoles.includes(authStore.role)) {
+    return authStore.role === 'MONITOR' ? '/monitor' : '/'
+  }
   if ((to.path === '/login' || to.path === '/m/login') && authStore.token) {
     if (authStore.role === 'MONITOR') {
       return '/monitor'
@@ -166,7 +176,7 @@ router.beforeEach((to) => {
     return '/monitor'
   }
   if (authStore.role === 'MONITOR' && !isMobileRoute) {
-    const allowedPaths = new Set(['/monitor', '/logs'])
+    const allowedPaths = new Set(['/monitor', '/logs', '/announcements'])
     if (!allowedPaths.has(to.path)) {
       return '/monitor'
     }

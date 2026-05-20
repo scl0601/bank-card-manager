@@ -207,9 +207,24 @@
           />
           <el-button @click="resetBillQuery">重置</el-button>
           <span class="filter-hint">{{ annualBillHint }}</span>
+          <span class="filter-spacer"></span>
+          <el-button
+            v-if="canEdit"
+            type="success"
+            :loading="savingAllBills"
+            :disabled="!config.userId || billLoading || importingBills || savingAllBills || dirtyVisibleBillCount === 0"
+            @click="saveVisibleBills"
+          >
+            统一保存{{ dirtyVisibleBillCount ? ` (${dirtyVisibleBillCount})` : '' }}
+          </el-button>
         </section>
 
-        <section class="bill-table-shell">
+        <section
+          class="bill-table-shell"
+          @focusin="handleEditableInputFocus"
+          @keydown.enter.capture="blurEditableInput"
+          @wheel.capture="preventMoneyInputWheel"
+        >
           <el-table
             ref="billTableRef"
             v-loading="billLoading"
@@ -422,9 +437,24 @@
           </el-select>
           <el-button @click="resetProfitQuery">重置</el-button>
           <span class="filter-hint">筛选变化后自动刷新</span>
+          <span class="filter-spacer"></span>
+          <el-button
+            v-if="canEdit"
+            type="success"
+            :loading="savingAllProfitExtras"
+            :disabled="!config.userId || profitLoading || savingAllProfitExtras || dirtyVisibleProfitCount === 0"
+            @click="saveVisibleProfitExtras"
+          >
+            统一保存{{ dirtyVisibleProfitCount ? ` (${dirtyVisibleProfitCount})` : '' }}
+          </el-button>
         </section>
 
-        <section class="profit-aligned-shell">
+        <section
+          class="profit-aligned-shell"
+          @focusin="handleEditableInputFocus"
+          @keydown.enter.capture="blurEditableInput"
+          @wheel.capture="preventMoneyInputWheel"
+        >
           <section class="profit-summary-grid" v-loading="profitLoading">
             <div v-for="item in profitSummaryCards" :key="item.label" :class="['profit-summary-item', item.gridClass]">
               <span>{{ item.label }}</span>
@@ -586,6 +616,8 @@ import { CreditCard, Plus, RefreshRight } from '@element-plus/icons-vue'
 import { getUserTreeApi } from '@/api/card'
 import {
   batchDeleteSpecialBillsApi,
+  batchUpdateSpecialProfitExtraFeesApi,
+  batchUpdateSpecialBillsApi,
   deleteSpecialBillsAfterYearApi,
   deleteSpecialBillsBeforeYearApi,
   deleteSpecialCardApi,
@@ -686,6 +718,36 @@ interface SpecialBill {
   __summary?: boolean
 }
 
+type SpecialBillUpdatePayload = {
+  id: number
+  billDay?: number
+  repaymentDay?: number
+  billAmount: number
+  billAmountVerified: boolean
+  xiaohuanRepayAmount: number
+  xiaohuanRepayVerified: boolean
+  customerRepayAmount: number
+  customerRepayVerified: boolean
+  xiaohuanConsumeAmount: number
+  xiaohuanConsumeVerified: boolean
+  customerNeedAmount: number
+  customerNeedVerified: boolean
+  customerConsumeAmount: number
+  customerConsumeVerified: boolean
+  balance: number
+  interestAmount: number
+  lateFeeAmount: number
+  installmentFeeAmount: number
+  remark?: string | null
+}
+
+type SpecialProfitExtraFeePayload = {
+  billId: number
+  interestAmount: number
+  lateFeeAmount: number
+  installmentFeeAmount: number
+}
+
 interface ProfitOverview {
   cardCount?: number
   billCount?: number
@@ -719,6 +781,8 @@ const users = ref<UserNode[]>([])
 const config = reactive<SpecialConfig>({})
 const cards = ref<SpecialCard[]>([])
 const billRows = ref<SpecialBill[]>([])
+const billPayloadSnapshots = ref<Record<number, string>>({})
+const profitExtraFeeSnapshots = ref<Record<number, string>>({})
 const profitStats = reactive<ProfitStats>({
   overview: {},
   rows: [],
@@ -733,7 +797,9 @@ const billLoading = ref(false)
 const profitLoading = ref(false)
 const importingBills = ref(false)
 const savingBillId = ref<number>()
+const savingAllBills = ref(false)
 const savingProfitBillId = ref<number>()
+const savingAllProfitExtras = ref(false)
 const deletingHistoryBills = ref(false)
 const deletingFutureBills = ref(false)
 const batchDeletingBills = ref(false)
@@ -860,6 +926,12 @@ const pagedProfitRows = computed(() => {
 const profitPaginationText = computed(() => {
   if (!profitTotal.value) return '暂无数据'
   return `每页 ${profitPage.size} 条，共 ${profitTotal.value} 条`
+})
+const dirtyVisibleBillCount = computed(() => {
+  return billRows.value.filter(row => canEditSpecialBillRow(row) && isSpecialBillDirty(row)).length
+})
+const dirtyVisibleProfitCount = computed(() => {
+  return pagedProfitRows.value.filter(row => canEditSpecialProfitRow(row) && isSpecialProfitDirty(row)).length
 })
 
 const billSummaryTotals = computed<Record<string, number>>(() => {
@@ -1147,6 +1219,7 @@ function resetCardForm() {
 async function fetchBills() {
   if (!config.userId) {
     billRows.value = []
+    billPayloadSnapshots.value = {}
     billTotal.value = 0
     return
   }
@@ -1160,6 +1233,7 @@ async function fetchBills() {
       cardId: billQuery.cardId
     })
     billRows.value = sortRowsByRepaymentDay(res.data?.records || [])
+    syncBillPayloadSnapshots(billRows.value)
     billTotal.value = res.data?.total || 0
     clearBillSelection()
   } finally {
@@ -1311,38 +1385,87 @@ async function saveBill(row: SpecialBill) {
   if (!assertSpecialBillEditable(row)) return
   savingBillId.value = row.id
   try {
-    await updateSpecialBillApi({
-      id: row.id,
-      billDay: row.billDay || undefined,
-      repaymentDay: row.repaymentDay || undefined,
-      billAmount: toNumber(row.billAmount),
-      billAmountVerified: Boolean(row.billAmountVerified),
-      xiaohuanRepayAmount: toNumber(row.xiaohuanRepayAmount),
-      xiaohuanRepayVerified: Boolean(row.xiaohuanRepayVerified),
-      customerRepayAmount: toNumber(row.customerRepayAmount),
-      customerRepayVerified: Boolean(row.customerRepayVerified),
-      xiaohuanConsumeAmount: toNumber(row.xiaohuanConsumeAmount),
-      xiaohuanConsumeVerified: Boolean(row.xiaohuanConsumeVerified),
-      customerNeedAmount: toNumber(row.customerNeedAmount),
-      customerNeedVerified: Boolean(row.customerNeedVerified),
-      customerConsumeAmount: toNumber(row.customerConsumeAmount),
-      customerConsumeVerified: Boolean(row.customerConsumeVerified),
-      balance: toNumber(row.balance),
-      interestAmount: toNumber(row.interestAmount),
-      lateFeeAmount: toNumber(row.lateFeeAmount),
-      installmentFeeAmount: toNumber(row.installmentFeeAmount),
-      remark: row.remark
-    })
+    await updateSpecialBillApi(buildSpecialBillPayload(row))
     ElMessage.success('账单已保存')
+    updateBillPayloadSnapshot(row)
     refreshBillSummary()
   } finally {
     savingBillId.value = undefined
   }
 }
 
+async function saveVisibleBills() {
+  const rows = billRows.value.filter(row => canEditSpecialBillRow(row) && isSpecialBillDirty(row))
+  if (!rows.length) {
+    ElMessage.warning('当前没有需要保存的修改')
+    return
+  }
+  savingAllBills.value = true
+  try {
+    await batchUpdateSpecialBillsApi(rows.map(buildSpecialBillPayload))
+    ElMessage.success(`已保存 ${rows.length} 条账单`)
+    clearBillSelection()
+    await fetchCards()
+    await fetchBills()
+  } finally {
+    savingAllBills.value = false
+  }
+}
+
+function buildSpecialBillPayload(row: SpecialBill): SpecialBillUpdatePayload {
+  return {
+    id: row.id,
+    billDay: row.billDay || undefined,
+    repaymentDay: row.repaymentDay || undefined,
+    billAmount: toNumber(row.billAmount),
+    billAmountVerified: Boolean(row.billAmountVerified),
+    xiaohuanRepayAmount: toNumber(row.xiaohuanRepayAmount),
+    xiaohuanRepayVerified: Boolean(row.xiaohuanRepayVerified),
+    customerRepayAmount: toNumber(row.customerRepayAmount),
+    customerRepayVerified: Boolean(row.customerRepayVerified),
+    xiaohuanConsumeAmount: toNumber(row.xiaohuanConsumeAmount),
+    xiaohuanConsumeVerified: Boolean(row.xiaohuanConsumeVerified),
+    customerNeedAmount: toNumber(row.customerNeedAmount),
+    customerNeedVerified: Boolean(row.customerNeedVerified),
+    customerConsumeAmount: toNumber(row.customerConsumeAmount),
+    customerConsumeVerified: Boolean(row.customerConsumeVerified),
+    balance: toNumber(row.balance),
+    interestAmount: toNumber(row.interestAmount),
+    lateFeeAmount: toNumber(row.lateFeeAmount),
+    installmentFeeAmount: toNumber(row.installmentFeeAmount),
+    remark: row.remark
+  }
+}
+
+function syncBillPayloadSnapshots(rows: SpecialBill[]) {
+  const snapshots: Record<number, string> = {}
+  rows.forEach(row => {
+    if (!row.__summary) {
+      snapshots[row.id] = serializeSpecialBillPayload(row)
+    }
+  })
+  billPayloadSnapshots.value = snapshots
+}
+
+function updateBillPayloadSnapshot(row: SpecialBill) {
+  billPayloadSnapshots.value = {
+    ...billPayloadSnapshots.value,
+    [row.id]: serializeSpecialBillPayload(row)
+  }
+}
+
+function isSpecialBillDirty(row: SpecialBill) {
+  return billPayloadSnapshots.value[row.id] !== serializeSpecialBillPayload(row)
+}
+
+function serializeSpecialBillPayload(row: SpecialBill) {
+  return JSON.stringify(buildSpecialBillPayload(row))
+}
+
 async function fetchProfitStats() {
   if (!config.userId) {
     Object.assign(profitStats, { overview: {}, rows: [], cardStats: [], monthStats: [] })
+    profitExtraFeeSnapshots.value = {}
     return
   }
   profitLoading.value = true
@@ -1353,10 +1476,12 @@ async function fetchProfitStats() {
       cardId: profitQuery.cardId
     })
     const data = res.data || { overview: {}, rows: [], cardStats: [], monthStats: [] }
+    const rows = sortRowsByRepaymentDay(data.rows || [])
     Object.assign(profitStats, {
       ...data,
-      rows: sortRowsByRepaymentDay(data.rows || [])
+      rows
     })
+    syncProfitExtraFeeSnapshots(rows)
   } finally {
     profitLoading.value = false
   }
@@ -1366,17 +1491,53 @@ async function saveProfitExtras(row: any) {
   if (!assertSpecialBillEditable(row)) return
   savingProfitBillId.value = row.billId
   try {
-    await updateSpecialProfitExtraFeesApi({
-      billId: row.billId,
-      interestAmount: toNumber(row.interestAmount),
-      lateFeeAmount: toNumber(row.lateFeeAmount),
-      installmentFeeAmount: toNumber(row.installmentFeeAmount)
-    })
+    await updateSpecialProfitExtraFeesApi(buildProfitExtraFeePayload(row))
     ElMessage.success('收益费用已保存')
     await fetchProfitStats()
   } finally {
     savingProfitBillId.value = undefined
   }
+}
+
+async function saveVisibleProfitExtras() {
+  const rows = pagedProfitRows.value.filter(row => canEditSpecialProfitRow(row) && isSpecialProfitDirty(row))
+  if (!rows.length) {
+    ElMessage.warning('当前没有需要保存的收益修改')
+    return
+  }
+  savingAllProfitExtras.value = true
+  try {
+    await batchUpdateSpecialProfitExtraFeesApi(rows.map(buildProfitExtraFeePayload))
+    ElMessage.success(`已保存 ${rows.length} 条收益`)
+    await fetchProfitStats()
+  } finally {
+    savingAllProfitExtras.value = false
+  }
+}
+
+function buildProfitExtraFeePayload(row: any): SpecialProfitExtraFeePayload {
+  return {
+    billId: row.billId,
+    interestAmount: toNumber(row.interestAmount),
+    lateFeeAmount: toNumber(row.lateFeeAmount),
+    installmentFeeAmount: toNumber(row.installmentFeeAmount)
+  }
+}
+
+function syncProfitExtraFeeSnapshots(rows: any[]) {
+  const snapshots: Record<number, string> = {}
+  rows.forEach(row => {
+    snapshots[row.billId] = serializeProfitExtraFeePayload(row)
+  })
+  profitExtraFeeSnapshots.value = snapshots
+}
+
+function isSpecialProfitDirty(row: any) {
+  return profitExtraFeeSnapshots.value[row.billId] !== serializeProfitExtraFeePayload(row)
+}
+
+function serializeProfitExtraFeePayload(row: any) {
+  return JSON.stringify(buildProfitExtraFeePayload(row))
 }
 
 async function refreshActiveTabData() {
@@ -1524,6 +1685,24 @@ function selectInputText(event: FocusEvent) {
   if (event.target instanceof HTMLInputElement) {
     event.target.select()
   }
+}
+
+function handleEditableInputFocus(event: FocusEvent) {
+  const input = event.target instanceof HTMLInputElement ? event.target : null
+  if (!input || !input.closest('.money-input, .day-input')) return
+  window.requestAnimationFrame(() => input.select())
+}
+
+function blurEditableInput(event: KeyboardEvent) {
+  const input = event.target instanceof HTMLInputElement ? event.target : null
+  if (!input || !input.closest('.money-input, .day-input')) return
+  input.blur()
+}
+
+function preventMoneyInputWheel(event: WheelEvent) {
+  const input = event.target instanceof HTMLInputElement ? event.target : null
+  if (!input || !input.closest('.money-input')) return
+  event.preventDefault()
 }
 
 function specialCardExpireStatus(expireDate: string | null | undefined) {
@@ -2193,6 +2372,11 @@ function formatRate(value: number | string | null | undefined) {
   margin-left: 0;
 }
 
+.filter-spacer {
+  flex: 1 1 auto;
+  min-width: 8px;
+}
+
 .filter-year-time {
   width: 112px;
 }
@@ -2313,6 +2497,19 @@ function formatRate(value: number | string | null | undefined) {
   min-height: 28px;
   padding: 0 5px;
   border-radius: 6px;
+}
+
+.money-input :deep(.el-input__wrapper.is-focus),
+.day-input :deep(.el-input__wrapper.is-focus),
+.profit-table-block .money-input :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #1677ff inset, 0 0 0 2px rgba(22, 119, 255, .14);
+  background: #f8fbff;
+}
+
+.money-input :deep(.el-input__inner::selection),
+.day-input :deep(.el-input__inner::selection) {
+  color: #fff;
+  background: #1677ff;
 }
 
 .bill-table-shell :deep(.el-switch) {

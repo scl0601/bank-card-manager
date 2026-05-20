@@ -2,6 +2,7 @@ package com.bank.admin.module.special.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.bank.admin.common.exception.BusinessException;
 import com.bank.admin.common.result.PageResult;
 import com.bank.admin.common.result.ResultCode;
@@ -70,7 +71,7 @@ import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
-public class SpecialChannelServiceImpl implements SpecialChannelService {
+public class SpecialChannelServiceImpl extends ServiceImpl<SpecialCardBillMapper, SpecialCardBill> implements SpecialChannelService {
 
     private static final DateTimeFormatter MONTH_FMT = DateTimeFormatter.ofPattern("yyyy-MM");
     private static final int START_YEAR = 2020;
@@ -237,6 +238,59 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "特殊银行卡不存在");
         }
         validateSpecialCardWritable(card, "编辑账单");
+        applyBillUpdate(bill, card, dto);
+        specialCardBillMapper.updateById(bill);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void batchUpdateBills(List<SpecialBillUpdateDTO> dtos) {
+        if (CollectionUtils.isEmpty(dtos)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "请选择需要保存的账单");
+        }
+        Map<Long, SpecialBillUpdateDTO> dtoMap = new LinkedHashMap<>();
+        for (SpecialBillUpdateDTO dto : dtos) {
+            if (dto == null || dto.getId() == null) {
+                throw new BusinessException(ResultCode.PARAM_ERROR, "账单ID不能为空");
+            }
+            dtoMap.put(dto.getId(), dto);
+        }
+        if (dtoMap.isEmpty()) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "请选择需要保存的账单");
+        }
+
+        List<SpecialCardBill> bills = specialCardBillMapper.selectBatchIds(dtoMap.keySet());
+        Map<Long, SpecialCardBill> billMap = bills.stream()
+                .collect(Collectors.toMap(SpecialCardBill::getId, bill -> bill));
+        for (Long id : dtoMap.keySet()) {
+            if (!billMap.containsKey(id)) {
+                throw new BusinessException(ResultCode.DATA_NOT_FOUND, "特殊账单不存在");
+            }
+        }
+
+        Set<Long> cardIds = bills.stream()
+                .map(SpecialCardBill::getCardId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, SpecialBankCard> cardMap = specialBankCardMapper.selectBatchIds(cardIds).stream()
+                .collect(Collectors.toMap(SpecialBankCard::getId, card -> card));
+
+        List<SpecialCardBill> toUpdate = new ArrayList<>();
+        for (Long id : dtoMap.keySet()) {
+            SpecialCardBill bill = billMap.get(id);
+            SpecialBankCard card = cardMap.get(bill.getCardId());
+            if (card == null) {
+                throw new BusinessException(ResultCode.DATA_NOT_FOUND, "特殊银行卡不存在");
+            }
+            validateSpecialCardWritable(card, "批量编辑账单");
+            applyBillUpdate(bill, card, dtoMap.get(id));
+            toUpdate.add(bill);
+        }
+
+        updateBatchById(toUpdate);
+    }
+
+    private void applyBillUpdate(SpecialCardBill bill, SpecialBankCard card, SpecialBillUpdateDTO dto) {
         bill.setUserId(card.getUserId());
         if (dto.getMonthlyTotalBillAmount() != null) {
             bill.setMonthlyTotalBillAmount(scaleMoney(dto.getMonthlyTotalBillAmount()));
@@ -262,7 +316,6 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
         bill.setRemark(dto.getRemark());
         bill.setFeeRate(resolveEffectiveFeeRate(card.getUserId()));
         recalculateBill(bill);
-        specialCardBillMapper.updateById(bill);
     }
 
     @Override
@@ -412,13 +465,65 @@ public class SpecialChannelServiceImpl implements SpecialChannelService {
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "特殊银行卡不存在");
         }
         validateSpecialCardWritable(card, "编辑账单");
+        applyProfitExtraFees(bill, card, dto);
+        specialCardBillMapper.updateById(bill);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void batchUpdateProfitExtraFees(List<SpecialProfitExtraFeeUpdateDTO> dtos) {
+        if (CollectionUtils.isEmpty(dtos)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "请选择需要保存的收益数据");
+        }
+        Map<Long, SpecialProfitExtraFeeUpdateDTO> dtoMap = new LinkedHashMap<>();
+        for (SpecialProfitExtraFeeUpdateDTO dto : dtos) {
+            if (dto == null || dto.getBillId() == null) {
+                throw new BusinessException(ResultCode.PARAM_ERROR, "账单ID不能为空");
+            }
+            dtoMap.put(dto.getBillId(), dto);
+        }
+        if (dtoMap.isEmpty()) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "请选择需要保存的收益数据");
+        }
+
+        List<SpecialCardBill> bills = specialCardBillMapper.selectBatchIds(dtoMap.keySet());
+        Map<Long, SpecialCardBill> billMap = bills.stream()
+                .collect(Collectors.toMap(SpecialCardBill::getId, bill -> bill));
+        for (Long billId : dtoMap.keySet()) {
+            if (!billMap.containsKey(billId)) {
+                throw new BusinessException(ResultCode.DATA_NOT_FOUND, "特殊账单不存在");
+            }
+        }
+
+        Set<Long> cardIds = bills.stream()
+                .map(SpecialCardBill::getCardId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, SpecialBankCard> cardMap = specialBankCardMapper.selectBatchIds(cardIds).stream()
+                .collect(Collectors.toMap(SpecialBankCard::getId, card -> card));
+
+        List<SpecialCardBill> toUpdate = new ArrayList<>();
+        for (Long billId : dtoMap.keySet()) {
+            SpecialCardBill bill = billMap.get(billId);
+            SpecialBankCard card = cardMap.get(bill.getCardId());
+            if (card == null) {
+                throw new BusinessException(ResultCode.DATA_NOT_FOUND, "特殊银行卡不存在");
+            }
+            validateSpecialCardWritable(card, "批量编辑收益");
+            applyProfitExtraFees(bill, card, dtoMap.get(billId));
+            toUpdate.add(bill);
+        }
+
+        updateBatchById(toUpdate);
+    }
+
+    private void applyProfitExtraFees(SpecialCardBill bill, SpecialBankCard card, SpecialProfitExtraFeeUpdateDTO dto) {
         bill.setUserId(card.getUserId());
         bill.setInterestAmount(scaleMoney(dto.getInterestAmount()));
         bill.setLateFeeAmount(scaleMoney(dto.getLateFeeAmount()));
         bill.setInstallmentFeeAmount(scaleMoney(dto.getInstallmentFeeAmount()));
         bill.setFeeRate(resolveEffectiveFeeRate(card.getUserId()));
         recalculateBill(bill);
-        specialCardBillMapper.updateById(bill);
     }
 
     @Override
