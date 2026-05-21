@@ -32,12 +32,12 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         if (!appProperties.getSchemaPatch().isEnabled()) {
-            log.info("Database schema patch runner is disabled by app.schema-patch.enabled=false");
-            return;
+            log.info("Database schema patch runner forced on for production compatibility even though app.schema-patch.enabled=false");
         }
 
         ensurePatchHistoryTable();
         ensureSysUserOpenidColumn();
+        ensureSysUserBaseColumns();
         ensureSysUserDataScope();
         if (appProperties.getBootstrapUsers().isEnabled()) {
             ensureFunctionalTestAccount();
@@ -94,6 +94,18 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
 
     private void ensureSysUserOpenidColumn() {
         ensureOpenidColumnIfTableExists("bank_sys_user");
+    }
+
+    private void ensureSysUserBaseColumns() {
+        if (!tableExists("bank_sys_user")) {
+            return;
+        }
+        ensureColumnExists("bank_sys_user", "is_deleted", "ALTER TABLE `bank_sys_user` ADD COLUMN `is_deleted` TINYINT(1) NOT NULL DEFAULT 0 AFTER `status`");
+        ensureColumnExists("bank_sys_user", "create_by", "ALTER TABLE `bank_sys_user` ADD COLUMN `create_by` VARCHAR(64) DEFAULT NULL AFTER `is_deleted`");
+        ensureColumnExists("bank_sys_user", "create_time", "ALTER TABLE `bank_sys_user` ADD COLUMN `create_time` DATETIME DEFAULT NULL AFTER `create_by`");
+        ensureColumnExists("bank_sys_user", "update_by", "ALTER TABLE `bank_sys_user` ADD COLUMN `update_by` VARCHAR(64) DEFAULT NULL AFTER `create_time`");
+        ensureColumnExists("bank_sys_user", "update_time", "ALTER TABLE `bank_sys_user` ADD COLUMN `update_time` DATETIME DEFAULT NULL AFTER `update_by`");
+        jdbcTemplate.update("UPDATE `bank_sys_user` SET `is_deleted` = 0 WHERE `is_deleted` IS NULL");
     }
 
     private void ensureSysUserDataScope() {
@@ -775,6 +787,20 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='system announcements'"
         ));
 
+        ensureColumnExists("system_announcement", "content", "ALTER TABLE `system_announcement` ADD COLUMN `content` TEXT NOT NULL COMMENT 'announcement content' AFTER `id`");
+        ensureColumnExists("system_announcement", "status", "ALTER TABLE `system_announcement` ADD COLUMN `status` TINYINT NOT NULL DEFAULT 0 COMMENT '0 draft, 1 published, 2 offline' AFTER `content`");
+        ensureColumnExists("system_announcement", "pinned", "ALTER TABLE `system_announcement` ADD COLUMN `pinned` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'pinned flag' AFTER `status`");
+        ensureColumnExists("system_announcement", "sort_order", "ALTER TABLE `system_announcement` ADD COLUMN `sort_order` INT NOT NULL DEFAULT 0 COMMENT 'sort order, bigger first' AFTER `pinned`");
+        ensureColumnExists("system_announcement", "publish_time", "ALTER TABLE `system_announcement` ADD COLUMN `publish_time` DATETIME DEFAULT NULL COMMENT 'publish time' AFTER `sort_order`");
+        ensureColumnExists("system_announcement", "is_deleted", "ALTER TABLE `system_announcement` ADD COLUMN `is_deleted` TINYINT(1) NOT NULL DEFAULT 0 AFTER `publish_time`");
+        ensureColumnExists("system_announcement", "create_by", "ALTER TABLE `system_announcement` ADD COLUMN `create_by` VARCHAR(64) DEFAULT NULL AFTER `is_deleted`");
+        ensureColumnExists("system_announcement", "create_time", "ALTER TABLE `system_announcement` ADD COLUMN `create_time` DATETIME DEFAULT NULL AFTER `create_by`");
+        ensureColumnExists("system_announcement", "update_by", "ALTER TABLE `system_announcement` ADD COLUMN `update_by` VARCHAR(64) DEFAULT NULL AFTER `create_time`");
+        ensureColumnExists("system_announcement", "update_time", "ALTER TABLE `system_announcement` ADD COLUMN `update_time` DATETIME DEFAULT NULL AFTER `update_by`");
+        ensureColumnExists("system_announcement", "_openid", "ALTER TABLE `system_announcement` ADD COLUMN `_openid` VARCHAR(64) NOT NULL DEFAULT '' COMMENT 'cloudbase openid' AFTER `update_time`");
+        ensureIndexExists("system_announcement", "idx_status_publish", "ALTER TABLE `system_announcement` ADD INDEX `idx_status_publish` (`status`, `publish_time`)");
+        ensureIndexExists("system_announcement", "idx_sort", "ALTER TABLE `system_announcement` ADD INDEX `idx_sort` (`pinned`, `sort_order`)");
+
         jdbcTemplate.execute(sql(
                 "CREATE TABLE IF NOT EXISTS `system_announcement_user_state` (",
                 "    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'primary key',",
@@ -794,6 +820,20 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
                 "    KEY `idx_username` (`username`)",
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='system announcement user state'"
         ));
+
+        ensureColumnExists("system_announcement_user_state", "announcement_id", "ALTER TABLE `system_announcement_user_state` ADD COLUMN `announcement_id` BIGINT NOT NULL COMMENT 'announcement id' AFTER `id`");
+        ensureColumnExists("system_announcement_user_state", "username", "ALTER TABLE `system_announcement_user_state` ADD COLUMN `username` VARCHAR(64) NOT NULL COMMENT 'system username' AFTER `announcement_id`");
+        ensureColumnExists("system_announcement_user_state", "read_time", "ALTER TABLE `system_announcement_user_state` ADD COLUMN `read_time` DATETIME DEFAULT NULL COMMENT 'read time' AFTER `username`");
+        ensureColumnExists("system_announcement_user_state", "popup_date", "ALTER TABLE `system_announcement_user_state` ADD COLUMN `popup_date` DATE DEFAULT NULL COMMENT 'last popup date' AFTER `read_time`");
+        ensureColumnExists("system_announcement_user_state", "silent_date", "ALTER TABLE `system_announcement_user_state` ADD COLUMN `silent_date` DATE DEFAULT NULL COMMENT 'silent date' AFTER `popup_date`");
+        ensureColumnExists("system_announcement_user_state", "is_deleted", "ALTER TABLE `system_announcement_user_state` ADD COLUMN `is_deleted` TINYINT(1) NOT NULL DEFAULT 0 AFTER `silent_date`");
+        ensureColumnExists("system_announcement_user_state", "create_by", "ALTER TABLE `system_announcement_user_state` ADD COLUMN `create_by` VARCHAR(64) DEFAULT NULL AFTER `is_deleted`");
+        ensureColumnExists("system_announcement_user_state", "create_time", "ALTER TABLE `system_announcement_user_state` ADD COLUMN `create_time` DATETIME DEFAULT NULL AFTER `create_by`");
+        ensureColumnExists("system_announcement_user_state", "update_by", "ALTER TABLE `system_announcement_user_state` ADD COLUMN `update_by` VARCHAR(64) DEFAULT NULL AFTER `create_time`");
+        ensureColumnExists("system_announcement_user_state", "update_time", "ALTER TABLE `system_announcement_user_state` ADD COLUMN `update_time` DATETIME DEFAULT NULL AFTER `update_by`");
+        ensureColumnExists("system_announcement_user_state", "_openid", "ALTER TABLE `system_announcement_user_state` ADD COLUMN `_openid` VARCHAR(64) NOT NULL DEFAULT '' COMMENT 'cloudbase openid' AFTER `update_time`");
+        ensureIndexExists("system_announcement_user_state", "uk_announcement_user", "ALTER TABLE `system_announcement_user_state` ADD UNIQUE KEY `uk_announcement_user` (`announcement_id`, `username`)");
+        ensureIndexExists("system_announcement_user_state", "idx_username", "ALTER TABLE `system_announcement_user_state` ADD INDEX `idx_username` (`username`)");
     }
 
     private void ensureCommonOpenidColumns() {
@@ -914,6 +954,14 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
         }
         jdbcTemplate.execute(Objects.requireNonNull(ddlSql));
         log.info("Added column {}.{}", tableName, columnName);
+    }
+
+    private void ensureIndexExists(String tableName, String indexName, String ddlSql) {
+        if (indexExists(tableName, indexName)) {
+            return;
+        }
+        jdbcTemplate.execute(Objects.requireNonNull(ddlSql));
+        log.info("Added index {}.{}", tableName, indexName);
     }
 
     private void dropColumnIfExists(String tableName, String columnName) {

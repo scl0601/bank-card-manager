@@ -23,7 +23,7 @@ jwt:
 
 app:
   schema-patch:
-    enabled: ${APP_SCHEMA_PATCH_ENABLED:false}
+    enabled: ${APP_SCHEMA_PATCH_ENABLED:true}
   bootstrap-users:
     enabled: ${APP_BOOTSTRAP_USERS_ENABLED:false}
   cors:
