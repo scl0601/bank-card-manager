@@ -24,7 +24,7 @@ const router = createRouter({
           path: 'monitor',
           name: 'Monitor',
           component: () => import('@/views/monitor/MonitorView.vue'),
-          meta: { title: '监控列表', icon: 'Monitor', roles: ['ADMIN', 'MONITOR'] }
+          meta: { title: '监控列表', icon: 'Monitor', roles: ['MONITOR'] }
         },
         {
           path: 'dashboard',
@@ -90,7 +90,7 @@ const router = createRouter({
           path: 'logs',
           name: 'Logs',
           component: () => import('@/views/log/LogList.vue'),
-          meta: { title: '系统日志', icon: 'Tickets' }
+          meta: { title: '系统日志', icon: 'Tickets', roles: ['MONITOR'] }
         },
         {
           path: 'announcements',

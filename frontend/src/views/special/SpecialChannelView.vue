@@ -2,6 +2,7 @@
   <div class="special-page">
     <section class="special-header">
       <div class="header-main">
+        <PageBackButton class="special-page-back" />
         <div>
           <div class="page-title">特殊通道</div>
           <div class="page-meta">
@@ -613,6 +614,7 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from '@/plugins/element-feedback'
 import type { FormInstance, FormRules } from 'element-plus'
 import { CreditCard, Plus, RefreshRight } from '@element-plus/icons-vue'
+import PageBackButton from '@/components/PageBackButton.vue'
 import { getUserTreeApi } from '@/api/card'
 import {
   batchDeleteSpecialBillsApi,
@@ -1921,7 +1923,14 @@ function formatRate(value: number | string | null | undefined) {
 }
 
 .header-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   min-width: 0;
+}
+
+.special-page-back {
+  flex: 0 0 auto;
 }
 
 .page-title {

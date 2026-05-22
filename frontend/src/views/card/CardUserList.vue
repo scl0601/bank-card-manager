@@ -2,6 +2,7 @@
   <div class="card-user-page">
     <div class="page-header">
       <div class="header-copy">
+        <PageBackButton />
         <div class="header-title">用户信息</div>
       </div>
 
@@ -388,6 +389,7 @@ import {
   Expand
 } from '@element-plus/icons-vue'
 import { ElMessage } from '@/plugins/element-feedback'
+import PageBackButton from '@/components/PageBackButton.vue'
 import {
   getUserTreeApi,
   saveUserApi,
@@ -1211,6 +1213,12 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 .header-copy,
 .user-info {
   min-width: 0;
+}
+
+.header-copy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .user-cell .user-info {

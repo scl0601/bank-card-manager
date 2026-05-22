@@ -2,6 +2,7 @@
   <div class="bill-page" :class="{ 'single-card-annual-page': singleCardAnnualMode }">
     <div class="page-header">
       <div class="header-copy">
+        <PageBackButton />
         <div class="header-title-row">
           <div class="header-title">账单信息</div>
           <span v-if="detailModeMessage" class="detail-mode-chip">明细模式</span>
@@ -80,7 +81,6 @@
           <div>
             <div class="panel-title">
               账单数据区
-              <el-button class="back-btn-inline" :icon="Back" @click="router.push('/cards')">返回</el-button>
             </div>
           </div>
           <div v-if="isAdmin && selectedBillRows.length > 0" class="table-batch-actions">
@@ -693,7 +693,8 @@ defineOptions({ name: 'Bills' })
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from '@/plugins/element-feedback'
-import { ArrowDown, ArrowRight, UserFilled, CreditCard, Delete, RefreshRight, Edit, Plus, Back } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowRight, UserFilled, CreditCard, Delete, RefreshRight, Edit, Plus } from '@element-plus/icons-vue'
+import PageBackButton from '@/components/PageBackButton.vue'
 import PageTable from '@/components/PageTable/index.vue'
 import ExportButton from '@/components/ExportButton/index.vue'
 import BillDetailSkeleton from '@/components/BillDetailSkeleton.vue'
@@ -2671,6 +2672,9 @@ watch(
 
 .header-copy {
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .header-title-row {
@@ -2841,13 +2845,6 @@ watch(
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.back-btn-inline {
-  font-size: 12px;
-  padding: 0 8px;
-  height: 24px;
-  border-radius: 6px;
 }
 
 .panel-desc {

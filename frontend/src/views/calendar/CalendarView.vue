@@ -2,6 +2,7 @@
   <div class="calendar-page" tabindex="0" @keydown="handleKeydown" ref="pageRef">
     <div class="page-header">
       <div class="header-left">
+        <PageBackButton />
         <span class="page-title-icon">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         </span>
@@ -799,6 +800,7 @@ import {
   EVENT_CATEGORY_OPTIONS, EVENT_STATUS_VALUE, EVENT_CATEGORY_MAP
 } from '@/constants/dict'
 import { getHolidayName } from '@/utils/holiday'
+import PageBackButton from '@/components/PageBackButton.vue'
 import EventDrawer from './EventDrawer.vue'
 
 

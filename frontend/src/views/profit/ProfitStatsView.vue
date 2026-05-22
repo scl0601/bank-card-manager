@@ -3,8 +3,13 @@
     <section class="page-header card-shell">
       <div class="header-top">
         <div class="header-copy">
-          <div class="header-title">收益统计</div>
-          <div class="header-sub">{{ currentScopeLabel }} · {{ activeViewDesc }}</div>
+          <div class="header-title-line">
+            <PageBackButton />
+            <div>
+              <div class="header-title">收益统计</div>
+              <div class="header-sub">{{ currentScopeLabel }} · {{ activeViewDesc }}</div>
+            </div>
+          </div>
         </div>
         <div class="header-actions">
           <el-button class="action-btn" :icon="RefreshRight" @click="refresh">刷新</el-button>
@@ -308,6 +313,7 @@ import { computed, nextTick, onActivated, onMounted, onUnmounted, reactive, ref,
 import { useRoute } from 'vue-router'
 import { ElMessage } from '@/plugins/element-feedback'
 import { CreditCard, Money, RefreshRight, TrendCharts, Wallet } from '@element-plus/icons-vue'
+import PageBackButton from '@/components/PageBackButton.vue'
 import { getUserTreeApi, getCardListApi } from '@/api/card'
 import { getBillPageApi, updateBillApi } from '@/api/bill'
 import { getProfitCardMonthListApi, getProfitUserMonthListApi } from '@/api/profit'
@@ -1909,6 +1915,13 @@ watch(userSortOrder, () => {
 
 .header-copy,
 .header-stat-body {
+  min-width: 0;
+}
+
+.header-title-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 

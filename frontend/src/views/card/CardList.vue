@@ -2,6 +2,7 @@
   <div class="cards-page" tabindex="0">
     <div class="page-header">
       <div class="header-left">
+        <PageBackButton class="card-page-back" />
         <span class="page-title-icon">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="5" width="18" height="14" rx="2" />
@@ -674,6 +675,7 @@ defineOptions({ name: 'Cards' })
 import { computed, onActivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from '@/plugins/element-feedback'
+import PageBackButton from '@/components/PageBackButton.vue'
 import CrudDialog from '@/components/CrudDialog/index.vue'
 import StatusTag from '@/components/StatusTag/index.vue'
 import {
@@ -2440,6 +2442,10 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   align-items: center;
   gap: 12px;
   min-width: 0;
+}
+
+.card-page-back {
+  flex: 0 0 auto;
 }
 
 .page-title-icon {

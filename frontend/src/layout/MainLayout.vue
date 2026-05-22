@@ -68,7 +68,6 @@
     </div>
 
     <!-- 全局 AI 悬浮助手 -->
-    <AiFloatWidget v-if="authStore.role !== 'MONITOR'" />
     <AnnouncementDialog
       v-if="latestAnnouncement"
       v-model="announcementDialogVisible"
@@ -97,7 +96,6 @@ import {
   silentAnnouncementTodayApi
 } from '@/api/announcement'
 
-const AiFloatWidget = defineAsyncComponent(() => import('@/components/AiFloatWidget.vue'))
 const AnnouncementDialog = defineAsyncComponent(() => import('@/components/AnnouncementDialog.vue'))
 const AnnouncementHistoryDrawer = defineAsyncComponent(() => import('@/components/AnnouncementHistoryDrawer.vue'))
 
@@ -117,19 +115,15 @@ const allMenuItems = [
   { path: '/bills',        title: '账单信息',   icon: 'Document' },
   { path: '/profits',      title: '收益统计',   icon: 'TrendCharts' },
   { path: '/special',      title: '特殊通道',   icon: 'Connection' },
-  { path: '/transactions', title: '流水管理',   icon: 'List' },
-  { path: '/books',        title: '个人记账',   icon: 'Wallet' },
-  { path: '/reminders',    title: '提醒中心',   icon: 'Bell' },
-  { path: '/feedbacks',    title: '用户反馈',   icon: 'ChatDotRound' },
   { path: '/calendar',     title: '日历计划',   icon: 'Calendar' },
-  { path: '/monitor',      title: '监控列表',   icon: 'Monitor', roles: ['ADMIN', 'MONITOR'] },
+  { path: '/monitor',      title: '监控列表',   icon: 'Monitor', roles: ['MONITOR'] },
   { path: '/announcements', title: '公告管理',   icon: 'Bell', roles: ['MONITOR'] },
-  { path: '/logs',         title: '系统日志',   icon: 'Tickets' }
+  { path: '/logs',         title: '系统日志',   icon: 'Tickets', roles: ['MONITOR'] }
 ]
 
 const menuItems = computed(() => {
   if (authStore.role === 'MONITOR') {
-    return allMenuItems.filter(item => item.roles?.includes('MONITOR') || item.path === '/logs')
+    return allMenuItems.filter(item => item.roles?.includes('MONITOR'))
   }
   return allMenuItems.filter(item => !item.roles || item.roles.includes(authStore.role))
 })
