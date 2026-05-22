@@ -24,6 +24,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.lang.reflect.Array;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.ArrayList;
@@ -62,7 +63,7 @@ public class OperationLogAspect {
             operationLog.setRequestPath(request.getRequestURI());
             operationLog.setRequestMethod(request.getMethod());
         }
-        operationLog.setOperator(getCurrentUsername());
+        operationLog.setOperator(getCurrentUsername(joinPoint));
         operationLog.setClientIp(IpUtil.getClientIp());
         operationLog.setRequestParams(filterSensitiveParams(joinPoint));
 
@@ -85,12 +86,19 @@ public class OperationLogAspect {
             try {
                 operationLogService.saveLog(operationLog);
             } catch (Exception ex) {
-                log.error("Failed to save operation log", ex);
+                log.error(
+                        "Failed to save operation log: module={}, action={}, path={}, operator={}",
+                        operationLog.getModule(),
+                        operationLog.getAction(),
+                        operationLog.getRequestPath(),
+                        operationLog.getOperator(),
+                        ex
+                );
             }
         }
     }
 
-    private String getCurrentUsername() {
+    private String getCurrentUsername(ProceedingJoinPoint joinPoint) {
         ServletRequestAttributes attributes =
                 (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         if (attributes == null) {
@@ -107,7 +115,54 @@ public class OperationLogAspect {
         if (username != null && !username.isEmpty()) {
             return username;
         }
+        username = extractUsernameFromArgs(joinPoint);
+        if (username != null && !username.isEmpty()) {
+            return username;
+        }
         return "ANONYMOUS";
+    }
+
+    private String extractUsernameFromArgs(ProceedingJoinPoint joinPoint) {
+        Object[] args = joinPoint.getArgs();
+        if (args == null || args.length == 0) {
+            return null;
+        }
+        for (Object arg : args) {
+            String username = extractUsername(arg);
+            if (username != null && !username.isEmpty()) {
+                return username;
+            }
+        }
+        return null;
+    }
+
+    private String extractUsername(Object arg) {
+        if (arg == null) {
+            return null;
+        }
+        if (arg instanceof Map<?, ?> map) {
+            Object value = map.get("username");
+            return value != null ? value.toString() : null;
+        }
+
+        try {
+            Method method = arg.getClass().getMethod("getUsername");
+            Object value = method.invoke(arg);
+            if (value != null) {
+                return value.toString();
+            }
+        } catch (Exception ignored) {
+            // Fall back to direct field access for simple DTOs without a public getter.
+        }
+
+        try {
+            Field field = arg.getClass().getDeclaredField("username");
+            field.setAccessible(true);
+            Object value = field.get(arg);
+            return value != null ? value.toString() : null;
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private String filterSensitiveParams(ProceedingJoinPoint joinPoint) {

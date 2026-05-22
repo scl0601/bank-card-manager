@@ -57,6 +57,7 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
         alignFeeRateColumns();
         ensureSpecialChannelTables();
         ensureAnnouncementTables();
+        ensureOperationLogTable();
         ensureCommonOpenidColumns();
     }
 
@@ -860,6 +861,46 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
         for (String tableName : baseEntityTables) {
             ensureOpenidColumnIfTableExists(tableName);
         }
+    }
+
+    private void ensureOperationLogTable() {
+        jdbcTemplate.execute(sql(
+                "CREATE TABLE IF NOT EXISTS `operation_log` (",
+                "    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'primary key',",
+                "    `operator` VARCHAR(64) DEFAULT NULL COMMENT 'operator username',",
+                "    `module` VARCHAR(64) DEFAULT NULL COMMENT 'operation module',",
+                "    `action` VARCHAR(64) DEFAULT NULL COMMENT 'operation action',",
+                "    `description` VARCHAR(500) DEFAULT NULL COMMENT 'operation description',",
+                "    `request_path` VARCHAR(255) DEFAULT NULL COMMENT 'request path',",
+                "    `request_method` VARCHAR(16) DEFAULT NULL COMMENT 'request method',",
+                "    `request_params` TEXT DEFAULT NULL COMMENT 'request params',",
+                "    `result` TINYINT DEFAULT 0 COMMENT '0 success, 1 failure',",
+                "    `error_msg` VARCHAR(500) DEFAULT NULL COMMENT 'error message',",
+                "    `client_ip` VARCHAR(64) DEFAULT NULL COMMENT 'client ip',",
+                "    `duration` BIGINT DEFAULT NULL COMMENT 'duration milliseconds',",
+                "    `create_time` DATETIME DEFAULT NULL COMMENT 'operation time',",
+                "    PRIMARY KEY (`id`),",
+                "    KEY `idx_operator` (`operator`),",
+                "    KEY `idx_module` (`module`),",
+                "    KEY `idx_create_time` (`create_time`)",
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='operation log'"
+        ));
+
+        ensureColumnExists("operation_log", "operator", "ALTER TABLE `operation_log` ADD COLUMN `operator` VARCHAR(64) DEFAULT NULL COMMENT 'operator username' AFTER `id`");
+        ensureColumnExists("operation_log", "module", "ALTER TABLE `operation_log` ADD COLUMN `module` VARCHAR(64) DEFAULT NULL COMMENT 'operation module' AFTER `operator`");
+        ensureColumnExists("operation_log", "action", "ALTER TABLE `operation_log` ADD COLUMN `action` VARCHAR(64) DEFAULT NULL COMMENT 'operation action' AFTER `module`");
+        ensureColumnExists("operation_log", "description", "ALTER TABLE `operation_log` ADD COLUMN `description` VARCHAR(500) DEFAULT NULL COMMENT 'operation description' AFTER `action`");
+        ensureColumnExists("operation_log", "request_path", "ALTER TABLE `operation_log` ADD COLUMN `request_path` VARCHAR(255) DEFAULT NULL COMMENT 'request path' AFTER `description`");
+        ensureColumnExists("operation_log", "request_method", "ALTER TABLE `operation_log` ADD COLUMN `request_method` VARCHAR(16) DEFAULT NULL COMMENT 'request method' AFTER `request_path`");
+        ensureColumnExists("operation_log", "request_params", "ALTER TABLE `operation_log` ADD COLUMN `request_params` TEXT DEFAULT NULL COMMENT 'request params' AFTER `request_method`");
+        ensureColumnExists("operation_log", "result", "ALTER TABLE `operation_log` ADD COLUMN `result` TINYINT DEFAULT 0 COMMENT '0 success, 1 failure' AFTER `request_params`");
+        ensureColumnExists("operation_log", "error_msg", "ALTER TABLE `operation_log` ADD COLUMN `error_msg` VARCHAR(500) DEFAULT NULL COMMENT 'error message' AFTER `result`");
+        ensureColumnExists("operation_log", "client_ip", "ALTER TABLE `operation_log` ADD COLUMN `client_ip` VARCHAR(64) DEFAULT NULL COMMENT 'client ip' AFTER `error_msg`");
+        ensureColumnExists("operation_log", "duration", "ALTER TABLE `operation_log` ADD COLUMN `duration` BIGINT DEFAULT NULL COMMENT 'duration milliseconds' AFTER `client_ip`");
+        ensureColumnExists("operation_log", "create_time", "ALTER TABLE `operation_log` ADD COLUMN `create_time` DATETIME DEFAULT NULL COMMENT 'operation time' AFTER `duration`");
+        ensureIndexExists("operation_log", "idx_operator", "ALTER TABLE `operation_log` ADD INDEX `idx_operator` (`operator`)");
+        ensureIndexExists("operation_log", "idx_module", "ALTER TABLE `operation_log` ADD INDEX `idx_module` (`module`)");
+        ensureIndexExists("operation_log", "idx_create_time", "ALTER TABLE `operation_log` ADD INDEX `idx_create_time` (`create_time`)");
     }
 
     private void ensureOpenidColumnIfTableExists(String tableName) {
