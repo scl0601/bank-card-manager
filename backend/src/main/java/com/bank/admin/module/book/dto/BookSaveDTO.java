@@ -7,6 +7,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 
 /**
  * 记账保存DTO
@@ -31,8 +32,7 @@ public class BookSaveDTO {
     @NotNull(message = "记账日期不能为空")
     private LocalDate bookDate;
 
-    @Schema(description = "分类ID", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotNull(message = "分类不能为空")
+    @Schema(description = "分类ID（收入/支出必填，转账不需要）")
     private Long categoryId;
 
     @Schema(description = "描述/备注")
@@ -40,4 +40,16 @@ public class BookSaveDTO {
 
     @Schema(description = "关联银行卡ID（可选）")
     private Long cardId;
+
+    @Schema(description = "支付/收款账户ID")
+    private Long accountId;
+
+    @Schema(description = "转入账户ID（转账时必填）")
+    private Long targetAccountId;
+
+    @Schema(description = "记账时间")
+    private LocalTime bookTime;
+
+    @Schema(description = "商家/对象")
+    private String merchant;
 }

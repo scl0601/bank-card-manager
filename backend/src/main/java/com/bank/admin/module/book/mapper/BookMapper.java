@@ -23,10 +23,22 @@ public interface BookMapper extends BaseMapper<PersonalBook> {
             @Param("bookType") Integer bookType,
             @Param("categoryIds") List<Long> categoryIds,
             @Param("cardId") Long cardId,
+            @Param("accountId") Long accountId,
+            @Param("yearMonth") String yearMonth,
+            @Param("keyword") String keyword,
+            @Param("owner") String owner,
             @Param("bookDateStart") LocalDate bookDateStart,
             @Param("bookDateEnd") LocalDate bookDateEnd
     );
 
     /** 按月份统计收支汇总 */
-    Map<String, Object> sumByMonth(@Param("yearMonth") String yearMonth);
+    Map<String, Object> sumByMonth(@Param("yearMonth") String yearMonth, @Param("owner") String owner);
+
+    List<Map<String, Object>> dailyTrend(@Param("yearMonth") String yearMonth, @Param("owner") String owner);
+
+    List<Map<String, Object>> calendarSummary(@Param("yearMonth") String yearMonth, @Param("owner") String owner);
+
+    List<Map<String, Object>> categoryRank(@Param("yearMonth") String yearMonth, @Param("owner") String owner);
+
+    Map<String, Object> totalAssets();
 }

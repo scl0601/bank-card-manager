@@ -25,6 +25,8 @@ public class DataScopePermissionHandler implements MultiDataPermissionHandler {
             Map.entry("reminder_task", "create_by"),
             Map.entry("book_category", "create_by"),
             Map.entry("personal_book", "create_by"),
+            Map.entry("book_account", "create_by"),
+            Map.entry("book_budget", "create_by"),
             Map.entry("calendar_event", "create_by"),
             Map.entry("user_feedback", "create_by"),
             Map.entry("user_feedback_attachment", "create_by"),

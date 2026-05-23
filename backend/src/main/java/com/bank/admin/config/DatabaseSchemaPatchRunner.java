@@ -53,6 +53,7 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
         ensureCardBillColumns();
         ensureCardTransactionColumns();
         ensureBillDetailTable();
+        ensurePersonalBookAppTables();
         migrateLegacyFeeRateData();
         alignFeeRateColumns();
         ensureSpecialChannelTables();
@@ -848,6 +849,8 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
                 "reminder_task",
                 "book_category",
                 "personal_book",
+                "book_account",
+                "book_budget",
                 "calendar_event",
                 "user_feedback",
                 "user_feedback_attachment",
@@ -901,6 +904,58 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
         ensureIndexExists("operation_log", "idx_operator", "ALTER TABLE `operation_log` ADD INDEX `idx_operator` (`operator`)");
         ensureIndexExists("operation_log", "idx_module", "ALTER TABLE `operation_log` ADD INDEX `idx_module` (`module`)");
         ensureIndexExists("operation_log", "idx_create_time", "ALTER TABLE `operation_log` ADD INDEX `idx_create_time` (`create_time`)");
+    }
+
+    private void ensurePersonalBookAppTables() {
+        jdbcTemplate.execute(sql(
+                "CREATE TABLE IF NOT EXISTS `book_account` (",
+                "    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'primary key',",
+                "    `name` VARCHAR(64) NOT NULL COMMENT 'account name',",
+                "    `account_type` TINYINT NOT NULL DEFAULT 5 COMMENT '1 cash, 2 bank card, 3 e-wallet, 4 credit, 5 other',",
+                "    `initial_balance` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'initial balance',",
+                "    `current_balance` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'current balance',",
+                "    `status` TINYINT NOT NULL DEFAULT 0 COMMENT '0 active, 1 disabled',",
+                "    `sort_order` INT NOT NULL DEFAULT 0 COMMENT 'sort order',",
+                "    `remark` VARCHAR(500) DEFAULT NULL,",
+                "    `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,",
+                "    `create_by` VARCHAR(64) DEFAULT NULL,",
+                "    `create_time` DATETIME DEFAULT NULL,",
+                "    `update_by` VARCHAR(64) DEFAULT NULL,",
+                "    `update_time` DATETIME DEFAULT NULL,",
+                "    `_openid` VARCHAR(64) NOT NULL DEFAULT '',",
+                "    PRIMARY KEY (`id`),",
+                "    KEY `idx_status_sort` (`status`, `sort_order`),",
+                "    KEY `idx_create_by` (`create_by`)",
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='personal bookkeeping account'"
+        ));
+
+        jdbcTemplate.execute(sql(
+                "CREATE TABLE IF NOT EXISTS `book_budget` (",
+                "    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'primary key',",
+                "    `budget_month` CHAR(7) NOT NULL COMMENT 'yyyy-MM',",
+                "    `category_id` BIGINT DEFAULT NULL COMMENT 'null means total monthly budget',",
+                "    `amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT 'budget amount',",
+                "    `remark` VARCHAR(500) DEFAULT NULL,",
+                "    `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,",
+                "    `create_by` VARCHAR(64) DEFAULT NULL,",
+                "    `create_time` DATETIME DEFAULT NULL,",
+                "    `update_by` VARCHAR(64) DEFAULT NULL,",
+                "    `update_time` DATETIME DEFAULT NULL,",
+                "    `_openid` VARCHAR(64) NOT NULL DEFAULT '',",
+                "    PRIMARY KEY (`id`),",
+                "    KEY `idx_budget_month` (`budget_month`),",
+                "    KEY `idx_category_id` (`category_id`),",
+                "    KEY `idx_create_by` (`create_by`)",
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='personal bookkeeping budget'"
+        ));
+
+        ensureColumnExists("personal_book", "account_id", "ALTER TABLE `personal_book` ADD COLUMN `account_id` BIGINT DEFAULT NULL COMMENT 'book account id' AFTER `card_id`");
+        ensureColumnExists("personal_book", "target_account_id", "ALTER TABLE `personal_book` ADD COLUMN `target_account_id` BIGINT DEFAULT NULL COMMENT 'target account id for transfer' AFTER `account_id`");
+        ensureColumnExists("personal_book", "book_time", "ALTER TABLE `personal_book` ADD COLUMN `book_time` TIME DEFAULT NULL COMMENT 'book time' AFTER `book_date`");
+        ensureColumnExists("personal_book", "merchant", "ALTER TABLE `personal_book` ADD COLUMN `merchant` VARCHAR(100) DEFAULT NULL COMMENT 'merchant or counterparty' AFTER `description`");
+        ensureIndexExists("personal_book", "idx_account_id", "ALTER TABLE `personal_book` ADD INDEX `idx_account_id` (`account_id`)");
+        ensureIndexExists("personal_book", "idx_target_account_id", "ALTER TABLE `personal_book` ADD INDEX `idx_target_account_id` (`target_account_id`)");
+        ensureIndexExists("personal_book", "idx_book_date_type", "ALTER TABLE `personal_book` ADD INDEX `idx_book_date_type` (`book_date`, `book_type`)");
     }
 
     private void ensureOpenidColumnIfTableExists(String tableName) {

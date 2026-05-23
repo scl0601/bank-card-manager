@@ -7,6 +7,7 @@ import lombok.EqualsAndHashCode;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 
 /**
  * 个人记账实体
@@ -35,4 +36,16 @@ public class PersonalBook extends BaseEntity {
 
     /** 关联银行卡ID（可选） */
     private Long cardId;
+
+    /** 支付/收款账户ID */
+    private Long accountId;
+
+    /** 转入账户ID（转账时使用） */
+    private Long targetAccountId;
+
+    /** 记账时间 */
+    private LocalTime bookTime;
+
+    /** 商家/对象 */
+    private String merchant;
 }

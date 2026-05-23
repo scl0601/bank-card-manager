@@ -241,24 +241,67 @@ CREATE TABLE `book_category` (
 
 -- ===================== 个人记账表 =====================
 CREATE TABLE `personal_book` (
-  `id`          BIGINT          NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `book_date`   DATE            NOT NULL                COMMENT '记账日期',
-  `book_type`   TINYINT         NOT NULL                COMMENT '1收入 2支出',
-  `amount`      DECIMAL(18,2)   NOT NULL                COMMENT '金额',
-  `category_id` BIGINT          NOT NULL                COMMENT '分类ID',
-  `description` VARCHAR(255)    DEFAULT NULL            COMMENT '描述/备注',
-  `card_id`     BIGINT          DEFAULT NULL            COMMENT '关联银行卡ID（可选）',
-  `is_deleted`  TINYINT(1)      NOT NULL DEFAULT 0,
-  `create_by`   VARCHAR(64)     DEFAULT NULL,
-  `create_time` DATETIME        DEFAULT NULL,
-  `update_by`   VARCHAR(64)     DEFAULT NULL,
-  `update_time` DATETIME        DEFAULT NULL,
+  `id`                BIGINT          NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `book_date`         DATE            NOT NULL                COMMENT '记账日期',
+  `book_time`         TIME            DEFAULT NULL            COMMENT '记账时间',
+  `book_type`         TINYINT         NOT NULL                COMMENT '1收入 2支出 3转账',
+  `amount`            DECIMAL(18,2)   NOT NULL                COMMENT '金额',
+  `category_id`       BIGINT          DEFAULT NULL            COMMENT '分类ID',
+  `description`       VARCHAR(255)    DEFAULT NULL            COMMENT '描述/备注',
+  `merchant`          VARCHAR(100)    DEFAULT NULL            COMMENT '商家/对象',
+  `card_id`           BIGINT          DEFAULT NULL            COMMENT '关联银行卡ID（可选）',
+  `account_id`        BIGINT          DEFAULT NULL            COMMENT '支付/收款账户ID',
+  `target_account_id` BIGINT          DEFAULT NULL            COMMENT '转入账户ID',
+  `is_deleted`        TINYINT(1)      NOT NULL DEFAULT 0,
+  `create_by`         VARCHAR(64)     DEFAULT NULL,
+  `create_time`       DATETIME        DEFAULT NULL,
+  `update_by`         VARCHAR(64)     DEFAULT NULL,
+  `update_time`       DATETIME        DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_book_date` (`book_date`),
   KEY `idx_book_type` (`book_type`),
+  KEY `idx_book_date_type` (`book_date`, `book_type`),
   KEY `idx_category_id` (`category_id`),
-  KEY `idx_card_id` (`card_id`)
+  KEY `idx_card_id` (`card_id`),
+  KEY `idx_account_id` (`account_id`),
+  KEY `idx_target_account_id` (`target_account_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='个人记账表';
+
+CREATE TABLE `book_account` (
+  `id`              BIGINT        NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `name`            VARCHAR(64)   NOT NULL                COMMENT '账户名称',
+  `account_type`    TINYINT       NOT NULL DEFAULT 5      COMMENT '1现金 2银行卡 3电子钱包 4信用账户 5其他',
+  `initial_balance` DECIMAL(18,2) NOT NULL DEFAULT 0.00   COMMENT '初始余额',
+  `current_balance` DECIMAL(18,2) NOT NULL DEFAULT 0.00   COMMENT '当前余额',
+  `status`          TINYINT       NOT NULL DEFAULT 0      COMMENT '0启用 1停用',
+  `sort_order`      INT           NOT NULL DEFAULT 0      COMMENT '排序号',
+  `remark`          VARCHAR(500)  DEFAULT NULL            COMMENT '备注',
+  `is_deleted`      TINYINT(1)    NOT NULL DEFAULT 0,
+  `create_by`       VARCHAR(64)   DEFAULT NULL,
+  `create_time`     DATETIME      DEFAULT NULL,
+  `update_by`       VARCHAR(64)   DEFAULT NULL,
+  `update_time`     DATETIME      DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_status_sort` (`status`, `sort_order`),
+  KEY `idx_create_by` (`create_by`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='个人记账账户表';
+
+CREATE TABLE `book_budget` (
+  `id`           BIGINT        NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `budget_month` CHAR(7)       NOT NULL                COMMENT '预算月份yyyy-MM',
+  `category_id`  BIGINT        DEFAULT NULL            COMMENT '分类ID，空表示总预算',
+  `amount`       DECIMAL(18,2) NOT NULL DEFAULT 0.00   COMMENT '预算金额',
+  `remark`       VARCHAR(500)  DEFAULT NULL            COMMENT '备注',
+  `is_deleted`   TINYINT(1)    NOT NULL DEFAULT 0,
+  `create_by`    VARCHAR(64)   DEFAULT NULL,
+  `create_time`  DATETIME      DEFAULT NULL,
+  `update_by`    VARCHAR(64)   DEFAULT NULL,
+  `update_time`  DATETIME      DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_budget_month` (`budget_month`),
+  KEY `idx_category_id` (`category_id`),
+  KEY `idx_create_by` (`create_by`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='个人记账预算表';
 
 -- ===================== 默认分类数据 =====================
 -- 收入分类

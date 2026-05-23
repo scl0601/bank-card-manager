@@ -6,6 +6,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 /**
  * 记账VO
@@ -46,6 +47,30 @@ public class BookVO {
 
     @Schema(description = "银行名称")
     private String bankName;
+
+    @Schema(description = "支付/收款账户ID")
+    private Long accountId;
+
+    @Schema(description = "支付/收款账户名称")
+    private String accountName;
+
+    @Schema(description = "支付/收款账户类型")
+    private Integer accountType;
+
+    @Schema(description = "转入账户ID")
+    private Long targetAccountId;
+
+    @Schema(description = "转入账户名称")
+    private String targetAccountName;
+
+    @Schema(description = "转入账户类型")
+    private Integer targetAccountType;
+
+    @Schema(description = "记账时间")
+    private LocalTime bookTime;
+
+    @Schema(description = "商家/对象")
+    private String merchant;
 
     @Schema(description = "创建时间")
     private LocalDateTime createTime;

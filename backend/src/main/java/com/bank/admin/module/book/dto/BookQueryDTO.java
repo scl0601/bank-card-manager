@@ -25,6 +25,15 @@ public class BookQueryDTO extends PageDTO {
     @Schema(description = "关联银行卡ID")
     private Long cardId;
 
+    @Schema(description = "账户ID")
+    private Long accountId;
+
+    @Schema(description = "月份 yyyy-MM")
+    private String yearMonth;
+
+    @Schema(description = "关键词：备注、商家、分类、账户")
+    private String keyword;
+
     @Schema(description = "记账日期 开始")
     private LocalDate bookDateStart;
 

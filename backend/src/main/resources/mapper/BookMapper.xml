@@ -14,22 +14,44 @@
             bc.name       AS category_name,
             pb.description,
             pb.card_id,
+            pb.account_id,
+            ba.name       AS account_name,
+            ba.account_type,
+            pb.target_account_id,
+            ta.name       AS target_account_name,
+            ta.account_type AS target_account_type,
+            pb.book_time,
+            pb.merchant,
             c.card_no_last4,
             c.bank_name,
             pb.create_time
         FROM personal_book pb
         LEFT JOIN book_category bc ON bc.id = pb.category_id AND bc.is_deleted = 0
         LEFT JOIN bank_card      c  ON c.id  = pb.card_id   AND c.is_deleted = 0
+        LEFT JOIN book_account   ba ON ba.id = pb.account_id AND ba.is_deleted = 0
+        LEFT JOIN book_account   ta ON ta.id = pb.target_account_id AND ta.is_deleted = 0
         WHERE pb.is_deleted = 0
+        <if test="owner != null and owner != ''">AND pb.create_by = #{owner}</if>
         <if test="bookType != null">AND pb.book_type = #{bookType}</if>
         <if test="categoryIds != null and categoryIds.size() > 0">
             AND pb.category_id IN
             <foreach collection="categoryIds" item="id" open="(" separator="," close=")">#{id}</foreach>
         </if>
         <if test="cardId != null">AND pb.card_id = #{cardId}</if>
+        <if test="accountId != null">AND (pb.account_id = #{accountId} OR pb.target_account_id = #{accountId})</if>
+        <if test="yearMonth != null and yearMonth != ''">AND DATE_FORMAT(pb.book_date, '%Y-%m') = #{yearMonth}</if>
         <if test="bookDateStart != null">AND pb.book_date &gt;= #{bookDateStart}</if>
         <if test="bookDateEnd != null">AND pb.book_date &lt;= #{bookDateEnd}</if>
-        ORDER BY pb.book_date DESC, pb.create_time DESC
+        <if test="keyword != null and keyword != ''">
+            AND (
+                pb.description LIKE CONCAT('%', #{keyword}, '%')
+                OR pb.merchant LIKE CONCAT('%', #{keyword}, '%')
+                OR bc.name LIKE CONCAT('%', #{keyword}, '%')
+                OR ba.name LIKE CONCAT('%', #{keyword}, '%')
+                OR ta.name LIKE CONCAT('%', #{keyword}, '%')
+            )
+        </if>
+        ORDER BY pb.book_date DESC, COALESCE(pb.book_time, '23:59:59') DESC, pb.create_time DESC
     </select>
 
     <select id="sumByMonth" resultType="map">
@@ -37,7 +59,59 @@
             COALESCE(SUM(CASE WHEN book_type = 1 THEN amount ELSE 0 END), 0) AS totalIncome,
             COALESCE(SUM(CASE WHEN book_type = 2 THEN amount ELSE 0 END), 0) AS totalExpense
         FROM personal_book
-        WHERE is_deleted = 0 AND DATE_FORMAT(book_date, '%Y-%m') = #{yearMonth}
+        WHERE is_deleted = 0
+          AND create_by = #{owner}
+          AND DATE_FORMAT(book_date, '%Y-%m') = #{yearMonth}
+    </select>
+
+    <select id="dailyTrend" resultType="map">
+        SELECT
+            DATE_FORMAT(book_date, '%Y-%m-%d') AS date,
+            COALESCE(SUM(CASE WHEN book_type = 1 THEN amount ELSE 0 END), 0) AS income,
+            COALESCE(SUM(CASE WHEN book_type = 2 THEN amount ELSE 0 END), 0) AS expense
+        FROM personal_book
+        WHERE is_deleted = 0
+          AND create_by = #{owner}
+          AND DATE_FORMAT(book_date, '%Y-%m') = #{yearMonth}
+        GROUP BY book_date
+        ORDER BY book_date ASC
+    </select>
+
+    <select id="calendarSummary" resultType="map">
+        SELECT
+            DATE_FORMAT(book_date, '%Y-%m-%d') AS date,
+            COALESCE(SUM(CASE WHEN book_type = 1 THEN amount ELSE 0 END), 0) AS income,
+            COALESCE(SUM(CASE WHEN book_type = 2 THEN amount ELSE 0 END), 0) AS expense,
+            COUNT(*) AS count
+        FROM personal_book
+        WHERE is_deleted = 0
+          AND create_by = #{owner}
+          AND DATE_FORMAT(book_date, '%Y-%m') = #{yearMonth}
+        GROUP BY book_date
+        ORDER BY book_date ASC
+    </select>
+
+    <select id="categoryRank" resultType="map">
+        SELECT
+            pb.category_id AS categoryId,
+            bc.name AS categoryName,
+            COALESCE(SUM(pb.amount), 0) AS amount,
+            COUNT(*) AS count
+        FROM personal_book pb
+        LEFT JOIN book_category bc ON bc.id = pb.category_id AND bc.is_deleted = 0
+        WHERE pb.is_deleted = 0
+          AND pb.create_by = #{owner}
+          AND pb.book_type = 2
+          AND DATE_FORMAT(pb.book_date, '%Y-%m') = #{yearMonth}
+        GROUP BY pb.category_id, bc.name
+        ORDER BY amount DESC
+        LIMIT 8
+    </select>
+
+    <select id="totalAssets" resultType="map">
+        SELECT COALESCE(SUM(current_balance), 0) AS totalAssets
+        FROM book_account
+        WHERE is_deleted = 0 AND status = 0
     </select>
 
 </mapper>

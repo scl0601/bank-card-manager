@@ -235,22 +235,42 @@ export const OWNER_STATUS_TAG_TYPE: Record<number, string> = {
 // ==================== 记账类型 ====================
 export const BOOK_TYPE_VALUE = {
   INCOME: 1,   // 收入
-  EXPENSE: 2   // 支出
+  EXPENSE: 2,  // 支出
+  TRANSFER: 3  // 转账
 } as const
 
 export const BOOK_TYPE_OPTIONS = [
   { label: '收入', value: BOOK_TYPE_VALUE.INCOME },
-  { label: '支出', value: BOOK_TYPE_VALUE.EXPENSE }
+  { label: '支出', value: BOOK_TYPE_VALUE.EXPENSE },
+  { label: '转账', value: BOOK_TYPE_VALUE.TRANSFER }
 ]
 
 export const BOOK_TYPE_MAP: Record<number, string> = {
   [BOOK_TYPE_VALUE.INCOME]: '收入',
-  [BOOK_TYPE_VALUE.EXPENSE]: '支出'
+  [BOOK_TYPE_VALUE.EXPENSE]: '支出',
+  [BOOK_TYPE_VALUE.TRANSFER]: '转账'
 }
 
 export const BOOK_TYPE_TAG_TYPE: Record<number, string> = {
   [BOOK_TYPE_VALUE.INCOME]: 'success',
-  [BOOK_TYPE_VALUE.EXPENSE]: 'danger'
+  [BOOK_TYPE_VALUE.EXPENSE]: 'danger',
+  [BOOK_TYPE_VALUE.TRANSFER]: 'warning'
+}
+
+export const BOOK_ACCOUNT_TYPE_OPTIONS = [
+  { label: '现金', value: 1 },
+  { label: '银行卡', value: 2 },
+  { label: '电子钱包', value: 3 },
+  { label: '信用账户', value: 4 },
+  { label: '其他', value: 5 }
+]
+
+export const BOOK_ACCOUNT_TYPE_MAP: Record<number, string> = {
+  1: '现金',
+  2: '银行卡',
+  3: '电子钱包',
+  4: '信用账户',
+  5: '其他'
 }
 
 // ==================== 分类状态 ====================
