@@ -357,8 +357,8 @@
                         <span class="bill-last4 font-mono">尾号 {{ b.cardNoLast4 || '-' }}</span>
                       </div>
                       <div class="bill-row-sub">
-                        <span class="cig-label">账单月</span>
-                        <span class="bill-date">{{ b.billMonth || '—' }}</span>
+                        <span class="cig-label">还款月</span>
+                        <span class="bill-date">{{ billRepayMonth(b) || '—' }}</span>
                         <span class="cig-sep-dot"></span>
                         <span class="cig-label">还款日</span>
                         <span class="bill-date">{{ fmtRepayDay(b.repayDate) }}</span>
@@ -1498,9 +1498,9 @@ function buildBillQueryParams() {
     status: undefined
   }
   if (selectedBillMonth.value) {
-    params.billMonth = selectedBillMonth.value
+    params.repayMonth = selectedBillMonth.value
   } else {
-    params.year = billFilter.year
+    params.repayYear = billFilter.year
   }
   return params
 }
@@ -1617,13 +1617,13 @@ function prefetchBillDetailsForRepayment(billId: number) {
 
 function warmRecentBillDetailCache(rows: BillRow[]) {
   rows
-    .filter(row => isCurrentBillMonth(row) || billRepayMonth(row) === currentBillMonth)
+    .filter(row => isCurrentBillMonth(row))
     .slice(0, 8)
     .forEach(row => prefetchBillDetailsForRepayment(Number(row.id)))
 }
 
 function isCurrentBillMonth(row: BillRow) {
-  return String(row?.billMonth || '') === currentBillMonth
+  return billRepayMonth(row) === currentBillMonth
 }
 
 function fmtDayOfMonth(day: string | number | null | undefined) {
@@ -1718,9 +1718,9 @@ function openFilteredBillsPage() {
     sortMode: BILL_SORT_CURRENT_FIRST
   }
   if (selectedBillMonth.value) {
-    routeQuery.billMonth = selectedBillMonth.value
+    routeQuery.repayMonth = selectedBillMonth.value
   } else {
-    routeQuery.year = String(billFilter.year)
+    routeQuery.repayYear = String(billFilter.year)
   }
   if (billScopeOwnerId.value) {
     routeQuery.ownerId = String(billScopeOwnerId.value)
@@ -1735,10 +1735,8 @@ async function goRepayment(b: BillRow | null | undefined) {
   if (!billId || !cardId) return
   if (repaymentNavigatingBillId.value === billId) return
   repaymentNavigatingBillId.value = billId
-  const repayMonth = currentBillMonth
-  const focusBill = recentBills.value.find(item => Number(item.cardId) === cardId && billRepayMonth(item) === repayMonth)
-  const targetBill = focusBill || b
-  const targetMonth = billRepayMonth(targetBill) || repayMonth
+  const targetBill = b
+  const targetMonth = billRepayMonth(targetBill) || selectedBillMonth.value || currentBillMonth
   const query: Record<string, string> = {
     cardId: String(cardId),
     repayMonth: targetMonth,
