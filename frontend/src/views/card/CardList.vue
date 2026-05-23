@@ -399,7 +399,16 @@
                       >
                         保存
                       </el-button>
-                      <el-button type="primary" link size="small" class="bill-repay-btn" @click="goRepayment(b)">还款</el-button>
+                      <el-button
+                        type="primary"
+                        link
+                        size="small"
+                        class="bill-repay-btn"
+                        :loading="repaymentNavigatingBillId === b.id"
+                        @click="goRepayment(b)"
+                      >
+                        还款
+                      </el-button>
                     </div>
                   </div>
                 </div>
@@ -653,10 +662,24 @@
             </el-select>
           </el-form-item>
           <el-form-item label="账单日">
-            <el-input-number v-model="form.billDay" :min="1" :max="31" controls-position="right" style="width: 100%" placeholder="每月账单日" />
+            <el-input
+              v-model="form.billDay"
+              maxlength="2"
+              inputmode="numeric"
+              clearable
+              placeholder="请输入1-31"
+              @input="updateFormBillDay"
+            />
           </el-form-item>
           <el-form-item label="还款日">
-            <el-input-number v-model="form.repayDay" :min="1" :max="31" controls-position="right" style="width: 100%" placeholder="每月还款日" />
+            <el-input
+              v-model="form.repayDay"
+              maxlength="2"
+              inputmode="numeric"
+              clearable
+              placeholder="请输入1-31"
+              @input="updateFormRepayDay"
+            />
           </el-form-item>
           <el-form-item label="有效期">
             <el-input v-model="form.expireDate" placeholder="如：06/28" />
@@ -685,10 +708,11 @@ import {
   deleteCardApi,
   getUserTreeApi
 } from '@/api/card'
-import { getBillOverviewApi, getBillPageApi, updateBillApi } from '@/api/bill'
+import { getBillOverviewApi, getBillPageApi, getDetailListApi, updateBillApi } from '@/api/bill'
 import { getProfitOverviewApi } from '@/api/profit'
 import { formatMoney, formatRate } from '@/utils/formatters'
 import { getCardExpireStatus } from '@/utils/cardExpiry'
+import { startBillDetailPrefetch } from '@/utils/billDetailPrefetch'
 import {
   BILL_STATUS_MAP,
   BILL_STATUS_TAG_TYPE,
@@ -1445,6 +1469,7 @@ const recentBillsReady = ref(false)
 const recentBills = ref<BillRow[]>([])
 const billAmountDraftMap = ref<Record<number, number>>({})
 const savingBillId = ref<number | null>(null)
+const repaymentNavigatingBillId = ref<number | null>(null)
 let billScopeRequestSeq = 0
 const billOverviewVisibleLoading = computed(() => billOverviewLoading.value && !billOverviewReady.value)
 const recentBillsVisibleLoading = computed(() => recentBillsLoading.value && !recentBillsReady.value)
@@ -1546,6 +1571,7 @@ async function fetchBillScopeData(options: { silent?: boolean } = {}) {
       })
       recentBills.value = records
       syncBillAmountDrafts(records)
+      warmRecentBillDetailCache(records)
       const overview = overviewRes.data || {}
       billOverview.value = {
         billCount: Number(overview.billCount ?? 0),
@@ -1575,6 +1601,25 @@ function fmtRepayDay(date: string | null | undefined) {
 function billRepayMonth(row: BillRow | null | undefined) {
   const match = String(row?.repayDate || '').match(/^(\d{4})-(\d{2})-/)
   return match ? `${match[1]}-${match[2]}` : ''
+}
+
+function buildBillFocusSnapshot(row: BillRow) {
+  return encodeURIComponent(JSON.stringify(row))
+}
+
+function prefetchBillDetailsForRepayment(billId: number) {
+  if (!billId) return Promise.resolve(null)
+  return startBillDetailPrefetch(billId, async () => {
+    const res: any = await getDetailListApi(billId)
+    return res.data || []
+  }) || Promise.resolve(null)
+}
+
+function warmRecentBillDetailCache(rows: BillRow[]) {
+  rows
+    .filter(row => isCurrentBillMonth(row) || billRepayMonth(row) === currentBillMonth)
+    .slice(0, 8)
+    .forEach(row => prefetchBillDetailsForRepayment(Number(row.id)))
 }
 
 function isCurrentBillMonth(row: BillRow) {
@@ -1683,30 +1728,34 @@ function openFilteredBillsPage() {
   router.push({ path: '/bills', query: routeQuery })
 }
 
-function goRepayment(b: BillRow) {
+async function goRepayment(b: BillRow | null | undefined) {
+  if (!b) return
+  const billId = Number(b.id || 0)
+  const cardId = Number(b.cardId || 0)
+  if (!billId || !cardId) return
+  if (repaymentNavigatingBillId.value === billId) return
+  repaymentNavigatingBillId.value = billId
   const repayMonth = currentBillMonth
-  const focusBill = recentBills.value.find(item => Number(item.cardId) === Number(b.cardId) && billRepayMonth(item) === repayMonth)
-  const canFocusCurrentRepayBill = Boolean(focusBill)
+  const focusBill = recentBills.value.find(item => Number(item.cardId) === cardId && billRepayMonth(item) === repayMonth)
+  const targetBill = focusBill || b
+  const targetMonth = billRepayMonth(targetBill) || repayMonth
   const query: Record<string, string> = {
-    cardId: String(b.cardId),
-    repayMonth,
+    cardId: String(cardId),
+    repayMonth: targetMonth,
     autoExpandDetails: '1',
+    focusBillId: String(targetBill.id),
+    focusBillSnapshot: buildBillFocusSnapshot(targetBill),
     sortMode: BILL_SORT_CURRENT_FIRST
   }
-  if (canFocusCurrentRepayBill && focusBill) {
-    query.focusBillId = String(focusBill.id)
-    query.focusBillSnapshot = encodeURIComponent(JSON.stringify(focusBill))
-  }
-  router.push({
-    path: '/bills',
-    query
-  })
+  await prefetchBillDetailsForRepayment(Number(targetBill.id)).catch(() => null)
+  await router.push({ path: '/bills', query }).catch(() => {})
+  repaymentNavigatingBillId.value = null
 }
 
-function openCardBillsPage(card: any) {
-  const cardId = Number(card?.id || 0)
+function openCardBillsPage(card: { id?: number | string; userId?: number | string } = {}) {
+  const cardId = Number(card.id || 0)
   if (!cardId) return
-  const ownerId = Number(card?.userId || billScopeOwnerId.value || 0)
+  const ownerId = Number(card.userId || billScopeOwnerId.value || 0)
   router.push({
     path: '/bills',
     query: {
@@ -2180,6 +2229,8 @@ async function handleSubmit() {
   ;['creditLimit', 'billDay', 'repayDay'].forEach(key => {
     if (data[key] === '') data[key] = null
   })
+  data.billDay = parseDayInput(data.billDay)
+  data.repayDay = parseDayInput(data.repayDay)
 
   if (isUserDisabled(data.userId)) {
     notifyUserDisabled(data.userId)
@@ -2207,6 +2258,29 @@ async function handleSubmit() {
   } finally {
     submitting.value = false
   }
+}
+
+function normalizeDayInput(value: string | number) {
+  const digits = String(value ?? '').replace(/\D/g, '').slice(0, 2)
+  if (!digits) return ''
+  const day = Number(digits)
+  if (!Number.isFinite(day) || day < 1) return ''
+  return String(Math.min(day, 31))
+}
+
+function parseDayInput(value: string | number | null | undefined) {
+  const normalized = normalizeDayInput(value ?? '')
+  if (!normalized) return null
+  const day = Number(normalized)
+  return Number.isFinite(day) && day >= 1 && day <= 31 ? day : null
+}
+
+function updateFormBillDay(value: string | number) {
+  formData.billDay = normalizeDayInput(value)
+}
+
+function updateFormRepayDay(value: string | number) {
+  formData.repayDay = normalizeDayInput(value)
 }
 
 async function confirmDeleteCard(card: any) {

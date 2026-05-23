@@ -303,20 +303,26 @@
       </section>
     </div>
 
-    <el-dialog v-model="editVisible" :title="editTitle" width="620px" class="user-edit-dialog" destroy-on-close :close-on-click-modal="false">
+    <el-dialog v-model="editVisible" :title="editTitle" width="600px" class="user-edit-dialog" destroy-on-close :close-on-click-modal="false" align-center>
       <div class="user-edit-panel">
-        <el-form class="user-edit-form" :model="editForm" label-width="90px" ref="formRef" :rules="formRules" size="large">
+        <el-form class="user-edit-form" :model="editForm" label-width="96px" ref="formRef" :rules="formRules" size="large">
           <el-form-item label="用户类型" v-if="!editForm.id" class="type-form-item">
             <div class="user-type-block">
               <template v-if="childModeLocked">
                 <div class="user-type-fixed">
                   <span class="user-type-fixed-tag">名下持卡人</span>
-                  <span class="user-type-fixed-text">当前从洽谈人下创建，类型已固定。</span>
+                  <span class="user-type-fixed-text">当前从洽谈人下创建，类型已固定，将继承上级费率。</span>
                 </div>
               </template>
               <el-radio-group v-else v-model="isChildMode" :disabled="!!editForm.id" class="user-type-group">
-                <el-radio-button :label="false">洽谈人</el-radio-button>
-                <el-radio-button :label="true">名下持卡人</el-radio-button>
+                <el-radio-button :label="false">
+                  <span class="type-option-title">洽谈人</span>
+                  <span class="type-option-desc">独立设置手续费率</span>
+                </el-radio-button>
+                <el-radio-button :label="true">
+                  <span class="type-option-title">名下持卡人</span>
+                  <span class="type-option-desc">继承所属洽谈人</span>
+                </el-radio-button>
               </el-radio-group>
               <div class="type-inline-tip">
                 {{ isChildMode ? '名下持卡人将继承所属洽谈人的手续费率。' : '洽谈人可单独设置手续费率，并同步名下持卡人。' }}
@@ -326,8 +332,8 @@
           <el-form-item label="姓名" prop="name">
             <el-input v-model="editForm.name" placeholder="请输入姓名" maxlength="20" show-word-limit />
           </el-form-item>
-          <el-form-item label="所属洽谈人" v-if="isChildMode || editForm.parentId">
-            <el-select v-model="editForm.parentId" placeholder="选择洽谈人" clearable style="width:100%" :disabled="!!editForm.parentId">
+          <el-form-item label="所属洽谈人" prop="parentId" v-if="isChildMode || editForm.parentId">
+            <el-select v-model="editForm.parentId" placeholder="选择洽谈人" clearable style="width:100%" :disabled="childModeLocked || !!editForm.id">
               <el-option v-for="u in parentUserOptions" :key="u.id" :label="u.name" :value="u.id" />
             </el-select>
           </el-form-item>
@@ -342,7 +348,9 @@
             <div class="form-tip">修改此值将级联同步更新所有名下持卡人</div>
           </el-form-item>
           <el-form-item label="手续费率" v-else-if="isChildMode || editForm.parentId">
-            <span class="inherit-hint">继承自洽谈人（{{ formatFeeRate(inheritedRate) }}%）</span>
+            <span class="inherit-hint">
+              继承自{{ selectedParentUser?.name || '洽谈人' }}（{{ formatFeeRate(inheritedRate) }}%）
+            </span>
           </el-form-item>
           <el-form-item label="联系电话">
             <el-input v-model="editForm.phone" placeholder="选填，用于联系" maxlength="11" />
@@ -354,15 +362,17 @@
             </el-radio-group>
           </el-form-item>
           <el-form-item label="备注">
-            <el-input v-model="editForm.remark" type="textarea" rows="3" placeholder="选填" maxlength="200" show-word-limit />
+            <el-input v-model="editForm.remark" type="textarea" rows="2" placeholder="选填" maxlength="200" show-word-limit />
           </el-form-item>
         </el-form>
       </div>
       <template #footer>
-        <el-button @click="editVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="handleSaveUser">
-          {{ editForm.id ? '保存修改' : '确认创建' }}
-        </el-button>
+        <div class="user-edit-footer">
+          <el-button @click="editVisible = false">取消</el-button>
+          <el-button type="primary" :loading="saving" @click="handleSaveUser">
+            {{ editForm.id ? '保存修改' : '确认创建' }}
+          </el-button>
+        </div>
       </template>
     </el-dialog>
   </div>
@@ -538,7 +548,26 @@ const defaultForm: Record<string, any> = {
 const editForm = reactive({ ...defaultForm })
 const formRules = {
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
-  feeRate: [{ required: true, message: '请输入手续费率', trigger: 'blur' }]
+  parentId: [{
+    validator: (_rule: unknown, value: number | null | undefined, callback: (error?: Error) => void) => {
+      if (isChildMode.value && !value) {
+        callback(new Error('请选择所属洽谈人'))
+        return
+      }
+      callback()
+    },
+    trigger: 'change'
+  }],
+  feeRate: [{
+    validator: (_rule: unknown, value: number | string | null | undefined, callback: (error?: Error) => void) => {
+      if (!isChildMode.value && (value === null || value === undefined || value === '')) {
+        callback(new Error('请输入手续费率'))
+        return
+      }
+      callback()
+    },
+    trigger: 'blur'
+  }]
 }
 
 const quickMenus = computed(() => {
@@ -555,6 +584,13 @@ const quickMenus = computed(() => {
 })
 
 const totalPages = computed(() => Math.max(1, Math.ceil(filteredTotal.value / query.pageSize)))
+const selectedParentUser = computed(() => {
+  if (!editForm.parentId) return null
+  const fromOptions = parentUserOptions.value.find((item) => item.id === editForm.parentId)
+  if (fromOptions) return fromOptions
+  const fromTree = flattenTree(rawData.value).find((item) => item.id === editForm.parentId)
+  return fromTree ? { id: fromTree.id, name: fromTree.name } : null
+})
 const visibleRowCount = computed(() => Math.max(collectVisibleRows(treeData.value).length, 1))
 const visibleRowIndexMap = computed(() => {
   const indexMap = new Map<number, number>()
@@ -1031,9 +1067,11 @@ function formatFeeRateOnBlur() {
 function openAddTopUser() {
   childModeLocked.value = false
   isChildMode.value = false
+  inheritedRate.value = 0
   editTitle.value = '新增用户'
   Object.assign(editForm, defaultForm)
   editVisible.value = true
+  nextTick(() => formRef.value?.clearValidate?.())
 }
 
 function openAddChild(parentRow: UserData) {
@@ -1043,6 +1081,7 @@ function openAddChild(parentRow: UserData) {
   inheritedRate.value = Number(parentRow.effectiveFeeRate ?? parentRow.feeRate ?? 0)
   Object.assign(editForm, { id: undefined, parentId: parentRow.id, name: '', phone: '', feeRate: 0, remark: '', status: 0 })
   editVisible.value = true
+  nextTick(() => formRef.value?.clearValidate?.())
 }
 
 function openEditUser(row: UserData) {
@@ -1060,6 +1099,7 @@ function openEditUser(row: UserData) {
     status: row.status
   })
   editVisible.value = true
+  nextTick(() => formRef.value?.clearValidate?.())
 }
 
 async function handleSaveUser() {
@@ -1071,15 +1111,16 @@ async function handleSaveUser() {
 
   saving.value = true
   try {
+    const normalizedParentId = isChildMode.value ? editForm.parentId : null
     const payload: Record<string, any> = {
       id: editForm.id,
-      parentId: editForm.parentId,
+      parentId: normalizedParentId,
       name: editForm.name,
       phone: editForm.phone,
       remark: editForm.remark,
       status: editForm.status
     }
-    if (!editForm.parentId) payload.feeRate = editForm.feeRate
+    if (!normalizedParentId) payload.feeRate = editForm.feeRate
 
     if (editForm.id) {
       await updateUserApi(payload)
@@ -1161,6 +1202,32 @@ watch(
     triggerFilterSearch()
   },
   { flush: 'sync' }
+)
+watch(isChildMode, (childMode) => {
+  if (!editVisible.value || editForm.id || childModeLocked.value) return
+
+  if (childMode) {
+    editForm.feeRate = 0 as any
+    const parent = editForm.parentId ? flattenTree(rawData.value).find((item) => item.id === editForm.parentId) : null
+    inheritedRate.value = Number(parent?.effectiveFeeRate ?? parent?.feeRate ?? 0)
+  } else {
+    editForm.parentId = null
+    editForm.feeRate = defaultForm.feeRate
+    inheritedRate.value = 0
+  }
+
+  nextTick(() => formRef.value?.clearValidate?.(['parentId', 'feeRate']))
+})
+watch(
+  () => editForm.parentId,
+  (parentId) => {
+    if (!parentId) {
+      if (isChildMode.value) inheritedRate.value = 0
+      return
+    }
+    const parent = flattenTree(rawData.value).find((item) => item.id === parentId)
+    inheritedRate.value = Number(parent?.effectiveFeeRate ?? parent?.feeRate ?? inheritedRate.value ?? 0)
+  }
 )
 watch(() => [query.pageNum, query.pageSize], () => applyFilter())
 watch(visibleRowCount, () => nextTick(updateTableLayout))
@@ -2195,28 +2262,84 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   color: #c0c7d6;
 }
 
+/*noinspection CssUnusedSymbol*/
+.user-edit-dialog :deep(.el-dialog) {
+  border-radius: 14px;
+  overflow: hidden;
+  max-height: calc(100vh - 56px);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.16);
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-edit-dialog :deep(.el-dialog__header) {
+  margin: 0;
+  padding: 14px 20px 12px;
+  border-bottom: 1px solid #e5eaf1;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-edit-dialog :deep(.el-dialog__title) {
+  color: #1f2a37;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-edit-dialog :deep(.el-dialog__headerbtn) {
+  top: 8px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-edit-dialog :deep(.el-dialog__headerbtn:hover) {
+  background: #eef5ff;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-edit-dialog :deep(.el-dialog__body) {
+  padding: 0;
+  background: #f6f8fb;
+  overflow: auto;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-edit-dialog :deep(.el-dialog__footer) {
+  padding: 12px 20px 14px;
+  border-top: 1px solid #e5eaf1;
+  background: #fff;
+}
+
 .user-edit-panel {
-  padding: 4px 2px 0;
+  padding: 14px 18px 16px;
 }
 
 .user-edit-form {
-  padding: 2px 4px 0;
+  padding: 14px 16px 8px;
+  border: 1px solid #e5eaf1;
+  border-radius: 12px;
+  background: #fff;
 }
 
 /*noinspection CssUnusedSymbol*/
 .user-edit-form :deep(.el-form-item) {
-  margin-bottom: 18px;
+  margin-bottom: 12px;
 }
 
 /*noinspection CssUnusedSymbol*/
 .user-edit-form :deep(.el-form-item:last-child) {
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 /*noinspection CssUnusedSymbol*/
 .user-edit-form :deep(.el-form-item__label) {
   font-weight: 600;
   color: #344054;
+  line-height: 34px;
 }
 
 /*noinspection CssUnusedSymbol*/
@@ -2228,9 +2351,20 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 .user-edit-form :deep(.el-input__wrapper),
 .user-edit-form :deep(.el-select__wrapper),
 .user-edit-form :deep(.el-textarea__inner) {
-  border-radius: 12px;
+  border-radius: 10px;
   box-shadow: 0 0 0 1px #d7dee8 inset;
   transition: box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-edit-form :deep(.el-input__wrapper),
+.user-edit-form :deep(.el-select__wrapper) {
+  min-height: 34px;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-edit-form :deep(.el-textarea__inner) {
+  min-height: 58px !important;
 }
 
 /*noinspection CssUnusedSymbol*/
@@ -2247,6 +2381,21 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   box-shadow: 0 0 0 1px #1677ff inset, 0 0 0 3px rgba(22, 119, 255, 0.08);
 }
 
+.user-edit-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+
+/*noinspection CssUnusedSymbol*/
+.user-edit-footer :deep(.el-button) {
+  min-width: 88px;
+  height: 34px;
+  border-radius: 9px;
+  font-weight: 700;
+}
+
 .user-type-block {
   width: 100%;
 }
@@ -2257,11 +2406,11 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  min-height: 50px;
-  padding: 10px 14px;
+  min-height: 42px;
+  padding: 7px 10px;
   border: 1px solid #dbe7ff;
-  border-radius: 14px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(234, 242, 255, 0.95) 160%);
+  border-radius: 12px;
+  background: #f4f8ff;
 }
 
 .user-type-fixed-tag {
@@ -2269,9 +2418,9 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   align-items: center;
   justify-content: center;
   min-width: 96px;
-  min-height: 30px;
-  padding: 0 14px;
-  border-radius: 999px;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 8px;
   background: #0958d9;
   color: #fff;
   font-size: 13px;
@@ -2283,7 +2432,7 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
   flex: 1;
   min-width: 0;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.35;
   color: #526074;
   text-align: right;
 }
@@ -2291,11 +2440,12 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 .user-type-group {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
+  gap: 6px;
   width: 100%;
   padding: 4px;
-  border-radius: 14px;
-  background: #f6f8fb;
+  border: 1px solid #e5eaf1;
+  border-radius: 12px;
+  background: #f8fafc;
 }
 
 /*noinspection CssUnusedSymbol*/
@@ -2305,57 +2455,83 @@ watch(visibleRowCount, () => nextTick(updateTableLayout))
 
 /*noinspection CssUnusedSymbol*/
 .user-type-group :deep(.el-radio-button__inner) {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto auto;
   align-items: center;
   justify-content: center;
+  gap: 7px;
   width: 100%;
-  min-height: 42px;
-  padding: 0 16px;
-  border: none !important;
-  border-radius: 10px !important;
+  min-height: 40px;
+  padding: 6px 12px;
+  border: 1px solid transparent !important;
+  border-radius: 9px !important;
   background: transparent;
   color: #526074;
-  font-size: 13px;
   font-weight: 700;
   box-shadow: none;
+  white-space: nowrap;
+  transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.type-option-title {
+  color: inherit;
+  font-size: 13px;
+  line-height: 1.15;
+}
+
+.type-option-desc {
+  color: #7c8799;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 /*noinspection CssUnusedSymbol*/
 .user-type-group :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(234, 242, 255, 0.95) 160%);
+  background: #fff;
   color: #0958d9;
   box-shadow: inset 0 0 0 1.5px rgba(180, 206, 255, 0.85), 0 8px 16px rgba(15, 23, 42, 0.08);
 }
 
+/*noinspection CssUnusedSymbol*/
+.user-type-group :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) .type-option-desc {
+  color: #526074;
+}
+
 .type-inline-tip {
-  margin-top: 8px;
-  padding: 0 2px;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #f8fafc;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.35;
   color: #667085;
 }
 
 .form-tip {
-  margin-top: 8px;
-  padding: 8px 10px;
-  border-radius: 10px;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
   background: #fff7e6;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.35;
   color: #d97706;
 }
 
 .inherit-hint {
   display: inline-flex;
   align-items: center;
-  min-height: 36px;
-  padding: 0 12px;
-  border-radius: 10px;
-  background: #f5f7fa;
-  border: 1px solid #e5eaf1;
-  color: #526074;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: #f4f8ff;
+  border: 1px solid #dbe7ff;
+  color: #0958d9;
   font-size: 12px;
+  font-weight: 700;
 }
 
 @media (max-width: 1480px) {

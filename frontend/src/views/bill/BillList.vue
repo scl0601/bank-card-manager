@@ -537,59 +537,85 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="billEditDialogVisible" title="编辑账单" width="480px" destroy-on-close>
+    <el-dialog
+      v-model="billEditDialogVisible"
+      title="编辑账单"
+      width="min(520px, 94vw)"
+      class="bill-entry-dialog"
+      destroy-on-close
+    >
       <template v-if="billEditRow">
-        <el-form label-width="92px">
-          <el-form-item label="本月代还金额">
-            <el-input-number
-              :model-value="editFormMap[billEditRowId]?.billAmount"
-              :min="0"
-              :precision="2"
-              controls-position="right"
-              style="width: 100%"
-              @update:model-value="(val:any) => updateEditField(billEditRowId, 'billAmount', val)"
-            />
-          </el-form-item>
-          <el-form-item label="账单日">
-            <el-input-number
-              :model-value="editFormMap[billEditRowId]?.billDay"
-              :min="1"
-              :max="31"
-              controls-position="right"
-              style="width: 100%"
-              @update:model-value="(val:any) => updateEditField(billEditRowId, 'billDay', val)"
-            />
-          </el-form-item>
-          <el-form-item label="还款日">
-            <el-input-number
-              :model-value="editFormMap[billEditRowId]?.repayDay"
-              :min="1"
-              :max="31"
-              controls-position="right"
-              style="width: 100%"
-              @update:model-value="(val:any) => updateEditField(billEditRowId, 'repayDay', val)"
-            />
-          </el-form-item>
-          <el-form-item label="账单状态">
-            <el-select
-              :model-value="editFormMap[billEditRowId]?.status"
-              style="width: 100%"
-              @update:model-value="(val:any) => updateEditField(billEditRowId, 'status', val)"
-            >
-              <el-option v-for="item in BILL_STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="备注">
-            <el-input
-              :model-value="editFormMap[billEditRowId]?.remark"
-              type="textarea"
-              rows="2"
-              maxlength="500"
-              show-word-limit
-              @update:model-value="(val:any) => updateEditField(billEditRowId, 'remark', val)"
-            />
-          </el-form-item>
-        </el-form>
+        <div class="bill-edit-panel">
+          <div class="bill-edit-context">
+            <div class="bill-edit-card">{{ billEditRow.ownerName || '账单' }} · {{ bankCardText(billEditRow) }}</div>
+            <div class="bill-edit-month">{{ billEditRow.billMonth || '-' }}</div>
+          </div>
+          <el-form class="bill-entry-form bill-edit-form" label-position="top">
+            <el-form-item label="本月账单金额" class="bill-edit-amount-item">
+              <el-input-number
+                :model-value="editFormMap[billEditRowId]?.billAmount"
+                :min="0"
+                :precision="2"
+                :step="100"
+                placeholder="请输入本月账单金额"
+                controls-position="right"
+                inputmode="decimal"
+                class="bill-dialog-control money-input bill-edit-amount-input"
+                @update:model-value="(val:any) => updateEditField(billEditRowId, 'billAmount', val)"
+              />
+            </el-form-item>
+            <div class="bill-edit-date-grid">
+              <el-form-item label="账单日">
+                <el-input
+                  :model-value="editFormMap[billEditRowId]?.billDay ?? ''"
+                  placeholder="1-31"
+                  inputmode="numeric"
+                  maxlength="2"
+                  clearable
+                  class="bill-dialog-control day-input"
+                  @update:model-value="(val:any) => updateEditDayField(billEditRowId, 'billDay', val)"
+                >
+                  <template #suffix>日</template>
+                </el-input>
+              </el-form-item>
+              <el-form-item label="还款日">
+                <el-input
+                  :model-value="editFormMap[billEditRowId]?.repayDay ?? ''"
+                  placeholder="1-31"
+                  inputmode="numeric"
+                  maxlength="2"
+                  clearable
+                  class="bill-dialog-control day-input"
+                  @update:model-value="(val:any) => updateEditDayField(billEditRowId, 'repayDay', val)"
+                >
+                  <template #suffix>日</template>
+                </el-input>
+              </el-form-item>
+            </div>
+            <el-form-item label="账单状态">
+              <el-select
+                :model-value="editFormMap[billEditRowId]?.status"
+                class="bill-dialog-control"
+                @update:model-value="(val:any) => updateEditField(billEditRowId, 'status', val)"
+              >
+                <el-option v-for="item in BILL_STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="备注">
+              <el-input
+                :model-value="editFormMap[billEditRowId]?.remark"
+                type="textarea"
+                :rows="3"
+                placeholder="可填写账单备注"
+                maxlength="500"
+                show-word-limit
+                clearable
+                class="bill-dialog-textarea"
+                @update:model-value="(val:any) => updateEditField(billEditRowId, 'remark', val)"
+              />
+            </el-form-item>
+          </el-form>
+        </div>
       </template>
       <template #footer>
         <el-button @click="billEditDialogVisible = false">取消</el-button>
@@ -597,24 +623,61 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="detailDialogVisible" :title="detailDialogTitle" width="500px" destroy-on-close>
-      <el-form :model="detailForm" label-width="90px" :rules="detailRules" ref="detailFormRef">
+    <el-dialog
+      v-model="detailDialogVisible"
+      :title="detailDialogTitle"
+      width="min(520px, 94vw)"
+      class="bill-entry-dialog"
+      destroy-on-close
+    >
+      <el-form :model="detailForm" class="bill-entry-form" label-width="92px" :rules="detailRules" ref="detailFormRef">
         <el-form-item label="日期" prop="detailDate">
-          <el-date-picker v-model="detailForm.detailDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+          <el-date-picker
+            v-model="detailForm.detailDate"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="请选择明细日期"
+            clearable
+            :editable="false"
+            class="bill-dialog-control"
+          />
         </el-form-item>
         <el-form-item label="描述" prop="description">
-          <el-input v-model="detailForm.description" placeholder="如：还款入账" />
+          <el-input
+            v-model="detailForm.description"
+            :placeholder="detailDescriptionPlaceholder"
+            clearable
+            class="bill-dialog-control"
+          />
         </el-form-item>
         <el-form-item label="交易类型" prop="detailType">
-          <el-radio-group v-model="detailForm.detailType">
-            <el-radio v-for="t in DETAIL_TYPE_OPTIONS" :key="t.value" :value="t.value">{{ t.label }}</el-radio>
+          <el-radio-group v-model="detailForm.detailType" class="detail-type-segment">
+            <el-radio-button v-for="t in DETAIL_TYPE_OPTIONS" :key="t.value" :value="t.value">{{ t.label }}</el-radio-button>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="金额" prop="amount">
-          <el-input-number v-model="detailForm.amount" :precision="2" :min="0" style="width: 100%" />
+          <el-input-number
+            v-model="detailForm.amount"
+            :precision="2"
+            :min="0"
+            :step="10"
+            placeholder="请输入金额"
+            controls-position="right"
+            inputmode="decimal"
+            class="bill-dialog-control money-input"
+          />
         </el-form-item>
         <el-form-item label="备注">
-          <el-input v-model="detailForm.remark" type="textarea" rows="2" />
+          <el-input
+            v-model="detailForm.remark"
+            type="textarea"
+            :rows="3"
+            maxlength="500"
+            show-word-limit
+            clearable
+            placeholder="可填写补充说明"
+            class="bill-dialog-textarea"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -701,6 +764,7 @@ import BillDetailSkeleton from '@/components/BillDetailSkeleton.vue'
 import { usePageTable } from '@/composables/usePageTable'
 import { useExport } from '@/composables/useExport'
 import { handleError } from '@/utils/errorHandler'
+import { consumeBillDetailPrefetch, peekBillDetailPrefetch, type PrefetchedBillDetail } from '@/utils/billDetailPrefetch'
 import {
   getBillPageApi,
   getBillOverviewApi,
@@ -1343,13 +1407,19 @@ function autoExpandFirstBillAfterFetch() {
 
 function stageFocusedBill(snapshot: BillRow | null) {
   if (!snapshot || !pendingFocusBillId.value || Number(snapshot.id) !== pendingFocusBillId.value) return
+  const targetId = Number(snapshot.id)
   pendingAutoExpandDetails.value = false
   focusedBillSnapshot.value = snapshot
   list.value = [snapshot]
   total.value = 1
+  const prefetchedDetails = peekBillDetailPrefetch(targetId)
+  if (prefetchedDetails) {
+    applyPrefetchedDetails(targetId, prefetchedDetails, { syncBillRow: true })
+  }
   currentExpandedRow.value = snapshot
-  pendingExpandBillId.value = Number(snapshot.id)
-  void loadDetails(snapshot.id, { silent: true }).finally(() => {
+  detailLoadingMap.value[targetId] = false
+  pendingExpandBillId.value = targetId
+  void loadDetails(snapshot.id, { silent: true, syncBillRow: true }).finally(() => {
     if (pendingExpandBillId.value === snapshot.id) {
       pendingExpandBillId.value = null
     }
@@ -1942,6 +2012,19 @@ function setBillDetails(billId: number, details: BillDetailRow[], options: { syn
   }
 }
 
+function applyPrefetchedDetails(billId: number, details: PrefetchedBillDetail[], options: { syncBillRow?: boolean } = {}) {
+  setBillDetails(billId, details as BillDetailRow[], options)
+  detailLoadedMap.value[billId] = true
+  resetDetailSelection(billId)
+}
+
+async function tryApplyPrefetchedDetails(billId: number, options: { syncBillRow?: boolean } = {}) {
+  const prefetchedDetails = await consumeBillDetailPrefetch(billId)
+  if (!prefetchedDetails) return false
+  applyPrefetchedDetails(billId, prefetchedDetails, options)
+  return true
+}
+
 function calculateDetailTypeTotal(details: BillDetailRow[], detailType: number) {
   return details
     .filter(item => Number(item.detailType) === Number(detailType))
@@ -2048,6 +2131,15 @@ async function loadDetails(billId: number, options: { force?: boolean; silent?: 
   if (!options.quiet) {
     detailLoadingMap.value[billId] = true
   }
+
+  if (!options.force && await tryApplyPrefetchedDetails(billId, { syncBillRow: options.syncBillRow })) {
+    if (!options.quiet) {
+      detailLoadingMap.value[billId] = false
+    }
+    nextTick(scheduleBillTableLayout)
+    return
+  }
+
   const request = (async () => {
     try {
       const res: any = await fetchDetailListApi(billId)
@@ -2197,6 +2289,9 @@ const detailForm = reactive({
   amount: 0,
   detailType: DETAIL_TYPE_VALUE.INCOME,
   remark: ''
+})
+const detailDescriptionPlaceholder = computed(() => {
+  return Number(detailForm.detailType) === Number(DETAIL_TYPE_VALUE.EXPENSE) ? '如：刷卡消费' : '如：还款入账'
 })
 const detailRules = {
   detailDate: [{ required: true, message: '请选择日期', trigger: 'change' }],
@@ -2375,6 +2470,16 @@ function updateEditField(billId: number, field: string, value: any) {
   if (field === 'billAmount') {
     syncInlineAmounts(billId)
   }
+}
+
+function updateEditDayField(billId: number, field: 'billDay' | 'repayDay', value: any) {
+  const digits = String(value ?? '').replace(/\D/g, '').slice(0, 2)
+  if (!digits) {
+    updateEditField(billId, field, null)
+    return
+  }
+  const day = Math.min(31, Math.max(1, Number(digits)))
+  updateEditField(billId, field, day)
 }
 
 function buildBillUpdatePayload(row: BillRow, form: EditFormItem, overrides: Record<string, any> = {}) {
@@ -4142,6 +4247,198 @@ watch(
 .bill-edit-static {
   font-size: var(--bill-font-size);
   font-weight: 700;
+}
+
+.bill-entry-dialog :deep(.el-dialog__body) {
+  padding: 14px 18px 6px;
+}
+
+.bill-entry-dialog :deep(.el-dialog__footer) {
+  padding: 10px 18px 16px;
+}
+
+.bill-entry-form {
+  display: grid;
+  gap: 2px;
+}
+
+.bill-entry-form :deep(.el-form-item) {
+  margin-bottom: 14px;
+}
+
+.bill-entry-form :deep(.el-form-item__label) {
+  min-height: 36px;
+  align-items: center;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.bill-entry-form :deep(.el-form-item__content) {
+  min-width: 0;
+}
+
+.bill-edit-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.bill-edit-context {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid #e5eaf1;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.bill-edit-card {
+  min-width: 0;
+  overflow: hidden;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bill-edit-month {
+  padding: 4px 8px;
+  border: 1px solid #d6e4ff;
+  border-radius: 7px;
+  background: #eef5ff;
+  color: #0958d9;
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.bill-edit-form {
+  gap: 0;
+}
+
+.bill-edit-form :deep(.el-form-item) {
+  margin-bottom: 12px;
+}
+
+.bill-edit-form :deep(.el-form-item__label) {
+  min-height: auto;
+  margin-bottom: 5px;
+  padding: 0;
+  line-height: 1.25;
+}
+
+.bill-edit-amount-item {
+  padding: 10px;
+  border: 1px solid #e5eaf1;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.bill-edit-amount-item :deep(.el-form-item__label) {
+  color: #667085;
+}
+
+.bill-edit-amount-input :deep(.el-input__wrapper) {
+  min-height: 44px;
+}
+
+.bill-edit-amount-input :deep(.el-input__inner) {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.bill-edit-amount-input.money-input::before {
+  font-size: 16px;
+}
+
+.bill-edit-date-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.day-input :deep(.el-input__inner) {
+  text-align: center;
+  font-family: var(--font-mono), monospace;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.day-input :deep(.el-input__suffix) {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.bill-dialog-control {
+  width: 100%;
+}
+
+.bill-dialog-control :deep(.el-input__wrapper),
+.bill-dialog-control :deep(.el-select__wrapper),
+.bill-dialog-control.el-date-editor :deep(.el-input__wrapper) {
+  min-height: 36px;
+  border-radius: 8px;
+}
+
+.bill-dialog-control :deep(.el-input__inner),
+.bill-dialog-control :deep(.el-select__selected-item),
+.bill-dialog-control :deep(.el-input-number__input) {
+  font-size: 13px;
+}
+
+.money-input {
+  position: relative;
+}
+
+.money-input::before {
+  content: '¥';
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  z-index: 2;
+  color: #667085;
+  font-size: 13px;
+  font-weight: 800;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.money-input :deep(.el-input__inner) {
+  padding-left: 28px;
+  padding-right: 44px;
+  text-align: right;
+  font-family: var(--font-mono), monospace;
+}
+
+.detail-type-segment {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+}
+
+.detail-type-segment :deep(.el-radio-button__inner) {
+  width: 100%;
+  min-height: 36px;
+  line-height: 34px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.bill-dialog-textarea :deep(.el-textarea__inner) {
+  min-height: 86px !important;
+  border-radius: 8px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.bill-dialog-textarea :deep(.el-input__count) {
+  color: #98a2b3;
 }
 
 .side-card {

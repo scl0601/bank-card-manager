@@ -581,10 +581,26 @@
           <el-input-number v-model="cardForm.totalAmount" class="full-input" :min="0" :precision="2" :controls="false" placeholder="请输入卡片额度" />
         </el-form-item>
         <el-form-item label="账单日">
-          <el-input-number v-model="cardForm.billDay" class="full-input" :min="1" :max="31" :precision="0" controls-position="right" placeholder="每月账单日" />
+          <el-input
+            v-model="cardForm.billDay"
+            class="full-input"
+            maxlength="2"
+            inputmode="numeric"
+            clearable
+            placeholder="请输入1-31"
+            @input="updateCardFormBillDay"
+          />
         </el-form-item>
         <el-form-item label="还款日">
-          <el-input-number v-model="cardForm.repaymentDay" class="full-input" :min="1" :max="31" :precision="0" controls-position="right" placeholder="每月还款日" />
+          <el-input
+            v-model="cardForm.repaymentDay"
+            class="full-input"
+            maxlength="2"
+            inputmode="numeric"
+            clearable
+            placeholder="请输入1-31"
+            @input="updateCardFormRepaymentDay"
+          />
         </el-form-item>
         <el-form-item label="有效期">
           <el-input v-model="cardForm.expireDate" maxlength="32" placeholder="如：06/28" />
@@ -872,8 +888,8 @@ const cardForm = reactive({
   cardNoLast4: '',
   totalAmount: 0,
   expireDate: '',
-  billDay: undefined as number | undefined,
-  repaymentDay: undefined as number | undefined,
+  billDay: '',
+  repaymentDay: '',
   status: 0,
   remark: ''
 })
@@ -1156,8 +1172,8 @@ function openEditCard(card: SpecialCard) {
   cardForm.cardNoLast4 = card.cardNoLast4 || ''
   cardForm.totalAmount = toNumber(card.totalAmount)
   cardForm.expireDate = card.expireDate || ''
-  cardForm.billDay = card.billDay || undefined
-  cardForm.repaymentDay = card.repaymentDay || undefined
+  cardForm.billDay = formatCardFormDayInput(card.billDay)
+  cardForm.repaymentDay = formatCardFormDayInput(card.repaymentDay)
   cardForm.status = card.status ?? 0
   cardForm.remark = card.remark || ''
   cardDialogVisible.value = true
@@ -1174,8 +1190,8 @@ async function submitCard() {
       cardNoLast4: cardForm.cardNoLast4,
       totalAmount: cardForm.totalAmount,
       expireDate: cardForm.expireDate,
-      billDay: cardForm.billDay,
-      repaymentDay: cardForm.repaymentDay,
+      billDay: parseCardFormDayInput(cardForm.billDay),
+      repaymentDay: parseCardFormDayInput(cardForm.repaymentDay),
       status: cardForm.status,
       remark: cardForm.remark
     }
@@ -1212,10 +1228,35 @@ function resetCardForm() {
   cardForm.cardNoLast4 = ''
   cardForm.totalAmount = 0
   cardForm.expireDate = ''
-  cardForm.billDay = undefined
-  cardForm.repaymentDay = undefined
+  cardForm.billDay = ''
+  cardForm.repaymentDay = ''
   cardForm.status = 0
   cardForm.remark = ''
+}
+
+function normalizeCardFormDayInput(value: string | number) {
+  const digits = String(value ?? '').replace(/\D/g, '').slice(0, 2)
+  if (!digits) return ''
+  const day = Number(digits)
+  if (!Number.isFinite(day) || day < 1) return ''
+  return String(Math.min(day, 31))
+}
+
+function formatCardFormDayInput(value: number | string | null | undefined) {
+  return normalizeCardFormDayInput(value ?? '')
+}
+
+function parseCardFormDayInput(value: string) {
+  const day = Number(normalizeCardFormDayInput(value))
+  return Number.isFinite(day) && day >= 1 && day <= 31 ? day : undefined
+}
+
+function updateCardFormBillDay(value: string | number) {
+  cardForm.billDay = normalizeCardFormDayInput(value)
+}
+
+function updateCardFormRepaymentDay(value: string | number) {
+  cardForm.repaymentDay = normalizeCardFormDayInput(value)
 }
 
 async function fetchBills() {
