@@ -3,6 +3,7 @@ package com.bank.admin.module.dashboard.service.impl;
 import com.bank.admin.module.bill.entity.CardBill;
 import com.bank.admin.module.bill.mapper.CardBillMapper;
 import com.bank.admin.module.card.entity.BankCard;
+import com.bank.admin.module.card.entity.CardUser;
 import com.bank.admin.module.card.mapper.BankCardMapper;
 import com.bank.admin.module.card.mapper.CardUserMapper;
 import com.bank.admin.module.dashboard.service.DashboardService;
@@ -23,6 +24,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -49,6 +52,7 @@ public class DashboardServiceImpl implements DashboardService {
         vo.setTotalCards(bankCardMapper.selectCount(new LambdaQueryWrapper<>()));
         vo.setCreditCardCount(bankCardMapper.selectCount(new LambdaQueryWrapper<BankCard>().eq(BankCard::getCardType, 2)));
         vo.setDebitCardCount(bankCardMapper.selectCount(new LambdaQueryWrapper<BankCard>().eq(BankCard::getCardType, 1)));
+        fillCardExpireStats(vo, today);
         vo.setPendingReminderCount(reminderTaskMapper.selectCount(
                 new LambdaQueryWrapper<com.bank.admin.module.reminder.entity.ReminderTask>()
                         .eq(com.bank.admin.module.reminder.entity.ReminderTask::getStatus, 0)));
@@ -142,6 +146,125 @@ public class DashboardServiceImpl implements DashboardService {
         return vo;
     }
 
+    private void fillCardExpireStats(DashboardVO vo, LocalDate today) {
+        int currentIndex = today.getYear() * 12 + today.getMonthValue();
+
+        List<BankCard> cards = bankCardMapper.selectList(
+                new LambdaQueryWrapper<BankCard>()
+                        .select(BankCard::getId, BankCard::getUserId, BankCard::getBankName,
+                                BankCard::getCardNoLast4, BankCard::getCardType,
+                                BankCard::getExpireDate, BankCard::getStatus)
+                        .orderByAsc(BankCard::getBankName)
+                        .orderByAsc(BankCard::getCardNoLast4));
+        Map<Long, CardUser> userMap = loadCardUsers(cards);
+        List<DashboardVO.CardExpireReminderVO> reminders = new ArrayList<>();
+
+        for (BankCard card : cards) {
+            YearMonth expire = parseCardExpireYearMonth(card.getExpireDate());
+            if (expire == null) {
+                continue;
+            }
+
+            int expireIndex = expire.year() * 12 + expire.month();
+            int monthsLeft = expireIndex - currentIndex;
+            if (monthsLeft < 0) {
+                reminders.add(buildCardExpireReminder(card, userMap.get(card.getUserId()), "expired"));
+            } else if (monthsLeft <= 1) {
+                reminders.add(buildCardExpireReminder(card, userMap.get(card.getUserId()), "soon"));
+            }
+        }
+
+        long soonCount = reminders.stream().filter(item -> "soon".equals(item.getExpireStatus())).count();
+        long expiredCount = reminders.stream().filter(item -> "expired".equals(item.getExpireStatus())).count();
+        vo.setCardExpireSoonCount(soonCount);
+        vo.setCardExpiredCount(expiredCount);
+        vo.setCardExpireReminderCount(soonCount + expiredCount);
+        vo.setCardExpireReminders(reminders);
+    }
+
+    private Map<Long, CardUser> loadCardUsers(List<BankCard> cards) {
+        Set<Long> userIds = cards.stream()
+                .map(BankCard::getUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (userIds.isEmpty()) {
+            return Map.of();
+        }
+        return cardUserMapper.selectBatchIds(userIds).stream()
+                .collect(Collectors.toMap(CardUser::getId, user -> user, (a, b) -> a));
+    }
+
+    private DashboardVO.CardExpireReminderVO buildCardExpireReminder(
+            BankCard card,
+            CardUser user,
+            String expireStatus) {
+        DashboardVO.CardExpireReminderVO reminder = new DashboardVO.CardExpireReminderVO();
+        reminder.setId(card.getId());
+        reminder.setUserName(user != null ? user.getName() : "");
+        reminder.setBankName(card.getBankName());
+        reminder.setCardNoLast4(card.getCardNoLast4());
+        reminder.setCardType(card.getCardType());
+        reminder.setCardTypeDesc(card.getCardType() != null && card.getCardType() == 2 ? "信用卡" : "借记卡");
+        reminder.setExpireDate(card.getExpireDate());
+        reminder.setStatus(card.getStatus());
+        reminder.setStatusDesc(cardStatusDesc(card.getStatus()));
+        reminder.setExpireStatus(expireStatus);
+        reminder.setExpireStatusDesc("expired".equals(expireStatus) ? "已过期" : "一个月内到期");
+        return reminder;
+    }
+
+    private String cardStatusDesc(Integer status) {
+        return switch (status == null ? 0 : status) {
+            case 1 -> "冻结";
+            case 2 -> "注销";
+            case 3 -> "停用";
+            default -> "正常";
+        };
+    }
+
+    private YearMonth parseCardExpireYearMonth(String expireDate) {
+        if (expireDate == null || expireDate.trim().isEmpty()) {
+            return null;
+        }
+
+        String raw = expireDate.trim();
+        String compact = raw.replaceAll("\\D+", "");
+        if (compact.length() == 4) {
+            return buildYearMonth(compact.substring(2), compact.substring(0, 2));
+        }
+
+        String[] parts = raw.split("\\D+");
+        List<String> values = new ArrayList<>();
+        for (String part : parts) {
+            if (!part.isBlank()) {
+                values.add(part);
+            }
+        }
+        if (values.size() < 2) {
+            return null;
+        }
+
+        if (values.get(0).length() == 4) {
+            return buildYearMonth(values.get(0), values.get(1));
+        }
+        return buildYearMonth(values.get(1), values.get(0));
+    }
+
+    private YearMonth buildYearMonth(String yearText, String monthText) {
+        try {
+            int rawYear = Integer.parseInt(yearText);
+            int month = Integer.parseInt(monthText);
+            if (month < 1 || month > 12) {
+                return null;
+            }
+
+            int year = rawYear < 100 ? rawYear + 2000 : rawYear;
+            return new YearMonth(year, month);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     private List<Map<String, Object>> buildDailyTrend(LocalDate today) {
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MM-dd");
         List<Map<String, Object>> trend = new ArrayList<>();
@@ -166,5 +289,8 @@ public class DashboardServiceImpl implements DashboardService {
             trend.add(item);
         }
         return trend;
+    }
+
+    private record YearMonth(int year, int month) {
     }
 }

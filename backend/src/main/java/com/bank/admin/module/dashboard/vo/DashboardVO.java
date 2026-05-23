@@ -27,6 +27,18 @@ public class DashboardVO {
     @Schema(description = "借记卡数量")
     private Long debitCardCount;
 
+    @Schema(description = "银行卡一个月内到期数量")
+    private Long cardExpireSoonCount;
+
+    @Schema(description = "银行卡已过期数量")
+    private Long cardExpiredCount;
+
+    @Schema(description = "银行卡到期提醒合计")
+    private Long cardExpireReminderCount;
+
+    @Schema(description = "银行卡到期提醒明细")
+    private List<CardExpireReminderVO> cardExpireReminders;
+
     @Schema(description = "待处理提醒数")
     private Long pendingReminderCount;
 
@@ -64,6 +76,24 @@ public class DashboardVO {
     public static class BankDistVO {
         private String bankName;
         private Long cardCount;
+    }
+
+    /**
+     * 银行卡到期提醒明细 VO
+     */
+    @Data
+    public static class CardExpireReminderVO {
+        private Long id;
+        private String userName;
+        private String bankName;
+        private String cardNoLast4;
+        private Integer cardType;
+        private String cardTypeDesc;
+        private String expireDate;
+        private Integer status;
+        private String statusDesc;
+        private String expireStatus;
+        private String expireStatusDesc;
     }
 
     /**

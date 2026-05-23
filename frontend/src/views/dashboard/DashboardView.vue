@@ -57,6 +57,7 @@
             <h2>{{ item.title }}</h2>
             <p>{{ item.desc }}</p>
           </div>
+          <button class="card-enter-btn" type="button" @click="router.push(item.route)">进入</button>
         </div>
         <div class="module-metrics">
           <div v-for="metric in item.metrics" :key="metric.label" class="metric-item">
@@ -66,7 +67,6 @@
             </el-tooltip>
           </div>
         </div>
-        <button class="card-enter-btn" type="button" @click="router.push(item.route)">进入{{ item.title }}</button>
       </article>
     </section>
 
@@ -160,7 +160,7 @@
       </article>
 
       <aside class="summary-stack">
-        <article class="dashboard-panel compact-panel">
+        <article class="dashboard-panel compact-panel bill-summary-panel">
           <div class="panel-head">
             <div>
               <h2>账单信息</h2>
@@ -184,7 +184,7 @@
           </div>
         </article>
 
-        <article class="dashboard-panel compact-panel">
+        <article class="dashboard-panel compact-panel profit-summary-panel">
           <div class="panel-head">
             <div>
               <h2>收益统计</h2>
@@ -214,7 +214,7 @@
           </div>
         </article>
 
-        <article class="dashboard-panel compact-panel">
+        <article class="dashboard-panel compact-panel card-summary-panel">
           <div class="panel-head">
             <div>
               <h2>卡务概况</h2>
@@ -222,33 +222,100 @@
             </div>
             <button class="plain-pill" type="button" @click="router.push('/cards')">查看卡务</button>
           </div>
-          <div class="card-type-row">
-            <div>
+          <div class="card-kpi-grid">
+            <div class="card-kpi-item">
               <span>信用卡</span>
               <el-tooltip :content="tooltipText(stats.creditCardCount || 0)" placement="top" popper-class="dashboard-value-tooltip">
                 <strong class="dashboard-value-ellipsis">{{ stats.creditCardCount || 0 }}</strong>
               </el-tooltip>
             </div>
-            <div>
+            <div class="card-kpi-item">
               <span>借记卡</span>
               <el-tooltip :content="tooltipText(stats.debitCardCount || 0)" placement="top" popper-class="dashboard-value-tooltip">
                 <strong class="dashboard-value-ellipsis">{{ stats.debitCardCount || 0 }}</strong>
               </el-tooltip>
             </div>
-          </div>
-          <div class="bank-rank-list">
-            <div v-for="bank in bankRankItems" :key="bank.bankName" class="rank-row">
-              <span>{{ bank.bankName }}</span>
-              <i><b :style="{ width: bank.percent + '%' }"></b></i>
-              <el-tooltip :content="tooltipText(bank.cardCount)" placement="top" popper-class="dashboard-value-tooltip">
-                <strong class="dashboard-value-ellipsis">{{ bank.cardCount }}</strong>
+            <div class="card-kpi-item is-clickable" role="button" tabindex="0" @click="openCardExpireDialog('all')" @keydown.enter="openCardExpireDialog('all')">
+              <span>到期提醒</span>
+              <el-tooltip :content="tooltipText(stats.cardExpireReminderCount || 0)" placement="top" popper-class="dashboard-value-tooltip">
+                <strong :class="['dashboard-value-ellipsis', stats.cardExpireReminderCount ? 'is-warning' : '']">
+                  {{ stats.cardExpireReminderCount || 0 }}
+                </strong>
               </el-tooltip>
             </div>
-            <el-empty v-if="!bankRankItems.length" description="暂无银行分布" :image-size="50" />
+            <div class="card-kpi-item is-clickable" role="button" tabindex="0" @click="openCardExpireDialog('soon')" @keydown.enter="openCardExpireDialog('soon')">
+              <span>一个月内</span>
+              <el-tooltip :content="tooltipText(stats.cardExpireSoonCount || 0)" placement="top" popper-class="dashboard-value-tooltip">
+                <strong :class="['dashboard-value-ellipsis', stats.cardExpireSoonCount ? 'is-warning' : '']">
+                  {{ stats.cardExpireSoonCount || 0 }}
+                </strong>
+              </el-tooltip>
+            </div>
+            <div class="card-kpi-item is-clickable" role="button" tabindex="0" @click="openCardExpireDialog('expired')" @keydown.enter="openCardExpireDialog('expired')">
+              <span>已过期</span>
+              <el-tooltip :content="tooltipText(stats.cardExpiredCount || 0)" placement="top" popper-class="dashboard-value-tooltip">
+                <strong :class="['dashboard-value-ellipsis', stats.cardExpiredCount ? 'is-danger' : '']">
+                  {{ stats.cardExpiredCount || 0 }}
+                </strong>
+              </el-tooltip>
+            </div>
+          </div>
+          <div class="bank-chart-section">
+            <div v-if="bankRankItems.length" class="bank-chart-wrap">
+              <VChart class="bank-donut-chart" :option="bankDistributionChartOption" autoresize />
+              <div class="bank-chart-legend">
+                <div v-for="bank in bankRankItems" :key="bank.bankName" class="bank-legend-row">
+                  <span class="legend-name" :title="bank.bankName">{{ bank.bankName || '未知银行' }}</span>
+                  <span class="legend-meta">
+                    <strong>{{ bank.cardCount }}</strong>
+                    <em>{{ bank.share }}%</em>
+                  </span>
+                </div>
+              </div>
+            </div>
+            <el-empty v-else description="暂无银行分布" :image-size="50" />
           </div>
         </article>
       </aside>
     </section>
+
+    <el-dialog
+      v-model="cardExpireDialogVisible"
+      class="card-expire-dialog"
+      :title="cardExpireDialogTitle"
+      width="860px"
+      append-to-body
+    >
+      <el-table
+        :data="filteredCardExpireReminders"
+        height="420"
+        empty-text="暂无到期银行卡"
+      >
+        <el-table-column prop="userName" label="用户" min-width="110" show-overflow-tooltip />
+        <el-table-column label="银行卡" min-width="160" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span>{{ row.bankName || '-' }}</span>
+            <span class="card-last4">尾号 {{ row.cardNoLast4 || '-' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="cardTypeDesc" label="卡类型" width="92" />
+        <el-table-column prop="expireDate" label="有效期" width="100" />
+        <el-table-column label="卡状态" width="92">
+          <template #default="{ row }">
+            <el-tag :type="cardStatusTagType(row.status)" effect="light" size="small">
+              {{ row.statusDesc || '正常' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="到期状态" width="118">
+          <template #default="{ row }">
+            <el-tag :type="row.expireStatus === 'expired' ? 'danger' : 'warning'" effect="light" size="small">
+              {{ row.expireStatusDesc }}
+            </el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
 
     <EventDrawer
       v-model:visible="drawerVisible"
@@ -266,6 +333,11 @@ defineOptions({ name: 'Dashboard' })
 import { RefreshRight } from '@element-plus/icons-vue'
 import { defineAsyncComponent, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import VChart from 'vue-echarts'
+import { use } from 'echarts/core'
+import { PieChart } from 'echarts/charts'
+import { TooltipComponent, LegendComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 import { getDashboardStatsApi } from '@/api/dashboard'
 import { getBillOverviewApi } from '@/api/bill'
 import { getProfitOverviewApi } from '@/api/profit'
@@ -280,16 +352,35 @@ import {
   EVENT_STATUS_VALUE
 } from '@/constants/dict'
 
+use([PieChart, TooltipComponent, LegendComponent, CanvasRenderer])
+
 const EventDrawer = defineAsyncComponent(() => import('../calendar/EventDrawer.vue'))
 const router = useRouter()
 
 interface DailyTrendItem { date: string; income: number; expense: number }
 interface BankDistItem { bankName: string; cardCount: number }
+type CardExpireFilter = 'all' | 'soon' | 'expired'
+interface CardExpireReminderItem {
+  id: number
+  userName: string
+  bankName: string
+  cardNoLast4: string
+  cardType: number
+  cardTypeDesc: string
+  expireDate: string
+  status: number
+  statusDesc: string
+  expireStatus: 'soon' | 'expired'
+  expireStatusDesc: string
+}
 interface DashboardStats {
   totalOwners: number
   totalCards: number
   creditCardCount: number
   debitCardCount: number
+  cardExpireSoonCount: number
+  cardExpiredCount: number
+  cardExpireReminderCount: number
   pendingReminderCount: number
   overdueBillCount: number
   monthlyIncome: number
@@ -300,6 +391,7 @@ interface DashboardStats {
   recentLogs: any[]
   upcomingBills: any[]
   bankDistribution: BankDistItem[]
+  cardExpireReminders: CardExpireReminderItem[]
 }
 interface BillOverview {
   billCount: number
@@ -358,6 +450,9 @@ const stats = ref<DashboardStats>({
   totalCards: 0,
   creditCardCount: 0,
   debitCardCount: 0,
+  cardExpireSoonCount: 0,
+  cardExpiredCount: 0,
+  cardExpireReminderCount: 0,
   pendingReminderCount: 0,
   overdueBillCount: 0,
   monthlyIncome: 0,
@@ -367,7 +462,8 @@ const stats = ref<DashboardStats>({
   dailyTrend: [],
   recentLogs: [],
   upcomingBills: [],
-  bankDistribution: []
+  bankDistribution: [],
+  cardExpireReminders: []
 })
 const billOverview = ref<BillOverview>({
   billCount: 0,
@@ -407,6 +503,8 @@ const drawerVisible = ref(false)
 const editingId = ref<number | null>(null)
 const defaultNewDate = ref('')
 const selectedDayDate = ref(todayKey)
+const cardExpireDialogVisible = ref(false)
+const cardExpireFilter = ref<CardExpireFilter>('all')
 
 const headerModules = [
   { label: '用户', icon: 'UserFilled', route: '/users' },
@@ -436,6 +534,16 @@ const monthlyNet = computed(() => numberValue(stats.value.monthlyIncome) - numbe
 const todayEventsCount = computed(() =>
   calendarEvents.value.filter(event => event.eventDate === todayKey && Number(event.status) !== EVENT_STATUS_VALUE.CANCELLED).length
 )
+const cardExpireDialogTitle = computed(() => {
+  if (cardExpireFilter.value === 'soon') return '一个月内到期银行卡'
+  if (cardExpireFilter.value === 'expired') return '已过期银行卡'
+  return '银行卡到期提醒'
+})
+const filteredCardExpireReminders = computed(() => {
+  const rows = stats.value.cardExpireReminders || []
+  if (cardExpireFilter.value === 'all') return rows
+  return rows.filter(item => item.expireStatus === cardExpireFilter.value)
+})
 const calendarSummary = computed(() => [
   { key: 'todo', label: '待办', value: calendarStats.value.todoCount || 0, percent: safePercent(calendarStats.value.todoCount, calendarTotal.value) },
   { key: 'doing', label: '进行中', value: calendarStats.value.doingCount || 0, percent: safePercent(calendarStats.value.doingCount, calendarTotal.value) },
@@ -514,15 +622,83 @@ const moduleCards = computed(() => [
 ])
 
 const bankRankItems = computed(() => {
-  const rows = [...(stats.value.bankDistribution || [])]
-    .sort((a, b) => numberValue(b.cardCount) - numberValue(a.cardCount))
-    .slice(0, 5)
-  const max = Math.max(...rows.map(item => numberValue(item.cardCount)), 1)
-  return rows.map(item => ({
+  const max = Math.max(...bankChartItems.value.map(item => numberValue(item.cardCount)), 1)
+  return bankChartItems.value.map(item => ({
     ...item,
-    percent: Math.round((numberValue(item.cardCount) / max) * 100)
+    percent: Math.round((numberValue(item.cardCount) / max) * 100),
+    share: safePercent(item.cardCount, bankDistributionTotal.value)
   }))
 })
+
+const bankChartItems = computed(() => {
+  const rows = [...(stats.value.bankDistribution || [])]
+    .sort((a, b) => numberValue(b.cardCount) - numberValue(a.cardCount))
+  const topRows = rows.slice(0, 5)
+  const otherCount = rows.slice(5).reduce((sum, item) => sum + numberValue(item.cardCount), 0)
+  return otherCount > 0
+    ? [...topRows, { bankName: '其他', cardCount: otherCount }]
+    : topRows
+})
+
+const bankDistributionTotal = computed(() =>
+  bankChartItems.value.reduce((sum, item) => sum + numberValue(item.cardCount), 0)
+)
+
+const bankDistributionCenterText = computed(() => `${bankDistributionTotal.value || 0}张`)
+
+const bankDistributionChartOption = computed(() => ({
+  color: ['#2563eb', '#14b8a6', '#f59e0b', '#ef4444', '#8b5cf6'],
+  tooltip: {
+    trigger: 'item',
+    formatter: '{b}<br/>{c} 张 · {d}%'
+  },
+  legend: { show: false },
+  series: [
+    {
+      name: '银行分布',
+      type: 'pie',
+      radius: ['54%', '78%'],
+      center: ['50%', '50%'],
+      avoidLabelOverlap: true,
+      label: { show: false },
+      labelLine: { show: false },
+      itemStyle: {
+        borderColor: '#fff',
+        borderWidth: 3,
+        borderRadius: 6
+      },
+      emphasis: {
+        scaleSize: 4,
+        label: { show: false }
+      },
+      data: bankRankItems.value.map(item => ({
+        name: item.bankName || '未知银行',
+        value: numberValue(item.cardCount)
+      })),
+      z: 1
+    },
+    {
+      name: '银行总数',
+      type: 'pie',
+      radius: ['0%', '42%'],
+      center: ['50%', '50%'],
+      silent: true,
+      label: {
+        show: true,
+        position: 'center',
+        formatter: bankDistributionCenterText.value,
+        color: '#1f2a37',
+        fontSize: 18,
+        fontWeight: 900,
+        lineHeight: 22
+      },
+      labelLine: { show: false },
+      itemStyle: { color: 'transparent' },
+      data: [{ value: 1 }],
+      z: 0
+    }
+  ]
+}))
 
 const miniCalendarCells = computed(() => {
   const year = selectedYear.value
@@ -653,6 +829,18 @@ function openCalendarDrawer(event: CalendarEvent | null, date?: string) {
 
 function openDayPanel(date: string) {
   selectedDayDate.value = date
+}
+
+function openCardExpireDialog(filter: CardExpireFilter) {
+  cardExpireFilter.value = filter
+  cardExpireDialogVisible.value = true
+}
+
+function cardStatusTagType(status: number | null | undefined) {
+  const value = Number(status ?? 0)
+  if (value === 0) return 'success'
+  if (value === 1) return 'warning'
+  return 'danger'
 }
 
 async function goTodayInCalendar() {
@@ -899,9 +1087,9 @@ $purple: #6d28d9;
 
 .calendar-stat {
   min-width: 0;
-  padding: 7px 8px;
+  padding: 5px 7px;
   border: 1px solid rgba($line-soft, 0.95);
-  border-radius: 12px;
+  border-radius: 10px;
   background: #fff;
 
   span {
@@ -915,7 +1103,7 @@ $purple: #6d28d9;
     display: block;
     margin-top: 4px;
     color: $ink;
-    font-size: 18px;
+    font-size: 16px;
     line-height: 1;
     font-weight: 900;
   }
@@ -923,7 +1111,7 @@ $purple: #6d28d9;
   .stat-track {
     display: block;
     height: 3px;
-    margin-top: 7px;
+    margin-top: 5px;
     border-radius: 999px;
     background: #eef3f8;
     overflow: hidden;
@@ -948,51 +1136,71 @@ $purple: #6d28d9;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  padding: 8px;
+  padding: 7px;
   border: 1px solid rgba($line, 0.9);
-  border-radius: 14px;
+  border-radius: 12px;
   background: linear-gradient(180deg, #fff 0%, #fbfdff 100%);
+  box-sizing: border-box;
 }
 
 .mini-week,
 .mini-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .mini-grid {
-  flex: 1;
+  flex: 0 0 auto;
   grid-template-rows: repeat(6, minmax(0, 1fr));
+  aspect-ratio: 7 / 6;
   min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba($line, 0.75);
+  border-radius: 10px;
 }
 
 .mini-week span {
-  padding: 0 0 5px;
+  padding: 0 0 4px;
+  min-width: 0;
+  box-sizing: border-box;
   color: $muted;
   font-size: 11px;
   font-weight: 800;
+  line-height: 16px;
   text-align: center;
 }
 
 .mini-cell {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1 / 1;
   min-height: 0;
-  padding: 4px 5px;
+  min-width: 0;
+  padding: 3px;
+  box-sizing: border-box;
   border-right: 1px solid rgba($line, 0.75);
   border-bottom: 1px solid rgba($line, 0.75);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 251, 254, 0.98) 100%);
   cursor: pointer;
-  transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+  overflow: hidden;
+  transition: background 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 
   &:nth-child(7n) {
     border-right: none;
+  }
+
+  &:nth-last-child(-n + 7) {
+    border-bottom: none;
   }
 
   &:hover {
     z-index: 1;
     background: $primary-light;
     box-shadow: inset 0 0 0 1px rgba($primary, 0.22), 0 8px 16px rgba(9, 88, 217, 0.08);
-    transform: translateY(-1px);
 
     .mini-add {
       opacity: 1;
@@ -1023,50 +1231,68 @@ $purple: #6d28d9;
   &.has-events::after {
     content: '';
     position: absolute;
-    left: 7px;
-    bottom: 6px;
+    left: 50%;
+    bottom: 5px;
     width: 18px;
     height: 3px;
     border-radius: 999px;
     background: linear-gradient(90deg, $primary, $success);
+    transform: translateX(-50%);
+    pointer-events: none;
   }
 }
 
 .mini-day {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
   color: $ink2;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
 }
 
 .mini-count {
   position: absolute;
-  top: 5px;
-  right: 5px;
-  min-width: 17px;
-  height: 17px;
-  padding: 0 5px;
+  top: 3px;
+  right: 3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  box-sizing: border-box;
   border-radius: 999px;
   color: $primary;
   background: rgba($primary, 0.08);
   border: 1px solid rgba($primary, 0.16);
   font-size: 10px;
   font-weight: 800;
-  line-height: 15px;
+  line-height: 14px;
   text-align: center;
+  pointer-events: none;
 }
 
 .mini-add {
   position: absolute;
-  right: 5px;
-  bottom: 5px;
-  width: 18px;
-  height: 18px;
-  border: 1px solid rgba($primary, 0.22);
-  border-radius: 6px;
+  right: 4px;
+  bottom: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  box-sizing: border-box;
+  border: 1px solid rgba($primary, 0.2);
+  border-radius: 5px;
   background: rgba(255, 255, 255, 0.92);
   color: $primary;
-  font-size: 13px;
-  line-height: 15px;
+  font-size: 12px;
+  line-height: 1;
   font-weight: 900;
   cursor: pointer;
   opacity: 0;
@@ -1080,6 +1306,7 @@ $purple: #6d28d9;
 
 .event-list {
   display: flex;
+  order: 3;
   flex: 1;
   flex-direction: column;
   gap: 7px;
@@ -1089,7 +1316,9 @@ $purple: #6d28d9;
 }
 
 .selected-day-title {
+  order: 2;
   align-items: flex-start;
+  margin: 8px 0 7px;
 
   span {
     display: flex;
@@ -1113,29 +1342,37 @@ $purple: #6d28d9;
 }
 
 .inline-day-stats {
+  order: 1;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
-  margin-bottom: 8px;
+  height: var(--calendar-top-row-height);
+  flex: 0 0 var(--calendar-top-row-height);
+  margin-bottom: 0;
 
   span {
-    padding: 6px 4px;
-    border-radius: 9px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 100%;
+    padding: 5px 4px;
+    box-sizing: border-box;
+    border-radius: 10px;
     font-size: 10px;
   }
 
   strong {
-    margin-top: 3px;
-    font-size: 14px;
+    margin-top: 2px;
+    font-size: 13px;
   }
 }
 
 .event-item {
   display: grid;
-  grid-template-columns: 70px minmax(0, 1fr) auto;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   min-width: 0;
-  padding: 8px 9px;
+  padding: 6px 8px;
   border: 1px solid rgba($line-soft, 0.95);
   border-radius: 11px;
   background: #fbfdff;
@@ -1157,7 +1394,7 @@ $purple: #6d28d9;
 
 .event-date {
   color: $primary;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
 }
 
@@ -1169,7 +1406,7 @@ $purple: #6d28d9;
 
 .event-title {
   color: $ink;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
   overflow: hidden;
@@ -1180,7 +1417,7 @@ $purple: #6d28d9;
   display: flex;
   align-items: center;
   gap: 5px;
-  margin-top: 3px;
+  margin-top: 2px;
   color: $muted;
   font-size: 11px;
 
@@ -1199,9 +1436,9 @@ $purple: #6d28d9;
 
 .event-status {
   justify-self: end;
-  padding: 3px 7px;
+  padding: 2px 6px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
 
   &.is-todo { color: $warning; background: #fff4db; }
@@ -1261,22 +1498,22 @@ $purple: #6d28d9;
 
 .status-chip {
   min-width: 0;
-  padding: 8px;
+  padding: 6px 7px;
   border: 1px solid rgba($line-soft, 0.95);
   border-radius: 12px;
   background: #fff;
 
   span {
     color: $muted;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
   }
 
   strong {
     display: block;
-    margin-top: 5px;
+    margin-top: 4px;
     color: $ink;
-    font-size: 18px;
+    font-size: 16px;
     line-height: 1;
     font-weight: 900;
   }
@@ -1292,7 +1529,8 @@ $purple: #6d28d9;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 7px 0;
+  min-height: 34px;
+  padding: 5px 0;
   border-top: 1px dashed rgba($line, 0.95);
 
   span {
@@ -1672,23 +1910,24 @@ $purple: #6d28d9;
 
 /* Second-version dashboard: module preview cards + natural summary area */
 .dashboard-page {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 10px;
   min-width: 0;
   margin: -20px;
-  padding: 14px;
-  height: auto;
-  min-height: calc(100vh - var(--header-height));
-  overflow: visible;
+  padding: 10px 12px;
+  height: calc(100vh - var(--header-height));
+  min-height: 0;
+  overflow: hidden;
   background:
-    linear-gradient(180deg, rgba(234, 242, 255, 0.76) 0%, rgba(245, 248, 252, 0.96) 360px),
+    linear-gradient(180deg, rgba(234, 242, 255, 0.76) 0%, rgba(245, 248, 252, 0.96) 320px),
     $bg;
 }
 
 .dashboard-header {
-  padding: 12px 14px;
-  border-radius: 16px;
+  min-height: 54px;
+  padding: 9px 12px;
+  border-radius: 14px;
 }
 
 .period-controls {
@@ -1721,14 +1960,18 @@ $purple: #6d28d9;
 .module-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
+  align-items: stretch;
 }
 
 .module-card {
   position: relative;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  padding: 14px;
+  min-height: 112px;
+  padding: 10px;
   border: 1px solid rgba($line, 0.92);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.96);
@@ -1764,10 +2007,11 @@ $purple: #6d28d9;
 
 .module-card-head {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: center;
   min-width: 0;
+  min-height: 32px;
 
   h2 {
     margin: 0;
@@ -1780,7 +2024,7 @@ $purple: #6d28d9;
   p {
     margin: 3px 0 0;
     color: $muted;
-    font-size: 12px;
+    font-size: 11px;
     line-height: 1.35;
     font-weight: 700;
     white-space: nowrap;
@@ -1793,9 +2037,9 @@ $purple: #6d28d9;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 11px;
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
   color: var(--module-color);
   background: color-mix(in srgb, var(--module-color) 10%, white);
   border: 1px solid color-mix(in srgb, var(--module-color) 18%, white);
@@ -1804,13 +2048,18 @@ $purple: #6d28d9;
 .module-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 7px;
-  margin-top: 14px;
+  gap: 6px;
+  margin-top: 9px;
+  min-height: 44px;
 }
 
 .metric-item {
   min-width: 0;
-  padding: 9px 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 44px;
+  padding: 6px;
   border: 1px solid rgba($line-soft, 0.95);
   border-radius: 12px;
   background: #f8fbff;
@@ -1828,9 +2077,9 @@ $purple: #6d28d9;
 
   strong {
     display: block;
-    margin-top: 6px;
+    margin-top: 5px;
     color: $ink;
-    font-size: 15px;
+    font-size: 14px;
     line-height: 1;
     font-weight: 900;
     white-space: nowrap;
@@ -1847,9 +2096,10 @@ $purple: #6d28d9;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  height: 30px;
-  margin-top: 12px;
+  width: auto;
+  height: 24px;
+  margin-top: 0;
+  padding: 0 9px;
   border: 1px solid color-mix(in srgb, var(--module-color) 18%, white);
   border-radius: 10px;
   background: color-mix(in srgb, var(--module-color) 7%, white);
@@ -1868,14 +2118,17 @@ $purple: #6d28d9;
 
 .dashboard-content {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(340px, 0.75fr);
-  gap: 12px;
-  align-items: start;
+  grid-template-columns: minmax(720px, 1.08fr) minmax(430px, 0.92fr);
+  gap: 10px;
+  align-items: stretch;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .dashboard-panel {
   min-width: 0;
+  min-height: 0;
   border: 1px solid rgba($line, 0.92);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.97);
@@ -1887,8 +2140,10 @@ $purple: #6d28d9;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex: 0 0 52px;
   min-width: 0;
-  padding: 13px 14px;
+  min-height: 52px;
+  padding: 9px 12px;
   border-bottom: 1px solid rgba($line-soft, 0.98);
 
   h2 {
@@ -1916,17 +2171,23 @@ $purple: #6d28d9;
 }
 
 .calendar-panel {
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
 .calendar-body {
+  --calendar-top-row-height: 58px;
   display: grid;
-  grid-template-columns: minmax(360px, 0.96fr) minmax(300px, 1.04fr);
+  grid-template-columns: minmax(280px, 0.42fr) minmax(0, 0.58fr);
   gap: 12px;
   padding: 12px;
   min-width: 0;
-  height: 416px;
+  flex: 1;
+  height: 100%;
   min-height: 0;
+  max-height: none;
+  overflow: hidden;
 }
 
 .calendar-left,
@@ -1939,21 +2200,62 @@ $purple: #6d28d9;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  align-self: start;
+}
+
+.calendar-left {
+  height: 100%;
+}
+
+.calendar-right {
+  height: 100%;
+  overflow: hidden;
 }
 
 .calendar-summary-row {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 7px;
+  gap: 6px;
+  height: var(--calendar-top-row-height);
+  flex: 0 0 var(--calendar-top-row-height);
+  margin-bottom: 0;
+}
+
+.calendar-summary-row .calendar-stat {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .mini-calendar {
-  height: 296px;
-  margin-top: 10px;
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 0;
+  margin-top: 8px;
+}
+
+.calendar-left .mini-calendar {
+  width: 100%;
+}
+
+.calendar-left .mini-grid {
+  flex: 0 0 auto;
+  aspect-ratio: 7 / 6;
+  grid-template-rows: repeat(6, minmax(0, 1fr));
+  min-height: 0;
+}
+
+.calendar-left .mini-cell {
+  min-height: 0;
 }
 
 .event-list {
+  order: 3;
+  flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
+  padding-bottom: 0;
 }
 
 .section-title {
@@ -1978,16 +2280,48 @@ $purple: #6d28d9;
 
 .summary-stack {
   display: grid;
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(142px, 0.82fr) minmax(0, 1.18fr);
+  gap: 10px;
   min-width: 0;
+  min-height: 0;
+}
+
+.bill-summary-panel,
+.profit-summary-panel {
+  min-height: 0;
+
+  .panel-head {
+    flex: 0 0 48px;
+    min-height: 48px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .plain-pill {
+    padding: 0 8px;
+  }
+}
+
+.card-summary-panel {
+  grid-column: 1 / -1;
+  min-height: 0;
 }
 
 .compact-panel {
-  padding-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 0;
 
   .bill-status-grid,
   .bank-rank-list,
+  .bank-chart-section,
+  .card-kpi-grid,
   .card-type-row,
+  .card-expire-row,
   .profit-highlight,
   .amount-line {
     margin-left: 12px;
@@ -1995,18 +2329,34 @@ $purple: #6d28d9;
   }
 
   .bill-status-grid,
+  .card-kpi-grid,
   .card-type-row,
+  .card-expire-row,
   .profit-highlight {
-    margin-top: 12px;
+    margin-top: 9px;
   }
 }
 
 .bill-status-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-height: 48px;
+  gap: 5px;
+}
+
+.bill-summary-panel .status-chip {
+  min-height: 44px;
+}
+
+.bill-summary-panel .amount-line,
+.profit-summary-panel .amount-line {
+  min-height: 30px;
+  padding-top: 4px;
+  padding-bottom: 4px;
 }
 
 .profit-highlight {
-  padding: 12px;
+  min-height: 58px;
+  padding: 9px;
   border: 1px solid rgba($line-soft, 0.95);
   border-radius: 13px;
   background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
@@ -2020,9 +2370,9 @@ $purple: #6d28d9;
 
   strong {
     display: block;
-    margin-top: 8px;
+    margin-top: 6px;
     font-family: var(--font-mono);
-    font-size: 24px;
+    font-size: 19px;
     line-height: 1;
     font-weight: 900;
   }
@@ -2031,14 +2381,75 @@ $purple: #6d28d9;
   .is-cost { color: $danger; }
 }
 
+.card-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 7px;
+  min-height: 54px;
+}
+
+.card-kpi-item {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px;
+  border: 1px solid rgba($line-soft, 0.95);
+  border-radius: 12px;
+  background: #f8fbff;
+
+  span {
+    display: block;
+    min-width: 0;
+    color: $muted;
+    font-size: 12px;
+    line-height: 1.2;
+    font-weight: 800;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  strong {
+    display: block;
+    min-width: 0;
+    margin-top: 5px;
+    color: $ink;
+    font-size: 18px;
+    line-height: 1;
+    font-weight: 900;
+  }
+
+  .is-warning { color: $warning; }
+  .is-danger { color: $danger; }
+}
+
+.card-kpi-item.is-clickable {
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+
+  &:hover,
+  &:focus-visible {
+    border-color: rgba($primary, 0.28);
+    background: $primary-light;
+    box-shadow: 0 8px 16px rgba(15, 23, 42, 0.06);
+    outline: none;
+    transform: translateY(-1px);
+  }
+}
+
 .card-type-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
+  min-height: 48px;
 
   div {
     min-width: 0;
-    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 8px;
     border: 1px solid rgba($line-soft, 0.95);
     border-radius: 12px;
     background: #f8fbff;
@@ -2053,35 +2464,191 @@ $purple: #6d28d9;
 
   strong {
     display: block;
-    margin-top: 6px;
+    margin-top: 4px;
     color: $ink;
-    font-size: 20px;
+    font-size: 17px;
     line-height: 1;
     font-weight: 900;
   }
 }
 
-.bank-rank-list {
-  margin-top: 10px;
+.card-expire-row {
   display: grid;
-  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  min-height: 48px;
+
+  .expire-stat-card {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 8px;
+    border: 1px solid rgba($line-soft, 0.95);
+    border-radius: 12px;
+    background: #fff;
+  }
+
+  .is-clickable {
+    cursor: pointer;
+    transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+
+    &:hover,
+    &:focus-visible {
+      border-color: rgba($primary, 0.28);
+      background: $primary-light;
+      box-shadow: 0 8px 16px rgba(15, 23, 42, 0.06);
+      outline: none;
+      transform: translateY(-1px);
+    }
+  }
+
+  span {
+    display: block;
+    color: $muted;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  strong {
+    display: block;
+    margin-top: 4px;
+    color: $ink;
+    font-size: 16px;
+    line-height: 1;
+    font-weight: 900;
+  }
+
+  .is-warning { color: $warning; }
+  .is-danger { color: $danger; }
+}
+
+.card-last4 {
+  margin-left: 6px;
+  color: $muted;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+:deep(.card-expire-dialog .el-dialog__body) {
+  padding-top: 8px;
+}
+
+.bank-rank-list {
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .rank-row {
   grid-template-columns: minmax(74px, 0.8fr) minmax(0, 1fr) 34px;
 }
 
-@media (max-width: 1500px) {
+.bank-chart-section {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 10px;
+  overflow: hidden;
+}
+
+.bank-chart-wrap {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.95fr) minmax(0, 1.05fr);
+  align-items: center;
+  gap: 12px;
+  height: 100%;
+  min-height: 176px;
+  padding: 10px 12px;
+  border: 1px solid rgba($line-soft, 0.95);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
+  overflow: hidden;
+}
+
+.bank-donut-chart {
+  width: 100%;
+  height: 176px;
+  min-height: 176px;
+}
+
+.bank-chart-legend {
+  display: grid;
+  align-content: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 0;
+  max-height: 176px;
+  overflow: hidden;
+}
+
+.bank-legend-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: $ink2;
+  font-size: 12px;
+  line-height: 1.15;
+  font-weight: 800;
+}
+
+.legend-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.legend-meta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  color: $muted;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+
+  strong {
+    color: $ink;
+    font-size: 13px;
+    font-weight: 900;
+  }
+
+  em {
+    font-style: normal;
+    font-size: 11px;
+    font-weight: 800;
+  }
+}
+
+@media (max-width: 1280px) {
   .module-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .dashboard-content {
     grid-template-columns: 1fr;
+    overflow: visible;
   }
 
   .summary-stack {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto auto;
+  }
+
+  .card-summary-panel {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 1440px) and (min-width: 1281px) {
+  .calendar-body {
+    grid-template-columns: minmax(260px, 0.40fr) minmax(0, 0.60fr);
   }
 }
 
@@ -2101,8 +2668,18 @@ $purple: #6d28d9;
     grid-template-columns: 1fr;
   }
 
+  .summary-stack {
+    grid-template-rows: none;
+  }
+
+  .card-summary-panel {
+    grid-column: auto;
+  }
+
   .calendar-body {
     height: auto;
+    min-height: 0;
+    overflow: visible;
   }
 
   .calendar-right {
@@ -2110,7 +2687,25 @@ $purple: #6d28d9;
   }
 
   .mini-calendar {
-    height: 280px;
+    width: 100%;
+    height: auto;
+  }
+
+  .calendar-left .mini-grid {
+    aspect-ratio: 7 / 6;
+    flex: 0 0 auto;
+    grid-template-rows: repeat(6, minmax(0, 1fr));
+    min-height: 0;
+  }
+
+  .card-kpi-grid,
+  .bank-chart-wrap {
+    grid-template-columns: 1fr;
+  }
+
+  .bank-donut-chart {
+    height: 160px;
+    min-height: 160px;
   }
 }
 </style>
