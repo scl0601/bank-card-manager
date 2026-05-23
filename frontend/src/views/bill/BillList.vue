@@ -913,6 +913,7 @@ const {
   afterFetch: () => {
     appliedStatusFilter.value = normalizeBillStatusFilter(query.status)
     fetchBillOverview()
+    focusPendingBillAfterFetch()
   }
 })
 
@@ -983,6 +984,8 @@ const triggerBillSearch = createDebouncedTask(() => {
 const appliedStatusFilter = ref<number | undefined>(undefined)
 let syncingBillFilters = false
 let skipRouteDrivenSearch = false
+const pendingFocusBillId = ref<number | null>(null)
+let focusSearchVersion = 0
 
 const detailModeMessage = computed(() => {
   const scopeText = billScopeLabel.value
@@ -1271,6 +1274,47 @@ function findBillRowById(billId: number | string | null | undefined) {
     || null
 }
 
+function focusPendingBillAfterFetch() {
+  const targetId = Number(pendingFocusBillId.value || 0)
+  if (!targetId) return
+  const targetRow = findBillRowById(targetId)
+  pendingFocusBillId.value = null
+  if (!targetRow || isBillPlaceholderRow(targetRow)) return
+  currentExpandedRow.value = targetRow
+  if (!detailLoadedMap.value[targetId] && !detailLoadingMap.value[targetId]) {
+    pendingExpandBillId.value = targetId
+    void loadDetails(targetId, { silent: true }).finally(() => {
+      if (pendingExpandBillId.value === targetId) {
+        pendingExpandBillId.value = null
+      }
+      nextTick(() => {
+        scheduleBillTableLayout()
+        scrollExpandedContentIntoView()
+      })
+    })
+    return
+  }
+  nextTick(() => {
+    scheduleBillTableLayout()
+    scrollExpandedContentIntoView()
+  })
+}
+
+function stageFocusedBill(snapshot: BillRow | null) {
+  if (!snapshot || !pendingFocusBillId.value || Number(snapshot.id) !== pendingFocusBillId.value) return
+  list.value = [snapshot]
+  total.value = 1
+  currentExpandedRow.value = snapshot
+  pendingExpandBillId.value = Number(snapshot.id)
+  void loadDetails(snapshot.id, { silent: true }).finally(() => {
+    if (pendingExpandBillId.value === snapshot.id) {
+      pendingExpandBillId.value = null
+    }
+    nextTick(scheduleBillTableLayout)
+  })
+  nextTick(scheduleBillTableLayout)
+}
+
 function isSelectableBillRow(row: BillRow) {
   return !isBillPlaceholderRow(row) && !isBillCardDisabled(row)
 }
@@ -1409,6 +1453,56 @@ function toRouteNumber(value: unknown) {
   const target = Array.isArray(value) ? value[0] : value
   const num = Number(target)
   return Number.isFinite(num) && num > 0 ? num : undefined
+}
+
+function isBillsRouteName(value: unknown) {
+  return String(value || '') === 'Bills'
+}
+
+function toRouteString(value: unknown) {
+  const target = Array.isArray(value) ? value[0] : value
+  return typeof target === 'string' ? target : ''
+}
+
+function toRouteBillSnapshot(value: unknown): BillRow | null {
+  const raw = toRouteString(value)
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(decodeURIComponent(raw)) as Partial<BillRow>
+    const id = Number(parsed?.id || 0)
+    const cardId = Number(parsed?.cardId || 0)
+    if (!id || !cardId) return null
+    return {
+      id,
+      cardId,
+      ownerId: parsed.ownerId,
+      ownerName: String(parsed.ownerName || ''),
+      bankName: String(parsed.bankName || ''),
+      cardNoLast4: String(parsed.cardNoLast4 || ''),
+      billMonth: String(parsed.billMonth || ''),
+      billDay: parsed.billDay ?? null,
+      repayDate: parsed.repayDate ?? null,
+      repayDay: parsed.repayDay ?? null,
+      billAmount: parsed.billAmount ?? null,
+      actualPayAmount: parsed.actualPayAmount ?? null,
+      consumeAmount: parsed.consumeAmount ?? null,
+      actualPayDate: parsed.actualPayDate ?? null,
+      feeRate: parsed.feeRate ?? null,
+      feeAmount: parsed.feeAmount ?? null,
+      feePaid: Boolean(parsed.feePaid),
+      posCostAmount: parsed.posCostAmount ?? null,
+      otherFeeAmount: parsed.otherFeeAmount ?? null,
+      netProfit: parsed.netProfit ?? null,
+      status: Number(parsed.status ?? 0),
+      verified: parsed.verified ?? false,
+      expenseVerified: parsed.expenseVerified ?? false,
+      cardStatus: parsed.cardStatus ?? 0,
+      createTime: parsed.createTime ?? null,
+      remark: parsed.remark
+    }
+  } catch {
+    return null
+  }
 }
 
 function toRouteBillStatus(value: unknown) {
@@ -2436,11 +2530,14 @@ function handleKeydown(e: KeyboardEvent) {
 
 onMounted(() => {
   document.addEventListener('keydown', handleKeydown)
+  window.addEventListener('resize', scheduleBillTableLayout)
+  nextTick(scheduleBillTableLayout)
 })
 
 onUnmounted(() => {
   triggerBillSearch.cancel()
   document.removeEventListener('keydown', handleKeydown)
+  window.removeEventListener('resize', scheduleBillTableLayout)
   if (billTableLayoutFrame) {
     window.cancelAnimationFrame(billTableLayoutFrame)
     billTableLayoutFrame = 0
@@ -2555,9 +2652,14 @@ watch(
 )
 
 watch(
-  () => [route.query.cardId, route.query.cardIds, route.query.ownerId, route.query.status, route.query.year, route.query.billMonth, route.query.startBillMonth, route.query.endBillMonth, route.query.repayMonth, route.query.repayYear, route.query.sortMode],
-  ([cardId, cardIds, ownerId, status, year, billMonth, startBillMonth, endBillMonth, repayMonth, repayYear, sortMode]) => {
+  () => [route.name, route.query.cardId, route.query.cardIds, route.query.ownerId, route.query.status, route.query.year, route.query.billMonth, route.query.startBillMonth, route.query.endBillMonth, route.query.repayMonth, route.query.repayYear, route.query.sortMode, route.query.focusBillId, route.query.focusBillSnapshot],
+  ([routeName, cardId, cardIds, ownerId, status, year, billMonth, startBillMonth, endBillMonth, repayMonth, repayYear, sortMode, focusBillId, focusBillSnapshot]) => {
     triggerBillSearch.cancel()
+    if (!isBillsRouteName(routeName)) {
+      pendingFocusBillId.value = null
+      focusSearchVersion += 1
+      return
+    }
     const previousSyncState = syncingBillFilters
     syncingBillFilters = true
     const routeCardId = toRouteNumber(cardId)
@@ -2566,6 +2668,8 @@ watch(
     const routeRepayMonth = toRouteBillMonthValue(repayMonth)
     const routeRepayYear = toRouteYearValue(repayYear)
     const routeSortMode = toRouteBillSortMode(sortMode)
+    pendingFocusBillId.value = toRouteNumber(focusBillId) || null
+    const routeFocusSnapshot = toRouteBillSnapshot(focusBillSnapshot)
     let [routeStartBillMonth, routeEndBillMonth] = normalizeRouteBillRange(startBillMonth, endBillMonth, year, billMonth)
     if (routeRepayMonth || routeRepayYear) {
       routeStartBillMonth = ''
@@ -2585,11 +2689,28 @@ watch(
     query.pageSize = defaultPageSizeForScope(query)
     syncingBillFilters = previousSyncState
     currentExpandedRow.value = null
+    const hasScopedRoute = Boolean(routeCardId || routeCardIds || routeOwnerId || routeRepayMonth || routeRepayYear || routeStartBillMonth || routeEndBillMonth || pendingFocusBillId.value)
+    if (routeCardId || routeCardIds || routeOwnerId || routeRepayMonth || routeRepayYear || routeStartBillMonth || routeEndBillMonth || pendingFocusBillId.value) {
+      list.value = []
+      total.value = 0
+    }
+    if (pendingFocusBillId.value) {
+      stageFocusedBill(routeFocusSnapshot)
+    }
     if (skipRouteDrivenSearch) {
       skipRouteDrivenSearch = false
       return
     }
+    const requestVersion = ++focusSearchVersion
     refreshFirstPage()
+    if (hasScopedRoute) {
+      void nextTick(() => {
+        if (requestVersion !== focusSearchVersion || loading.value) return
+        if (pendingFocusBillId.value && routeFocusSnapshot) {
+          stageFocusedBill(routeFocusSnapshot)
+        }
+      })
+    }
   },
   { immediate: true }
 )
@@ -3167,7 +3288,6 @@ watch(
   overflow-x: auto !important;
   overflow-y: auto !important;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
 }
 
 /*noinspection CssUnusedSymbol*/
@@ -3176,7 +3296,6 @@ watch(
   overflow-x: auto !important;
   overflow-y: auto !important;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
 }
 
 /*noinspection CssUnusedSymbol*/

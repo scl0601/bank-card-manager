@@ -1687,7 +1687,13 @@ function goRepayment(b: BillRow) {
   const repayMonth = billRepayMonth(b) || selectedBillMonth.value || currentBillMonth
   router.push({
     path: '/bills',
-    query: { cardId: String(b.cardId), repayMonth }
+    query: {
+      cardId: String(b.cardId),
+      repayMonth,
+      focusBillId: String(b.id),
+      focusBillSnapshot: encodeURIComponent(JSON.stringify(b)),
+      sortMode: BILL_SORT_CURRENT_FIRST
+    }
   })
 }
 
@@ -2324,9 +2330,9 @@ onActivated(() => {
 $primary:       #0958d9;
 $primary-soft:  #eaf2ff;
 $ink:           #1f2937;
-$ink2:          #5b6475;
-$sub:           #6b7280;
-$faint:         #94a3b8;
+$ink2:          #4b5563;
+$sub:           #667085;
+$faint:         #8a97a8;
 $border:        #dbe2ea;
 $surface:       #ffffff;
 $bg:            #f5f7fb;
@@ -2334,7 +2340,7 @@ $danger:        #cf1322;
 $warning:       #d97706;
 $success:       #2f9e44;
 $rs:            8px;
-$shadow-sm:     0 8px 20px rgba(15,23,42,.045);
+$shadow-sm:     0 10px 22px rgba(15,23,42,.05);
 
 :global(.card-bank-dialog.el-dialog),
 :global(.card-bank-dialog .el-dialog) {
@@ -2431,10 +2437,10 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   justify-content: space-between;
   gap: 12px;
   padding: 12px 20px;
-  background: linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(248,250,253,.98) 100%);
-  border-bottom: 1px solid rgba(211,223,238,.92);
+  background: linear-gradient(180deg, rgba(255,255,255,.99) 0%, rgba(246,249,253,.99) 100%);
+  border-bottom: 1px solid rgba(203,213,225,.82);
   flex-shrink: 0;
-  box-shadow: 0 10px 24px rgba(15,23,42,.04);
+  box-shadow: 0 10px 22px rgba(15,23,42,.045);
 }
 
 .header-left {
@@ -2452,13 +2458,13 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   width: 30px;
   height: 30px;
   border-radius: 10px;
-  background: linear-gradient(180deg, rgba($primary,.12) 0%, rgba($primary,.06) 100%);
+  background: linear-gradient(180deg, rgba($primary,.14) 0%, rgba($primary,.06) 100%);
   color: $primary;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 8px 18px rgba(9,88,217,.08);
+  box-shadow: 0 8px 18px rgba(9,88,217,.09);
 }
 
 .header-title-group {
@@ -2469,10 +2475,10 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 
 .page-title {
   margin: 0;
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 17px;
+  font-weight: 800;
   color: $ink;
-  letter-spacing: -0.3px;
+  letter-spacing: 0;
 }
 
 .page-subtitle {
@@ -2484,7 +2490,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   color: $sub;
   line-height: 1.4;
   min-width: 0;
-  strong { font-weight: 600; color: $ink2; }
+  strong { font-weight: 800; color: $ink; }
 }
 
 .sub-divider {
@@ -2510,8 +2516,8 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   display: flex;
   align-items: center;
   gap: 7px;
-  background: $bg;
-  border: 1.5px solid transparent;
+  background: #f3f6fa;
+  border: 1.5px solid rgba(203,213,225,.72);
   border-radius: $rs;
   padding: 7px 12px;
   width: clamp(170px, 18vw, 280px);
@@ -2521,6 +2527,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
     border: none;
     outline: none;
     font-size: 13px;
+    font-weight: 700;
     color: $ink;
     background: transparent;
     width: 100%;
@@ -2556,14 +2563,14 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 .icon-btn {
   width: 28px;
   height: 28px;
-  border: 1px solid $border;
+  border: 1px solid rgba(203,213,225,.82);
   background: $surface;
   border-radius: $rs;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: $sub;
+  color: $ink2;
   transition: all .18s;
   flex-shrink: 0;
   &:hover:not(:disabled) { border-color: $primary; color: $primary; background: $primary-soft; }
@@ -2601,8 +2608,8 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
     display: flex;
     align-items: center;
     gap: 7px;
-    background: $bg;
-    border: 1.5px solid transparent;
+    background: #f3f6fa;
+    border: 1.5px solid rgba(203,213,225,.72);
     border-radius: $rs;
     padding: 6px 10px;
     width: clamp(180px, 22vw, 320px);
@@ -2614,6 +2621,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
       border: none;
       outline: none;
       font-size: 12.5px;
+      font-weight: 700;
       color: $ink;
       background: transparent;
       width: 100%;
@@ -2645,14 +2653,14 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
     justify-content: space-between;
     gap: 6px;
     border-radius: 10px;
-    background: rgba(148,163,184,.07);
-    border-color: rgba(219,226,234,.6);
+    background: rgba(241,245,249,.94);
+    border-color: rgba(203,213,225,.78);
   }
 
   .ms-label {
     font-size: 11px;
-    font-weight: 600;
-    color: $sub;
+    font-weight: 800;
+    color: $ink2;
   }
 
   .ms-value {
@@ -2688,10 +2696,10 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 }
 
 .panel {
-  background: linear-gradient(180deg, rgba(255,255,255,.99) 0%, rgba(248,250,253,.97) 100%);
+  background: linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(247,250,253,.99) 100%);
   border-radius: 18px;
   box-shadow: $shadow-sm;
-  border: 1px solid rgba(218,226,236,.9);
+  border: 1px solid rgba(203,213,225,.82);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -2704,8 +2712,8 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   justify-content: space-between;
   gap: 10px;
   padding: 12px 14px;
-  border-bottom: 1px solid rgba(219,226,234,.8);
-  background: linear-gradient(180deg, rgba(255,255,255,.92) 0%, rgba(248,250,253,.92) 100%);
+  border-bottom: 1px solid rgba(203,213,225,.78);
+  background: linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(241,245,249,.94) 100%);
   flex-shrink: 0;
 }
 
@@ -2713,15 +2721,15 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 800;
   color: $ink;
-  letter-spacing: .2px;
+  letter-spacing: 0;
 }
 
 .panel-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: $ink2;
   &.is-primary { background: $primary; }
@@ -2746,11 +2754,11 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 .panel-meta {
   font-size: 11.5px;
   color: $sub;
-  font-weight: 700;
+  font-weight: 800;
   padding: 4px 8px;
   border-radius: 999px;
-  background: rgba(148,163,184,.10);
-  border: 1px solid rgba(219,226,234,.7);
+  background: rgba(241,245,249,.95);
+  border: 1px solid rgba(203,213,225,.78);
 }
 
 .mini-filter {
@@ -2804,8 +2812,8 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   align-items: center;
   gap: 6px;
   padding: 3px 9px;
-  background: rgba(148, 163, 184, 0.08);
-  border: 1px solid rgba(219, 226, 234, 0.85);
+  background: rgba(241, 245, 249, 0.95);
+  border: 1px solid rgba(203, 213, 225, 0.78);
   border-radius: 999px;
   flex-shrink: 0;
   white-space: nowrap;
@@ -2816,8 +2824,8 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   align-items: center;
   gap: 4px;
   font-size: 11.5px;
-  font-weight: 600;
-  color: $sub;
+  font-weight: 800;
+  color: $ink2;
   white-space: nowrap;
 
   b {
@@ -2864,13 +2872,14 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 .mini-filter :deep(.el-select__wrapper) {
   min-height: 28px;
   border-radius: $rs;
-  box-shadow: 0 0 0 1px $border inset;
+  box-shadow: 0 0 0 1px rgba(203,213,225,.82) inset;
 }
 
 .mini-filter :deep(.el-select__placeholder),
 .mini-filter :deep(.el-select__selected-item) {
   font-size: 11.5px;
-  font-weight: 700;
+  font-weight: 800;
+  color: $ink2;
 }
 
 .panel-body {
@@ -2897,8 +2906,8 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 }
 
 .mini-stat {
-  background: rgba(148,163,184,.10);
-  border: 1px solid rgba(219,226,234,.75);
+  background: rgba(241,245,249,.92);
+  border: 1px solid rgba(203,213,225,.78);
   border-radius: 14px;
   padding: 10px 10px 9px;
   display: flex;
@@ -2910,8 +2919,8 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 
 .ms-label {
   font-size: 11.5px;
-  color: $sub;
-  font-weight: 700;
+  color: $ink2;
+  font-weight: 800;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2963,6 +2972,10 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   padding: 8px 8px 7px;
   position: relative;
   border-radius: 12px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba($primary, .045) 0%, rgba(255, 255, 255, 0) 46%),
+    linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
 }
 
 .talker-main {
@@ -2973,38 +2986,52 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 }
 
 .talker-card .li-avatar {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  font-size: 11.5px;
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  border: 1px solid rgba($primary, .16);
+  background: linear-gradient(180deg, rgba($primary,.13) 0%, rgba($primary,.055) 100%);
+  box-shadow: 0 6px 14px rgba(9,88,217,.08);
   flex-shrink: 0;
+}
+
+.talker-card .li-avatar.ghost {
+  border-color: rgba(203,213,225,.76);
+  background: linear-gradient(180deg, rgba(241,245,249,.95) 0%, rgba(248,250,252,.94) 100%);
+  box-shadow: none;
 }
 
 .talker-card .li-title {
   font-size: 12.5px;
   font-weight: 800;
+  color: $ink;
   padding-right: 48px;
   line-height: 1.35;
-  letter-spacing: -0.1px;
+  letter-spacing: 0;
 }
 
 .talker-card .li-sub {
   font-size: 10.5px;
-  color: $faint;
+  color: $ink2;
+  font-weight: 700;
   line-height: 1.3;
   margin-top: 1px;
 }
 
 .talker-footer {
   display: flex;
-  align-items: stretch;
-  gap: 0;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
-  background: rgba(148, 163, 184, 0.05);
-  border: 1px solid rgba(219, 226, 234, 0.75);
-  border-radius: 7px;
-  overflow: hidden;
+  padding: 1px 7px 0 8px;
+  background: rgba(248,250,252,.45);
+  border: none;
+  border-radius: 6px;
+  overflow: visible;
   flex-shrink: 0;
+  box-shadow: none;
 }
 
 .talker-stats {
@@ -3019,29 +3046,38 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   display: flex;
   flex-direction: row;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 4px;
-  padding: 4px 7px;
+  padding: 0;
   min-width: 0;
-  flex: 1;
+  flex: 0 1 auto;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .talker-stat-amount {
-  flex: 1.8;
+  flex: 1 1 auto;
   min-width: 0;
+  justify-content: flex-end;
+  background: transparent;
+  border-color: transparent;
+  text-align: right;
 }
 
 .talker-stat-divider {
-  width: 1px;
-  align-self: stretch;
-  background: rgba(219, 226, 234, 0.9);
+  display: none;
+  width: 0;
+  align-self: auto;
+  background: transparent;
   flex-shrink: 0;
 }
 
 .ts-label {
   font-size: 9.5px;
   color: $faint;
-  font-weight: 600;
+  font-weight: 800;
   white-space: nowrap;
   flex-shrink: 0;
   line-height: 1.4;
@@ -3050,7 +3086,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 .ts-value {
   font-size: 11.5px;
   color: $ink;
-  font-weight: 800;
+  font-weight: 900;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3058,17 +3094,47 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   text-align: right;
 }
 
+.talker-stat-amount .ts-value {
+  color: $primary;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.talker-stat-amount .ts-label {
+  color: $ink2;
+  font-weight: 900;
+}
+
+.talker-card.active .talker-stat-item {
+  background: transparent;
+  border-color: transparent;
+}
+
+.talker-card.active .talker-stat-amount {
+  background: transparent;
+  border-color: transparent;
+}
+
+.talker-card.active .talker-footer {
+  background: rgba(255,255,255,.5);
+  border-color: transparent;
+}
+
+.talker-card.active .talker-stat-divider {
+  background: rgba($primary, 0.22);
+}
+
 .talker-rate-tag {
   position: absolute;
   top: 7px;
   right: 7px;
   padding: 7px 5px;
-  border-radius: 5px;
-  background: rgba(148, 163, 184, 0.09);
-  border: 1px solid rgba(219, 226, 234, 0.75);
-  color: $faint;
+  border-radius: 7px;
+  background: rgba(255,255,255,.72);
+  border: 1px solid rgba(203,213,225,.72);
+  color: $sub;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
   white-space: nowrap;
   line-height: 1.65;
   transition: all 0.2s;
@@ -3076,15 +3142,15 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 }
 
 .talker-rate-tag.has-rate {
-  background: rgba($primary, 0.07);
-  border-color: rgba($primary, 0.15);
+  background: rgba($primary, 0.075);
+  border-color: rgba($primary, 0.18);
   color: $primary;
 }
 
 .rate-prefix {
   font-size: 8.5px;
-  font-weight: 500;
-  opacity: 0.65;
+  font-weight: 800;
+  opacity: 0.78;
   margin-right: 1px;
   letter-spacing: 0;
 }
@@ -3165,7 +3231,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   gap: 6px;
   font-size: 12px;
   font-weight: 800;
-  color: $ink2;
+  color: $ink;
 }
 
 .child-count {
@@ -3261,7 +3327,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 .card-row-sub {
@@ -3271,14 +3337,14 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 .cig-sep {
   display: inline-block;
   width: 1px;
   height: 10px;
-  background: rgba(148,163,184,0.4);
+  background: rgba(100,116,139,0.45);
   margin: 0 7px;
   flex-shrink: 0;
   vertical-align: middle;
@@ -3289,15 +3355,15 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background: rgba(148,163,184,0.5);
+  background: rgba(100,116,139,0.55);
   margin: 0 5px;
   flex-shrink: 0;
   vertical-align: middle;
 }
 
 .cig-label {
-  color: $sub;
-  font-weight: 600;
+  color: $ink2;
+  font-weight: 800;
   font-size: 11px;
   white-space: nowrap;
   flex-shrink: 0;
@@ -3305,7 +3371,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 }
 
 .cig-name {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 800;
   color: $ink;
   min-width: 0;
@@ -3315,8 +3381,8 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 }
 
 .cig-bank {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 13.5px;
+  font-weight: 800;
   color: $ink;
   min-width: 0;
   overflow: hidden;
@@ -3325,17 +3391,17 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 }
 
 .cig-last4 {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 800;
   color: $ink;
-  letter-spacing: 0.5px;
+  letter-spacing: 0;
   flex-shrink: 0;
 }
 
 .cig-type {
   font-size: 11.5px;
-  font-weight: 700;
-  color: $ink2;
+  font-weight: 800;
+  color: $ink;
   flex-shrink: 0;
 }
 
@@ -3353,8 +3419,8 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 
 .cig-date {
   font-size: 11.5px;
-  font-weight: 700;
-  color: $ink2;
+  font-weight: 800;
+  color: $ink;
   flex-shrink: 0;
 }
 
@@ -3376,13 +3442,13 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 
 .cig-empty {
   color: $sub;
-  font-weight: 600;
+  font-weight: 800;
 }
 
 .list-item {
   box-sizing: border-box;
-  border: 1px solid rgba(219,226,234,.85);
-  background: $surface;
+  border: 1px solid rgba(203,213,225,.78);
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
   border-radius: 14px;
   padding: 10px 10px;
   display: flex;
@@ -3391,29 +3457,30 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   gap: 10px;
   min-height: 54px;
   cursor: pointer;
-  transition: all .16s;
+  box-shadow: 0 5px 14px rgba(15,23,42,.035);
+  transition: border-color .16s ease, background .16s ease, box-shadow .16s ease, transform .16s ease;
   min-width: 0;
   position: relative;
   &:hover {
-    border-color: rgba($primary,.22);
+    border-color: rgba($primary,.28);
     box-shadow: 0 10px 18px rgba(15,23,42,.06);
-    transform: translateY(-1px);
+    transform: none;
   }
   &.active {
-    border-color: rgba($primary,.38);
+    border-color: rgba($primary,.46);
     background: linear-gradient(180deg, rgba($primary,.10) 0%, rgba($primary,.04) 100%);
-    box-shadow: inset 0 0 0 2px rgba($primary,.28), 0 14px 22px rgba(15,23,42,.07);
+    box-shadow: inset 0 0 0 1px rgba($primary,.24), 0 12px 20px rgba(9,88,217,.08);
   }
   &.active::before {
     content: '';
     position: absolute;
-    left: 8px;
+    left: 7px;
     top: 10px;
     bottom: 10px;
-    width: 4px;
+    width: 5px;
     border-radius: 999px;
     background: $primary;
-    box-shadow: 0 6px 14px rgba($primary,.25);
+    box-shadow: 0 6px 14px rgba($primary,.24);
   }
 }
 
@@ -3433,6 +3500,23 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 .panel.is-users .list-item.placeholder {
   height: 100%;
   min-height: 54px;
+}
+
+.panel.is-users .list-item:hover {
+  border-color: rgba($primary,.34);
+  box-shadow: 0 12px 22px rgba(9,88,217,.08);
+  transform: none;
+}
+
+.panel.is-users .list-item.active {
+  background:
+    linear-gradient(180deg, rgba($primary,.12) 0%, rgba($primary,.045) 46%, rgba(255,255,255,.98) 100%);
+}
+
+.panel.is-users .list-item.active .li-avatar {
+  border-color: rgba($primary,.26);
+  background: linear-gradient(180deg, rgba($primary,.18) 0%, rgba($primary,.08) 100%);
+  box-shadow: 0 7px 16px rgba(9,88,217,.12);
 }
 
 .talker-board {
@@ -3457,7 +3541,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 .li-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
 .li-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .li-title { font-size: 13px; font-weight: 800; color: $ink; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.li-sub { font-size: 11.5px; color: $sub; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.li-sub { font-size: 11.5px; color: $ink2; font-weight: 700; display: flex; align-items: center; gap: 6px; min-width: 0; }
 .li-right { display: grid; grid-template-columns: repeat(2, minmax(78px, 1fr)); gap: 8px; flex-shrink: 0; }
 
 .card-info-right {
@@ -3478,14 +3562,14 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   padding: 7px 8px;
   min-width: 0;
   border-radius: 12px;
-  background: rgba(148,163,184,.10);
-  border: 1px solid rgba(219,226,234,.75);
+  background: rgba(241,245,249,.92);
+  border: 1px solid rgba(203,213,225,.76);
 }
 
 .metric-label {
   font-size: 10.5px;
-  color: $sub;
-  font-weight: 700;
+  color: $ink2;
+  font-weight: 800;
   line-height: 1;
 }
 
@@ -3514,8 +3598,8 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   font-size: 13px;
   font-weight: 800;
   color: $primary;
-  background: linear-gradient(180deg, rgba($primary,.12) 0%, rgba($primary,.06) 100%);
-  box-shadow: 0 8px 18px rgba(9,88,217,.08);
+  background: linear-gradient(180deg, rgba($primary,.14) 0%, rgba($primary,.06) 100%);
+  box-shadow: 0 8px 18px rgba(9,88,217,.09);
   flex-shrink: 0;
   &.ghost {
     color: $faint;
@@ -3537,9 +3621,9 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   cursor: pointer;
   position: relative;
   &.active {
-    border-color: rgba($primary,.38);
+    border-color: rgba($primary,.46);
     background: linear-gradient(180deg, rgba($primary,.10) 0%, rgba($primary,.04) 100%);
-    box-shadow: inset 0 0 0 2px rgba($primary,.28), 0 14px 22px rgba(15,23,42,.07);
+    box-shadow: inset 0 0 0 1px rgba($primary,.24), 0 12px 20px rgba(9,88,217,.08);
   }
   &.active::before {
     content: '';
@@ -3547,15 +3631,15 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
     left: 8px;
     top: 10px;
     bottom: 10px;
-    width: 4px;
+    width: 5px;
     border-radius: 999px;
     background: $primary;
-    box-shadow: 0 6px 14px rgba($primary,.25);
+    box-shadow: 0 6px 14px rgba($primary,.24);
   }
   &:hover:not(:disabled) {
     border-color: rgba($primary,.28);
     box-shadow: 0 10px 18px rgba(15,23,42,.06);
-    transform: translateY(-1px);
+    transform: none;
   }
   &:hover {
     border-color: rgba($primary,.22);
@@ -3575,18 +3659,18 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: $sub;
-  background: rgba(148,163,184,.12);
-  border: 1px solid rgba(219,226,234,.7);
+  color: $ink2;
+  background: rgba(241,245,249,.94);
+  border: 1px solid rgba(203,213,225,.78);
   &.credit {
     color: $primary;
-    background: linear-gradient(180deg, rgba($primary,.12) 0%, rgba($primary,.06) 100%);
-    border-color: rgba($primary,.14);
+    background: linear-gradient(180deg, rgba($primary,.14) 0%, rgba($primary,.06) 100%);
+    border-color: rgba($primary,.2);
   }
 }
 
-.muted { color: $sub; font-weight: 700; }
-.bank-name { font-weight: 800; }
+.muted { color: $ink2; font-weight: 800; }
+.bank-name { font-weight: 900; }
 
 .amt {
   display: flex;
@@ -3597,17 +3681,17 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   min-width: 88px;
 }
 
-.amt-label { font-size: 11px; color: $sub; font-weight: 800; }
-.amt-value { font-size: 13px; font-weight: 900; color: $ink; letter-spacing: .2px; }
+.amt-label { font-size: 11px; color: $ink2; font-weight: 800; }
+.amt-value { font-size: 14px; font-weight: 800; color: $ink; letter-spacing: 0; }
 
 .li-actions { display: flex; align-items: center; gap: 6px; }
 .mini-icon {
   width: 28px;
   height: 28px;
   border-radius: 10px;
-  border: 1px solid rgba(219,226,234,.75);
-  background: rgba(148,163,184,.10);
-  color: $sub;
+  border: 1px solid rgba(203,213,225,.78);
+  background: rgba(241,245,249,.94);
+  color: $ink2;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -3631,8 +3715,8 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   justify-content: space-between;
   gap: 10px;
   padding: 10px 10px;
-  border: 1px solid rgba(219,226,234,.85);
-  background: linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(248,250,253,.98) 100%);
+  border: 1px solid rgba(203,213,225,.78);
+  background: linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(241,245,249,.98) 100%);
   border-radius: 14px;
 }
 
@@ -3705,16 +3789,17 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   padding: 8px 10px;
   min-height: 56px;
   min-width: 0;
-  border: 1px solid rgba(219,226,234,.85);
+  border: 1px solid rgba(190,203,220,.92);
   border-radius: 14px;
-  background: $surface;
-  transition: all .16s;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  box-shadow: 0 5px 14px rgba(15,23,42,.035);
+  transition: border-color .16s ease, background .16s ease, box-shadow .16s ease, transform .16s ease;
 }
 
 .bill-item:hover {
-  border-color: rgba($primary,.22);
+  border-color: rgba($primary,.28);
   box-shadow: 0 10px 18px rgba(15,23,42,.06);
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .bill-item.current {
@@ -3748,9 +3833,9 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 }
 
 .bill-icon {
-  background: rgba($warning,.10);
+  background: rgba($warning,.14);
   color: $warning;
-  border-color: rgba($warning,.16);
+  border-color: rgba($warning,.28);
 }
 
 .bill-row-top,
@@ -3787,8 +3872,8 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 }
 
 .bill-bank-name {
-  color: $ink2;
-  font-weight: 700;
+  color: $ink;
+  font-weight: 800;
 }
 
 .bill-last4,
@@ -3825,16 +3910,16 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 }
 
 .bill-amount-title {
-  color: $sub;
+  color: $ink2;
   font-size: 10.5px;
-  font-weight: 800;
+  font-weight: 900;
   line-height: 1;
   text-align: right;
   white-space: nowrap;
 }
 
 .bill-amount-symbol {
-  color: $sub;
+  color: $ink2;
   font-size: 11.5px;
   font-weight: 900;
   line-height: 1;
@@ -3906,9 +3991,9 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   display: inline-flex;
   align-items: center;
   padding: 2px;
-  border: 1px solid rgba(219,226,234,.9);
+  border: 1px solid rgba(190,203,220,.95);
   border-radius: 999px;
-  background: rgba(148,163,184,.10);
+  background: rgba(241,245,249,.94);
 }
 
 .scope-toggle button {
@@ -3918,7 +4003,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   border: none;
   border-radius: 999px;
   background: transparent;
-  color: $sub;
+  color: $ink2;
   cursor: pointer;
   font-size: 11.5px;
   font-weight: 900;
@@ -3964,30 +4049,31 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   min-height: 56px;
   overflow: hidden;
   border-radius: 14px;
-  border: 1px solid rgba(219,226,234,.85);
-  background: $surface;
+  border: 1px solid rgba(190,203,220,.92);
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
   padding: 8px 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  transition: all .16s;
+  box-shadow: 0 5px 14px rgba(15,23,42,.035);
+  transition: border-color .16s ease, background .16s ease, box-shadow .16s ease, transform .16s ease;
 }
 
 .profit-item:hover {
-  border-color: rgba($primary,.22);
+  border-color: rgba($primary,.28);
   box-shadow: 0 10px 18px rgba(15,23,42,.06);
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .profit-item.is-income {
-  border-color: rgba($success,.20);
-  background: linear-gradient(180deg, rgba(255,255,255,.99) 0%, rgba($success,.06) 140%);
+  border-color: rgba($success,.34);
+  background: linear-gradient(180deg, rgba(255,255,255,.99) 0%, rgba($success,.08) 140%);
 }
 
 .profit-item.is-net {
-  border-color: rgba($primary,.20);
-  background: linear-gradient(180deg, rgba(255,255,255,.99) 0%, rgba($primary,.05) 140%);
+  border-color: rgba($primary,.24);
+  background: linear-gradient(180deg, rgba(255,255,255,.99) 0%, rgba($primary,.055) 140%);
 }
 
 .profit-info-left,
@@ -4008,9 +4094,9 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
 }
 
 .profit-icon {
-  background: rgba(148,163,184,.10);
+  background: rgba(241,245,249,.94);
   color: $ink2;
-  border-color: rgba(148,163,184,.18);
+  border-color: rgba(203,213,225,.78);
 }
 
 .profit-icon.income,
@@ -4057,7 +4143,7 @@ $shadow-sm:     0 8px 20px rgba(15,23,42,.045);
   overflow: hidden;
   color: $ink2;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

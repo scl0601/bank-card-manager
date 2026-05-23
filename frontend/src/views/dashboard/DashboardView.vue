@@ -61,7 +61,9 @@
         <div class="module-metrics">
           <div v-for="metric in item.metrics" :key="metric.label" class="metric-item">
             <span>{{ metric.label }}</span>
-            <strong :class="metric.className">{{ metric.value }}</strong>
+            <el-tooltip :content="tooltipText(metric.value)" placement="top" popper-class="dashboard-value-tooltip">
+              <strong :class="['dashboard-value-ellipsis', metric.className]">{{ metric.value }}</strong>
+            </el-tooltip>
           </div>
         </div>
         <button class="card-enter-btn" type="button" @click="router.push(item.route)">进入{{ item.title }}</button>
@@ -76,7 +78,8 @@
             <p>{{ currentMonthText }} · 完成率 {{ calendarDonePercent }}%</p>
           </div>
           <div class="panel-actions">
-            <button class="plain-pill is-primary" type="button" @click="openCalendarDrawer(null, todayKey)">新建日程</button>
+            <button class="plain-pill" type="button" @click="goTodayInCalendar">今天</button>
+            <button class="plain-pill is-primary" type="button" @click="openCalendarDrawer(null, selectedDayDate || todayKey)">新建日程</button>
             <button class="plain-pill" type="button" @click="router.push('/calendar')">查看日历</button>
           </div>
         </div>
@@ -91,7 +94,9 @@
                 :class="`is-${item.key}`"
               >
                 <span>{{ item.label }}</span>
-                <strong>{{ item.value }}</strong>
+                <el-tooltip :content="tooltipText(item.value)" placement="top" popper-class="dashboard-value-tooltip">
+                  <strong class="dashboard-value-ellipsis">{{ item.value }}</strong>
+                </el-tooltip>
                 <i class="stat-track"><b :style="{ width: item.percent + '%' }"></b></i>
               </div>
             </div>
@@ -107,9 +112,10 @@
                   :class="{
                     other: cell.other,
                     today: cell.isToday,
+                    selected: cell.key === selectedDayDate,
                     'has-events': cell.eventCount > 0
                   }"
-                  @click="openCalendarDrawer(null, cell.key)"
+                  @click="openDayPanel(cell.key)"
                 >
                   <span class="mini-day">{{ cell.day }}</span>
                   <span v-if="cell.eventCount" class="mini-count">{{ cell.eventCount }}</span>
@@ -120,25 +126,34 @@
           </div>
 
           <div class="calendar-right">
-            <div class="section-title">
-              <span>近期日程</span>
-              <small>点击可快速编辑</small>
+            <div class="section-title selected-day-title">
+              <span>
+                {{ selectedDayTitle }}
+                <em v-if="selectedDayDate === todayKey">今天</em>
+              </span>
+              <small>{{ selectedDayStats.total }} 项日程，点击可快速编辑</small>
+            </div>
+            <div class="day-stat-row inline-day-stats">
+              <span>待办 <strong>{{ selectedDayStats.todo }}</strong></span>
+              <span>进行中 <strong>{{ selectedDayStats.doing }}</strong></span>
+              <span>已完成 <strong>{{ selectedDayStats.done }}</strong></span>
+              <span>已取消 <strong>{{ selectedDayStats.cancelled }}</strong></span>
             </div>
             <div class="event-list">
-              <div v-for="event in upcomingEvents" :key="event.id" class="event-item" @click="openCalendarDrawer(event)">
-                <span class="event-date">{{ shortDate(event.eventDate) }}</span>
+              <div v-for="event in selectedDayEvents" :key="event.id" class="event-item" @click="openCalendarDrawer(event)">
+                <span class="event-date">{{ eventTimeRange(event) }}</span>
                 <span class="event-content">
                   <span class="event-title" :title="event.title">{{ event.title || '未命名日程' }}</span>
                   <span class="event-meta">
                     <i :style="{ background: eventCategoryColor(event.category) }"></i>
-                    {{ eventCategoryLabel(event.category) }} · {{ eventTimeLabel(event) }}
+                    {{ eventCategoryLabel(event.category) }}
                   </span>
                 </span>
                 <span class="event-status" :class="eventStatusClass(event.status)">
                   {{ eventStatusLabel(event.status) }}
                 </span>
               </div>
-              <el-empty v-if="!upcomingEvents.length" description="本月暂无近期日程" :image-size="56" />
+              <el-empty v-if="!selectedDayEvents.length" description="当天暂无日程" :image-size="56" />
             </div>
           </div>
         </div>
@@ -156,12 +171,16 @@
           <div class="bill-status-grid">
             <div v-for="item in billStatusItems" :key="item.label" class="status-chip" :class="item.className">
               <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
+              <el-tooltip :content="tooltipText(item.value)" placement="top" popper-class="dashboard-value-tooltip">
+                <strong class="dashboard-value-ellipsis">{{ item.value }}</strong>
+              </el-tooltip>
             </div>
           </div>
           <div class="amount-line">
-            <span>代还总额</span>
-            <strong>{{ money(billOverview.totalBillAmount) }}</strong>
+            <span>待还总额</span>
+            <el-tooltip :content="tooltipText(money(billOverview.totalBillAmount))" placement="top" popper-class="dashboard-value-tooltip">
+              <strong class="dashboard-value-ellipsis">{{ money(billOverview.totalBillAmount) }}</strong>
+            </el-tooltip>
           </div>
         </article>
 
@@ -175,17 +194,23 @@
           </div>
           <div class="profit-highlight">
             <span>年度净利润</span>
-            <strong :class="numberValue(profitOverview.totalNetProfit) >= 0 ? 'is-income' : 'is-cost'">
-              {{ signedMoney(profitOverview.totalNetProfit) }}
-            </strong>
+            <el-tooltip :content="tooltipText(signedMoney(profitOverview.totalNetProfit))" placement="top" popper-class="dashboard-value-tooltip">
+              <strong :class="['dashboard-value-ellipsis', numberValue(profitOverview.totalNetProfit) >= 0 ? 'is-income' : 'is-cost']">
+                {{ signedMoney(profitOverview.totalNetProfit) }}
+              </strong>
+            </el-tooltip>
           </div>
           <div class="amount-line">
             <span>手续费</span>
-            <strong>{{ money(profitOverview.totalFeeAmount) }}</strong>
+            <el-tooltip :content="tooltipText(money(profitOverview.totalFeeAmount))" placement="top" popper-class="dashboard-value-tooltip">
+              <strong class="dashboard-value-ellipsis">{{ money(profitOverview.totalFeeAmount) }}</strong>
+            </el-tooltip>
           </div>
           <div class="amount-line">
             <span>待收手续费</span>
-            <strong>{{ money(profitOverview.unpaidFeeAmount) }}</strong>
+            <el-tooltip :content="tooltipText(money(profitOverview.unpaidFeeAmount))" placement="top" popper-class="dashboard-value-tooltip">
+              <strong class="dashboard-value-ellipsis">{{ money(profitOverview.unpaidFeeAmount) }}</strong>
+            </el-tooltip>
           </div>
         </article>
 
@@ -200,18 +225,24 @@
           <div class="card-type-row">
             <div>
               <span>信用卡</span>
-              <strong>{{ stats.creditCardCount || 0 }}</strong>
+              <el-tooltip :content="tooltipText(stats.creditCardCount || 0)" placement="top" popper-class="dashboard-value-tooltip">
+                <strong class="dashboard-value-ellipsis">{{ stats.creditCardCount || 0 }}</strong>
+              </el-tooltip>
             </div>
             <div>
               <span>借记卡</span>
-              <strong>{{ stats.debitCardCount || 0 }}</strong>
+              <el-tooltip :content="tooltipText(stats.debitCardCount || 0)" placement="top" popper-class="dashboard-value-tooltip">
+                <strong class="dashboard-value-ellipsis">{{ stats.debitCardCount || 0 }}</strong>
+              </el-tooltip>
             </div>
           </div>
           <div class="bank-rank-list">
             <div v-for="bank in bankRankItems" :key="bank.bankName" class="rank-row">
               <span>{{ bank.bankName }}</span>
               <i><b :style="{ width: bank.percent + '%' }"></b></i>
-              <strong>{{ bank.cardCount }}</strong>
+              <el-tooltip :content="tooltipText(bank.cardCount)" placement="top" popper-class="dashboard-value-tooltip">
+                <strong class="dashboard-value-ellipsis">{{ bank.cardCount }}</strong>
+              </el-tooltip>
             </div>
             <el-empty v-if="!bankRankItems.length" description="暂无银行分布" :image-size="50" />
           </div>
@@ -375,6 +406,7 @@ const loading = ref(false)
 const drawerVisible = ref(false)
 const editingId = ref<number | null>(null)
 const defaultNewDate = ref('')
+const selectedDayDate = ref(todayKey)
 
 const headerModules = [
   { label: '用户', icon: 'UserFilled', route: '/users' },
@@ -518,14 +550,19 @@ const miniCalendarCells = computed(() => {
   })
 })
 
-const upcomingEvents = computed(() => {
-  const today = new Date(`${todayKey}T00:00:00`)
-  return [...calendarEvents.value]
-    .filter(event => event.eventDate && Number(event.status) !== EVENT_STATUS_VALUE.CANCELLED)
-    .filter(event => new Date(`${event.eventDate}T00:00:00`) >= today)
-    .sort((a, b) => `${a.eventDate} ${a.startTime || ''}`.localeCompare(`${b.eventDate} ${b.startTime || ''}`))
-    .slice(0, 6)
-})
+const selectedDayEvents = computed(() =>
+  [...calendarEvents.value]
+    .filter(event => event.eventDate === selectedDayDate.value)
+    .sort((a, b) => `${a.startTime || '99:99'} ${a.endTime || ''} ${a.id}`.localeCompare(`${b.startTime || '99:99'} ${b.endTime || ''} ${b.id}`))
+)
+const selectedDayStats = computed(() => ({
+  total: selectedDayEvents.value.length,
+  todo: selectedDayEvents.value.filter(event => Number(event.status ?? EVENT_STATUS_VALUE.TODO) === EVENT_STATUS_VALUE.TODO).length,
+  doing: selectedDayEvents.value.filter(event => Number(event.status) === EVENT_STATUS_VALUE.DOING).length,
+  done: selectedDayEvents.value.filter(event => Number(event.status) === EVENT_STATUS_VALUE.DONE).length,
+  cancelled: selectedDayEvents.value.filter(event => Number(event.status) === EVENT_STATUS_VALUE.CANCELLED).length
+}))
+const selectedDayTitle = computed(() => formatDisplayDate(selectedDayDate.value))
 
 function numberValue(value: unknown) {
   const num = Number(value ?? 0)
@@ -543,6 +580,11 @@ function signedMoney(value: unknown) {
   return money(num)
 }
 
+function tooltipText(value: unknown) {
+  if (value == null || value === '') return '-'
+  return String(value)
+}
+
 function safePercent(value: unknown, total: unknown) {
   const totalNum = numberValue(total)
   if (!totalNum) return 0
@@ -556,15 +598,17 @@ function formatDateKey(date: Date) {
   return `${year}-${month}-${day}`
 }
 
-function shortDate(date?: string) {
+function formatDisplayDate(date?: string) {
   if (!date) return '-'
-  const [, month, day] = date.split('-')
-  return `${Number(month)}月${Number(day)}日`
+  const [year, month, day] = date.split('-')
+  if (!year || !month || !day) return date
+  return `${year}年${Number(month)}月${Number(day)}日`
 }
 
-function eventTimeLabel(event: CalendarEvent) {
-  if (!event.startTime) return '全天'
-  return String(event.startTime).slice(0, 5)
+function eventTimeRange(event: CalendarEvent) {
+  const start = event.startTime ? String(event.startTime).slice(0, 5) : '全天'
+  const end = event.endTime ? String(event.endTime).slice(0, 5) : ''
+  return end && start !== '全天' ? `${start}-${end}` : start
 }
 
 function eventCategoryLabel(category?: number) {
@@ -605,6 +649,19 @@ function openCalendarDrawer(event: CalendarEvent | null, date?: string) {
     defaultNewDate.value = date || todayKey
   }
   drawerVisible.value = true
+}
+
+function openDayPanel(date: string) {
+  selectedDayDate.value = date
+}
+
+async function goTodayInCalendar() {
+  selectedDayDate.value = todayKey
+  const todayMonth = todayKey.slice(0, 7)
+  if (selectedMonthValue.value !== todayMonth) {
+    selectedMonthValue.value = todayMonth
+    await refreshDashboard()
+  }
 }
 
 async function refreshCalendarPanel() {
@@ -953,6 +1010,16 @@ $purple: #6d28d9;
     background: $primary-light;
   }
 
+  &.selected {
+    z-index: 1;
+    background: #fff;
+    box-shadow: inset 0 0 0 2px rgba($primary, 0.5), 0 8px 16px rgba(9, 88, 217, 0.1);
+
+    .mini-day {
+      color: $primary;
+    }
+  }
+
   &.has-events::after {
     content: '';
     position: absolute;
@@ -1018,12 +1085,53 @@ $purple: #6d28d9;
   gap: 7px;
   min-height: 0;
   overflow: auto;
-  padding-right: 2px;
+  padding: 0 2px 10px 0;
+}
+
+.selected-day-title {
+  align-items: flex-start;
+
+  span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  em {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 7px;
+    border-radius: 999px;
+    color: #fff;
+    background: $primary;
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 900;
+  }
+}
+
+.inline-day-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+
+  span {
+    padding: 6px 4px;
+    border-radius: 9px;
+    font-size: 10px;
+  }
+
+  strong {
+    margin-top: 3px;
+    font-size: 14px;
+  }
 }
 
 .event-item {
   display: grid;
-  grid-template-columns: 50px minmax(0, 1fr) auto;
+  grid-template-columns: 70px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   min-width: 0;
@@ -1114,6 +1222,34 @@ $purple: #6d28d9;
   font-weight: 800;
   cursor: pointer;
   transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.day-stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+
+  span {
+    min-width: 0;
+    padding: 8px;
+    border: 1px solid rgba($line-soft, 0.95);
+    border-radius: 11px;
+    background: #f8fbff;
+    color: $muted;
+    font-size: 11px;
+    font-weight: 800;
+    text-align: center;
+  }
+
+  strong {
+    display: block;
+    margin-top: 4px;
+    color: $ink;
+    font-size: 16px;
+    line-height: 1;
+    font-weight: 900;
+  }
 }
 
 .bill-status-grid {
@@ -1617,6 +1753,15 @@ $purple: #6d28d9;
 .module-card.is-profits { --module-color: #cf1322; }
 .module-card.is-calendar { --module-color: #6d28d9; }
 
+.dashboard-value-ellipsis {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .module-card-head {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
@@ -1780,11 +1925,20 @@ $purple: #6d28d9;
   gap: 12px;
   padding: 12px;
   min-width: 0;
+  height: 416px;
+  min-height: 0;
 }
 
 .calendar-left,
 .calendar-right {
   min-width: 0;
+}
+
+.calendar-left,
+.calendar-right {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .calendar-summary-row {
@@ -1798,8 +1952,7 @@ $purple: #6d28d9;
 }
 
 .event-list {
-  max-height: 392px;
-  min-height: 260px;
+  min-height: 0;
   overflow: auto;
 }
 
@@ -1946,6 +2099,14 @@ $purple: #6d28d9;
   .summary-stack,
   .calendar-body {
     grid-template-columns: 1fr;
+  }
+
+  .calendar-body {
+    height: auto;
+  }
+
+  .calendar-right {
+    min-height: 260px;
   }
 
   .mini-calendar {

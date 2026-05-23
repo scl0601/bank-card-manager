@@ -276,7 +276,7 @@ public class SystemAnnouncementServiceImpl
         if (includePopup) {
             LocalDate today = LocalDate.now();
             boolean silentToday = today.equals(vo.getSilentDate());
-            vo.setShouldPopup(!silentToday);
+            vo.setShouldPopup(!vo.getRead() && !silentToday);
         } else {
             vo.setShouldPopup(false);
         }
