@@ -1684,16 +1684,22 @@ function openFilteredBillsPage() {
 }
 
 function goRepayment(b: BillRow) {
-  const repayMonth = billRepayMonth(b) || selectedBillMonth.value || currentBillMonth
+  const repayMonth = currentBillMonth
+  const focusBill = recentBills.value.find(item => Number(item.cardId) === Number(b.cardId) && billRepayMonth(item) === repayMonth)
+  const canFocusCurrentRepayBill = Boolean(focusBill)
+  const query: Record<string, string> = {
+    cardId: String(b.cardId),
+    repayMonth,
+    autoExpandDetails: '1',
+    sortMode: BILL_SORT_CURRENT_FIRST
+  }
+  if (canFocusCurrentRepayBill && focusBill) {
+    query.focusBillId = String(focusBill.id)
+    query.focusBillSnapshot = encodeURIComponent(JSON.stringify(focusBill))
+  }
   router.push({
     path: '/bills',
-    query: {
-      cardId: String(b.cardId),
-      repayMonth,
-      focusBillId: String(b.id),
-      focusBillSnapshot: encodeURIComponent(JSON.stringify(b)),
-      sortMode: BILL_SORT_CURRENT_FIRST
-    }
+    query
   })
 }
 

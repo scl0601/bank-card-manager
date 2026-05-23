@@ -985,6 +985,8 @@ const appliedStatusFilter = ref<number | undefined>(undefined)
 let syncingBillFilters = false
 let skipRouteDrivenSearch = false
 const pendingFocusBillId = ref<number | null>(null)
+const focusedBillSnapshot = ref<BillRow | null>(null)
+const pendingAutoExpandDetails = ref(false)
 let focusSearchVersion = 0
 
 const detailModeMessage = computed(() => {
@@ -1176,7 +1178,12 @@ function billMonthSortParts(row: BillRow) {
 }
 
 const sortedList = computed<BillRow[]>(() => {
-  return [...(list.value as BillRow[])].sort((a, b) => {
+  const rows = [...(list.value as BillRow[])]
+  const focused = focusedBillSnapshot.value
+  if (focused && Number(focused.id) > 0 && !rows.some(item => Number(item.id) === Number(focused.id))) {
+    rows.unshift(focused)
+  }
+  return rows.sort((a, b) => {
     const aSort = isMonthAscBillSort(query) && !query.repayMonth && !query.repayYear ? billMonthSortParts(a) : repayDateParts(a)
     const bSort = isMonthAscBillSort(query) && !query.repayMonth && !query.repayYear ? billMonthSortParts(b) : repayDateParts(b)
     const missingRepayDateDelta = aSort.missingRepayDate - bSort.missingRepayDate
@@ -1276,10 +1283,44 @@ function findBillRowById(billId: number | string | null | undefined) {
 
 function focusPendingBillAfterFetch() {
   const targetId = Number(pendingFocusBillId.value || 0)
-  if (!targetId) return
+  if (!targetId) {
+    autoExpandFirstBillAfterFetch()
+    return
+  }
   const targetRow = findBillRowById(targetId)
-  pendingFocusBillId.value = null
   if (!targetRow || isBillPlaceholderRow(targetRow)) return
+  focusedBillSnapshot.value = targetRow
+  currentExpandedRow.value = targetRow
+  if (!detailLoadedMap.value[targetId] && !detailLoadingMap.value[targetId]) {
+    pendingExpandBillId.value = targetId
+    void loadDetails(targetId, { silent: true }).finally(() => {
+      if (pendingExpandBillId.value === targetId) {
+        pendingExpandBillId.value = null
+      }
+      nextTick(() => {
+        scheduleBillTableLayout()
+        scrollExpandedContentIntoView()
+      })
+    })
+    return
+  }
+  nextTick(() => {
+    scheduleBillTableLayout()
+    scrollExpandedContentIntoView()
+  })
+}
+
+function isRouteFlagEnabled(value: unknown) {
+  const target = Array.isArray(value) ? value[0] : value
+  return target === true || target === '1' || target === 'true'
+}
+
+function autoExpandFirstBillAfterFetch() {
+  if (!pendingAutoExpandDetails.value) return
+  const targetRow = sortedList.value.find(row => !isBillPlaceholderRow(row))
+  if (!targetRow) return
+  pendingAutoExpandDetails.value = false
+  const targetId = Number(targetRow.id)
   currentExpandedRow.value = targetRow
   if (!detailLoadedMap.value[targetId] && !detailLoadingMap.value[targetId]) {
     pendingExpandBillId.value = targetId
@@ -1302,6 +1343,8 @@ function focusPendingBillAfterFetch() {
 
 function stageFocusedBill(snapshot: BillRow | null) {
   if (!snapshot || !pendingFocusBillId.value || Number(snapshot.id) !== pendingFocusBillId.value) return
+  pendingAutoExpandDetails.value = false
+  focusedBillSnapshot.value = snapshot
   list.value = [snapshot]
   total.value = 1
   currentExpandedRow.value = snapshot
@@ -1934,6 +1977,7 @@ function isBillRepayOverdue(row: BillRow) {
 
 function syncBillRowFromDetails(billId: number, details: BillDetailRow[]) {
   const row = (list.value as BillRow[]).find(item => Number(item.id) === Number(billId))
+    || (Number(focusedBillSnapshot.value?.id || 0) === Number(billId) ? focusedBillSnapshot.value : null)
   if (!row) return
 
   const actualPayAmount = Number(calculateDetailTypeTotal(details, DETAIL_TYPE_VALUE.INCOME).toFixed(2))
@@ -1990,12 +2034,14 @@ function scheduleDetailPrefetch() {
 }
 
 async function loadDetails(billId: number, options: { force?: boolean; silent?: boolean; quiet?: boolean; syncBillRow?: boolean } = {}) {
-  if (!options.force && detailLoadedMap.value[billId]) {
-    resetDetailSelection(billId)
-    return
-  }
   if (detailLoadingMap.value[billId]) {
     await (detailRequestMap.get(billId) || Promise.resolve())
+    if (!options.force) {
+      return
+    }
+  }
+  if (!options.force && detailLoadedMap.value[billId]) {
+    resetDetailSelection(billId)
     return
   }
 
@@ -2652,11 +2698,13 @@ watch(
 )
 
 watch(
-  () => [route.name, route.query.cardId, route.query.cardIds, route.query.ownerId, route.query.status, route.query.year, route.query.billMonth, route.query.startBillMonth, route.query.endBillMonth, route.query.repayMonth, route.query.repayYear, route.query.sortMode, route.query.focusBillId, route.query.focusBillSnapshot],
-  ([routeName, cardId, cardIds, ownerId, status, year, billMonth, startBillMonth, endBillMonth, repayMonth, repayYear, sortMode, focusBillId, focusBillSnapshot]) => {
+  () => [route.name, route.query.cardId, route.query.cardIds, route.query.ownerId, route.query.status, route.query.year, route.query.billMonth, route.query.startBillMonth, route.query.endBillMonth, route.query.repayMonth, route.query.repayYear, route.query.sortMode, route.query.focusBillId, route.query.focusBillSnapshot, route.query.autoExpandDetails],
+  ([routeName, cardId, cardIds, ownerId, status, year, billMonth, startBillMonth, endBillMonth, repayMonth, repayYear, sortMode, focusBillId, focusBillSnapshot, autoExpandDetails]) => {
     triggerBillSearch.cancel()
     if (!isBillsRouteName(routeName)) {
       pendingFocusBillId.value = null
+      focusedBillSnapshot.value = null
+      pendingAutoExpandDetails.value = false
       focusSearchVersion += 1
       return
     }
@@ -2669,7 +2717,9 @@ watch(
     const routeRepayYear = toRouteYearValue(repayYear)
     const routeSortMode = toRouteBillSortMode(sortMode)
     pendingFocusBillId.value = toRouteNumber(focusBillId) || null
+    pendingAutoExpandDetails.value = isRouteFlagEnabled(autoExpandDetails)
     const routeFocusSnapshot = toRouteBillSnapshot(focusBillSnapshot)
+    focusedBillSnapshot.value = routeFocusSnapshot
     let [routeStartBillMonth, routeEndBillMonth] = normalizeRouteBillRange(startBillMonth, endBillMonth, year, billMonth)
     if (routeRepayMonth || routeRepayYear) {
       routeStartBillMonth = ''
