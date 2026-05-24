@@ -128,15 +128,22 @@ public class DashboardServiceImpl implements DashboardService {
 
         List<BankCard> allCards = bankCardMapper.selectList(
                 new LambdaQueryWrapper<BankCard>()
-                        .select(BankCard::getBankName));
-        Map<String, Long> bankGroup = allCards.stream()
+                        .select(BankCard::getBankName, BankCard::getCardType));
+        Map<String, List<BankCard>> bankGroup = allCards.stream()
                 .filter(c -> c.getBankName() != null)
-                .collect(Collectors.groupingBy(BankCard::getBankName, Collectors.counting()));
+                .collect(Collectors.groupingBy(BankCard::getBankName));
         List<DashboardVO.BankDistVO> bankDist = bankGroup.entrySet().stream()
                 .map(e -> {
+                    List<BankCard> cards = e.getValue();
                     DashboardVO.BankDistVO d = new DashboardVO.BankDistVO();
                     d.setBankName(e.getKey());
-                    d.setCardCount(e.getValue());
+                    d.setCardCount((long) cards.size());
+                    d.setCreditCardCount(cards.stream()
+                            .filter(card -> card.getCardType() != null && card.getCardType() == 2)
+                            .count());
+                    d.setDebitCardCount(cards.stream()
+                            .filter(card -> card.getCardType() != null && card.getCardType() == 1)
+                            .count());
                     return d;
                 })
                 .sorted((a, b) -> Long.compare(b.getCardCount(), a.getCardCount()))

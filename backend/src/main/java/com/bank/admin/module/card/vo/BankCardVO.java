@@ -22,6 +22,12 @@ public class BankCardVO {
     @Schema(description = "用户姓名")
     private String userName;
 
+    @Schema(description = "top user id")
+    private Long topUserId;
+
+    @Schema(description = "top user name")
+    private String topUserName;
+
     @Schema(description = "生效手续费率%")
     private BigDecimal effectiveFeeRate;
 

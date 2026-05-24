@@ -13,6 +13,12 @@
 
         <div class="header-title-group">
           <h1 class="page-title">{{ uiText.cardManagement }}</h1>
+          <div class="page-subtitle">
+            <div class="view-switch">
+              <button type="button" :class="{ active: cardViewMode === 'grouped' }" @click="cardViewMode = 'grouped'">按人查看</button>
+              <button type="button" :class="{ active: cardViewMode === 'overview' }" @click="cardViewMode = 'overview'">全部总览</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -35,7 +41,7 @@
     </div>
 
     <div class="main-body">
-      <div class="cards-grid">
+      <div v-if="cardViewMode === 'grouped'" class="cards-grid">
         <!-- 持卡人信息 -->
         <section class="panel is-users" v-loading="groupsVisibleLoading">
           <div class="panel-head">
@@ -242,14 +248,20 @@
                         <span class="cig-type">{{ CARD_TYPE_MAP[c.cardType] || '—' }}</span>
                         <span v-if="!isCardNormal(c)" class="cig-status-disabled">{{ cardStatusText(c) }}</span>
                         <span class="cig-sep-dot"></span>
-                        <span class="cig-label">账单日</span>
-                        <span :class="['cig-date', { 'cig-empty': !c.billDay }]">{{ c.billDay ? fmtDayOfMonth(c.billDay) : '—' }}</span>
+                        <span class="card-meta-pair">
+                          <span class="cig-label">账单日</span>
+                          <span :class="['cig-date', { 'cig-empty': !c.billDay }]">{{ c.billDay ? fmtDayOfMonth(c.billDay) : '—' }}</span>
+                        </span>
                         <span class="cig-sep-dot"></span>
-                        <span class="cig-label">还款日</span>
-                        <span :class="['cig-date', { 'cig-empty': !c.repayDay }]">{{ c.repayDay ? fmtDayOfMonth(c.repayDay) : '—' }}</span>
+                        <span class="card-meta-pair">
+                          <span class="cig-label">还款日</span>
+                          <span :class="['cig-date', { 'cig-empty': !c.repayDay }]">{{ c.repayDay ? fmtDayOfMonth(c.repayDay) : '—' }}</span>
+                        </span>
                         <span class="cig-sep-dot"></span>
-                        <span class="cig-label">有效期</span>
-                        <span :class="['cig-date', { 'cig-empty': !c.expireDate, 'cig-expire-warning': isCardExpiringSoon(c.expireDate), 'cig-expire-expired': isCardExpired(c.expireDate) }]">{{ c.expireDate || '—' }}</span>
+                        <span class="card-meta-pair card-meta-pair-expire">
+                          <span class="cig-label">有效期</span>
+                          <span :class="['cig-date', { 'cig-empty': !c.expireDate, 'cig-expire-warning': isCardExpiringSoon(c.expireDate), 'cig-expire-expired': isCardExpired(c.expireDate) }]">{{ c.expireDate || '—' }}</span>
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -572,6 +584,131 @@
           </div>
         </section>
       </div>
+
+      <div v-else class="overview-layout">
+        <section class="panel overview-panel" v-loading="overviewVisibleLoading">
+          <div class="panel-head overview-head">
+            <div class="panel-title"><span class="panel-dot is-primary"></span>全部银行卡总览</div>
+            <div class="panel-actions overview-actions">
+              <div class="card-filters">
+                <div class="panel-search" :class="{ focused: overviewSearchFocused }">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="search-icon"
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  <input
+                    v-model="overviewKeyword"
+                    :placeholder="uiText.searchBankCardPlaceholder"
+                    @focus="overviewSearchFocused = true"
+                    @blur="overviewSearchFocused = false"
+                  />
+                  <button v-if="overviewKeyword" class="search-clear" @click="clearOverviewKeyword">&times;</button>
+                </div>
+                <el-select v-model="overviewQuery.cardType" class="mini-filter card-filter" :placeholder="uiText.cardType" clearable>
+                  <el-option v-for="item in CARD_TYPE_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+                </el-select>
+                <el-select v-model="overviewQuery.status" class="mini-filter card-filter" :placeholder="uiText.status" clearable>
+                  <el-option v-for="item in CARD_STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+                </el-select>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel-body overview-body">
+            <el-table :data="overviewList" stripe border class="overview-table" height="100%">
+              <el-table-column label="洽谈人" min-width="96" show-overflow-tooltip>
+                <template #default="{ row }">
+                  <span>{{ overviewTopUserLabel(row) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="持卡人" min-width="96" show-overflow-tooltip>
+                <template #default="{ row }">
+                  <span>{{ overviewUserLabel(row) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="bankName" label="银行名称" min-width="108" show-overflow-tooltip />
+              <el-table-column label="卡号后四位" min-width="84" align="center">
+                <template #default="{ row }">
+                  <span class="font-mono">{{ cardLast4Label(row) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="卡类型" min-width="72" align="center">
+                <template #default="{ row }">
+                  <span>{{ CARD_TYPE_MAP[Number(row.cardType ?? 0)] || '—' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="信用额度" min-width="96" align="right">
+                <template #default="{ row }">
+                  <span class="font-mono">{{ formatMoneySafe(cardDisplayAmount(row)) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="账单日" min-width="64" align="center">
+                <template #default="{ row }">
+                  <span>{{ row.billDay ? fmtDayOfMonth(row.billDay) : '—' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="还款日" min-width="64" align="center">
+                <template #default="{ row }">
+                  <span>{{ row.repayDay ? fmtDayOfMonth(row.repayDay) : '—' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="有效期" min-width="76" align="center">
+                <template #default="{ row }">
+                  <span :class="['overview-expire', { 'is-warning': isCardExpiringSoon(row.expireDate), 'is-expired': isCardExpired(row.expireDate) }]">
+                    {{ row.expireDate || '—' }}
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column label="状态" min-width="76" align="center">
+                <template #default="{ row }">
+                  <StatusTag :value="row.status" :label-map="CARD_STATUS_MAP" :type-map="CARD_STATUS_TAG_TYPE_MAP" size="small" effect="light" />
+                </template>
+              </el-table-column>
+              <el-table-column label="手续费率" min-width="84" align="right">
+                <template #default="{ row }">
+                  <span class="font-mono">{{ formatRate(row.effectiveFeeRate ?? 0) }}%</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip />
+              <el-table-column label="创建时间" min-width="108" align="center">
+                <template #default="{ row }">
+                  <span>{{ formatDateTime(row.createTime) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" min-width="132" align="center">
+                <template #default="{ row }">
+                  <div class="overview-actions-cell">
+                    <el-button type="primary" link size="small" @click="openCardBillsPage(row)">账单</el-button>
+                    <el-button type="primary" link size="small" @click="openEditCard(row)">编辑</el-button>
+                    <el-button type="danger" link size="small" @click="confirmDeleteCard(row)">删除</el-button>
+                  </div>
+                </template>
+              </el-table-column>
+            </el-table>
+
+            <div class="overview-pagination">
+              <el-pagination
+                v-model:current-page="overviewQuery.current"
+                v-model:page-size="overviewQuery.size"
+                :page-sizes="[10, 20, 50, 100]"
+                :total="overviewTotal"
+                layout="total, sizes, prev, pager, next, jumper"
+                background
+              />
+            </div>
+          </div>
+        </section>
+      </div>
     </div>
 
     <!-- 新增/编辑弹窗 -->
@@ -702,6 +839,7 @@ import PageBackButton from '@/components/PageBackButton.vue'
 import CrudDialog from '@/components/CrudDialog/index.vue'
 import StatusTag from '@/components/StatusTag/index.vue'
 import {
+  getCardPageApi,
   getCardsGroupedByUserApi,
   saveCardApi,
   updateCardApi,
@@ -787,7 +925,29 @@ interface ProfitOverview {
   unpaidFeeCount: number
 }
 
+interface CardOverviewRow {
+  id: number
+  userId: number
+  userName?: string
+  topUserId?: number
+  topUserName?: string
+  bankName?: string
+  cardNoLast4?: string
+  cardType?: number
+  cardTypeDesc?: string
+  creditLimit?: number | string | null
+  billDay?: number | null
+  repayDay?: number | null
+  expireDate?: string | null
+  status?: number | null
+  effectiveFeeRate?: number | string | null
+  remark?: string | null
+  createTime?: string | null
+  repayMethod?: string | null
+}
+
 type ProfitScope = 'month' | 'year'
+type CardViewMode = 'grouped' | 'overview'
 
 interface UserTreeNode {
   id: number
@@ -809,6 +969,12 @@ const BILL_SORT_MONTH_ASC = 'monthAsc'
 const RECENT_BILL_LIMIT = 20
 const yearOptions = Array.from({ length: 6 }, (_, index) => currentYear - 2 + index)
 const monthOptions = Array.from({ length: 12 }, (_, index) => index + 1)
+const CARD_STATUS_TAG_TYPE_MAP: Record<string, string> = {
+  '0': 'success',
+  '1': 'warning',
+  '2': 'info',
+  '3': 'danger'
+}
 const uiText = {
   cardManagement: '\u5361\u52a1\u7ba1\u7406',
   bankCardInfo: '\u94f6\u884c\u5361\u4fe1\u606f',
@@ -854,6 +1020,7 @@ function createDebouncedTask(fn: () => void, delay = 300) {
 }
 
 // ====== 顶部筛选 ======
+const cardViewMode = ref<CardViewMode>('grouped')
 const keyword = ref('')
 const searchFocused = ref(false)
 const query = reactive({
@@ -862,6 +1029,28 @@ const query = reactive({
   cardType: undefined as number | undefined,
   status: undefined as number | undefined
 })
+
+const overviewKeyword = ref('')
+const overviewSearchFocused = ref(false)
+const overviewQuery = reactive({
+  current: 1,
+  size: 20,
+  bankName: '',
+  cardNoLast4: '',
+  cardType: undefined as number | undefined,
+  status: undefined as number | undefined
+})
+const overviewLoading = ref(false)
+const overviewReady = ref(false)
+const overviewList = ref<CardOverviewRow[]>([])
+const overviewTotal = ref(0)
+let overviewLoadingPromise: Promise<void> | null = null
+let overviewRequestSeq = 0
+let syncingOverviewKeywordQuery = false
+const overviewVisibleLoading = computed(() => overviewLoading.value && !overviewReady.value)
+const triggerOverviewSearch = createDebouncedTask(() => {
+  fetchOverviewCards({ silent: true })
+}, 300)
 
 // ====== 列表数据 ======
 const loadingGroups = ref(false)
@@ -1232,6 +1421,20 @@ function cardLast4Label(card: any) {
   return last4 || '-'
 }
 
+function overviewTopUserLabel(card: CardOverviewRow | null | undefined) {
+  return String(card?.topUserName || '').trim() || '—'
+}
+
+function overviewUserLabel(card: CardOverviewRow | null | undefined) {
+  return String(card?.userName || '').trim() || '—'
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return '—'
+  const normalized = String(value).replace('T', ' ')
+  return normalized.length >= 16 ? normalized.slice(0, 16) : normalized
+}
+
 function cardExpireStatus(expireDate: string | null | undefined) {
   return getCardExpireStatus(expireDate)
 }
@@ -1329,6 +1532,40 @@ function clearKeyword() {
   fetchGroups()
 }
 
+function applyOverviewKeyword() {
+  const value = overviewKeyword.value.trim()
+  triggerOverviewSearch.cancel()
+  syncingOverviewKeywordQuery = true
+  overviewQuery.current = 1
+  if (!value) {
+    overviewQuery.bankName = ''
+    overviewQuery.cardNoLast4 = ''
+    syncingOverviewKeywordQuery = false
+    fetchOverviewCards()
+    return
+  }
+  if (/^\d{1,4}$/.test(value)) {
+    overviewQuery.cardNoLast4 = value
+    overviewQuery.bankName = ''
+  } else {
+    overviewQuery.bankName = value
+    overviewQuery.cardNoLast4 = ''
+  }
+  syncingOverviewKeywordQuery = false
+  triggerOverviewSearch()
+}
+
+function clearOverviewKeyword() {
+  triggerOverviewSearch.cancel()
+  syncingOverviewKeywordQuery = true
+  overviewKeyword.value = ''
+  overviewQuery.current = 1
+  overviewQuery.bankName = ''
+  overviewQuery.cardNoLast4 = ''
+  syncingOverviewKeywordQuery = false
+  fetchOverviewCards()
+}
+
 function setActiveUser(userId: number) {
   activeUserId.value = userId
   activeOwnerId.value = null
@@ -1409,6 +1646,41 @@ async function fetchGroups(options: { silent?: boolean } = {}) {
   return groupsLoadingPromise
 }
 
+async function fetchOverviewCards(options: { silent?: boolean } = {}) {
+  const params = {
+    current: overviewQuery.current,
+    size: overviewQuery.size,
+    bankName: overviewQuery.bankName,
+    cardNoLast4: overviewQuery.cardNoLast4,
+    cardType: overviewQuery.cardType,
+    status: overviewQuery.status
+  }
+  const requestSeq = ++overviewRequestSeq
+  const showLoading = !options.silent || !overviewReady.value
+  if (overviewLoadingPromise) {
+    return overviewLoadingPromise
+  }
+  if (showLoading) {
+    overviewLoading.value = true
+  }
+  overviewLoadingPromise = (async () => {
+    try {
+      const res: any = await getCardPageApi(params)
+      if (requestSeq !== overviewRequestSeq) return
+      const page = res.data || {}
+      overviewList.value = (page.records || []) as CardOverviewRow[]
+      overviewTotal.value = Number(page.total || 0)
+      overviewReady.value = true
+    } finally {
+      if (requestSeq === overviewRequestSeq) {
+        overviewLoading.value = false
+        overviewLoadingPromise = null
+      }
+    }
+  })()
+  return overviewLoadingPromise
+}
+
 async function refreshCardPageData(options: { silent?: boolean; keepCardId?: number | null; keepUserId?: number | null } = {}) {
   await fetchGroups({ silent: options.silent })
   if (options.keepUserId && groupList.value.some(group => Number(group.userId) === Number(options.keepUserId))) {
@@ -1430,6 +1702,13 @@ async function refreshCardPageData(options: { silent?: boolean; keepCardId?: num
   ])
 }
 
+async function refreshOverviewData(options: { silent?: boolean; keepPage?: boolean } = {}) {
+  if (!options.keepPage) {
+    overviewQuery.current = 1
+  }
+  await fetchOverviewCards({ silent: options.silent })
+}
+
 function scheduleActivationRefresh() {
   window.clearTimeout(activateRefreshTimer)
   activateRefreshTimer = window.setTimeout(() => {
@@ -1446,7 +1725,8 @@ function scheduleActivationRefresh() {
 async function refreshAll() {
   await Promise.all([
     refreshCardPageData(),
-    ensureUserTree(true)
+    ensureUserTree(true),
+    fetchOverviewCards()
   ])
 }
 
@@ -2250,6 +2530,7 @@ async function handleSubmit() {
       keepCardId: isEdit.value ? keepCardId : (createdCardId ?? null),
       keepUserId
     })
+    await fetchOverviewCards({ silent: true })
     if (!isEdit.value && data.cardType === CARD_TYPE_VALUE.CREDIT && createdCardId) {
       openBillYearView({ id: createdCardId })
     }
@@ -2291,6 +2572,7 @@ async function confirmDeleteCard(card: any) {
     await deleteCardApi(Number(card.id))
     ElMessage.success('删除成功')
     await refreshCardPageData({ keepUserId: Number(activeUserId.value || 0) || null })
+    await fetchOverviewCards({ silent: true })
   } catch (error: any) {
     if (String(error?.message || '').includes('cancel')) return
     ElMessage.error(error?.message || error?.response?.data?.message || '删除失败，该卡可能存在关联历史数据')
@@ -2327,6 +2609,42 @@ watch(
     triggerGroupSearch()
   },
   { flush: 'sync' }
+)
+
+watch(
+  () => overviewKeyword.value,
+  () => {
+    if (syncingOverviewKeywordQuery) return
+    applyOverviewKeyword()
+  },
+  { flush: 'sync' }
+)
+
+watch(
+  () => [overviewQuery.bankName, overviewQuery.cardNoLast4, overviewQuery.cardType, overviewQuery.status],
+  () => {
+    if (syncingOverviewKeywordQuery) return
+    overviewQuery.current = 1
+    triggerOverviewSearch()
+  },
+  { flush: 'sync' }
+)
+
+watch(
+  () => [overviewQuery.current, overviewQuery.size],
+  (current, previous) => {
+    if (!previous) return
+    fetchOverviewCards({ silent: true })
+  }
+)
+
+watch(
+  () => cardViewMode.value,
+  (mode) => {
+    if (mode === 'overview' && !overviewReady.value) {
+      fetchOverviewCards()
+    }
+  }
 )
 
 // ====== 联动刷新 ======
@@ -2386,10 +2704,12 @@ watch(
 onMounted(() => {
   refreshCardPageData({ silent: true })
   ensureUserTree(false, true)
+  fetchOverviewCards({ silent: true })
 })
 
 onUnmounted(() => {
   triggerGroupSearch.cancel()
+  triggerOverviewSearch.cancel()
   window.clearTimeout(activateRefreshTimer)
 })
 
@@ -2547,7 +2867,9 @@ $shadow-sm:     0 10px 22px rgba(15,23,42,.05);
 
 .header-title-group {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
 }
 
@@ -2563,11 +2885,12 @@ $shadow-sm:     0 10px 22px rgba(15,23,42,.05);
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 2px;
+  margin-top: 0;
   font-size: 13px;
   color: $sub;
   line-height: 1.4;
   min-width: 0;
+  flex: 0 0 auto;
   strong { font-weight: 800; color: $ink; }
 }
 
@@ -2580,13 +2903,41 @@ $shadow-sm:     0 10px 22px rgba(15,23,42,.05);
   opacity: 0.6;
 }
 
+.view-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(226, 232, 240, 0.82);
+  border-radius: 999px;
+
+  button {
+    border: none;
+    background: transparent;
+    color: $ink2;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 8px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all .18s ease;
+
+    &.active {
+      background: $surface;
+      color: $primary;
+      box-shadow: 0 6px 16px rgba(15, 23, 42, .10);
+    }
+  }
+}
+
 .header-actions {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
   min-width: 0;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
 }
 
@@ -2671,6 +3022,88 @@ $shadow-sm:     0 10px 22px rgba(15,23,42,.05);
   padding: 10px 12px 12px;
   min-height: 0;
   min-width: 0;
+}
+
+.overview-layout {
+  height: 100%;
+  padding: 10px 12px 12px;
+  min-height: 0;
+  min-width: 0;
+}
+
+.overview-panel {
+  height: 100%;
+}
+
+.overview-head {
+  gap: 12px;
+}
+
+.overview-actions {
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.overview-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  height: 100%;
+}
+
+.overview-table {
+  flex: 1;
+  min-height: 0;
+
+  :deep(.el-table__header th.el-table__cell) {
+    padding: 10px 0;
+    font-size: 12px;
+  }
+
+  :deep(.el-table__body td.el-table__cell) {
+    padding: 8px 0;
+    font-size: 12px;
+  }
+
+  :deep(.cell) {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  :deep(.el-button--small) {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  :deep(.el-table__body-wrapper) {
+    min-height: 0;
+  }
+}
+
+.overview-pagination {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.overview-actions-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.overview-expire {
+  &.is-warning {
+    color: $warning;
+    font-weight: 700;
+  }
+
+  &.is-expired {
+    color: $danger;
+    font-weight: 700;
+  }
 }
 
 /* 持卡人信息面板：更紧凑，避免第4行裁切 */
@@ -3418,6 +3851,18 @@ $shadow-sm:     0 10px 22px rgba(15,23,42,.05);
   line-height: 1.45;
 }
 
+.card-meta-pair {
+  display: inline-grid;
+  grid-template-columns: 34px auto;
+  align-items: baseline;
+  column-gap: 2px;
+  flex-shrink: 0;
+}
+
+.card-meta-pair-expire {
+  grid-template-columns: 34px minmax(0, auto);
+}
+
 .cig-sep {
   display: inline-block;
   width: 1px;
@@ -3445,7 +3890,7 @@ $shadow-sm:     0 10px 22px rgba(15,23,42,.05);
   font-size: 11px;
   white-space: nowrap;
   flex-shrink: 0;
-  margin-right: 2px;
+  margin-right: 0;
 }
 
 .cig-name {

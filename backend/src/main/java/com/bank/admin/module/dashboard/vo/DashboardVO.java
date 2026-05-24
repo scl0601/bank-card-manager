@@ -76,6 +76,8 @@ public class DashboardVO {
     public static class BankDistVO {
         private String bankName;
         private Long cardCount;
+        private Long creditCardCount;
+        private Long debitCardCount;
     }
 
     /**

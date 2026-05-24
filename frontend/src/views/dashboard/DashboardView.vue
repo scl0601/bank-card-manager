@@ -358,7 +358,12 @@ const EventDrawer = defineAsyncComponent(() => import('../calendar/EventDrawer.v
 const router = useRouter()
 
 interface DailyTrendItem { date: string; income: number; expense: number }
-interface BankDistItem { bankName: string; cardCount: number }
+interface BankDistItem {
+  bankName: string
+  cardCount: number
+  creditCardCount?: number
+  debitCardCount?: number
+}
 type CardExpireFilter = 'all' | 'soon' | 'expired'
 interface CardExpireReminderItem {
   id: number
@@ -631,13 +636,8 @@ const bankRankItems = computed(() => {
 })
 
 const bankChartItems = computed(() => {
-  const rows = [...(stats.value.bankDistribution || [])]
+  return [...(stats.value.bankDistribution || [])]
     .sort((a, b) => numberValue(b.cardCount) - numberValue(a.cardCount))
-  const topRows = rows.slice(0, 5)
-  const otherCount = rows.slice(5).reduce((sum, item) => sum + numberValue(item.cardCount), 0)
-  return otherCount > 0
-    ? [...topRows, { bankName: '其他', cardCount: otherCount }]
-    : topRows
 })
 
 const bankDistributionTotal = computed(() =>
@@ -650,7 +650,17 @@ const bankDistributionChartOption = computed(() => ({
   color: ['#2563eb', '#14b8a6', '#f59e0b', '#ef4444', '#8b5cf6'],
   tooltip: {
     trigger: 'item',
-    formatter: '{b}<br/>{c} 张 · {d}%'
+    formatter: (params: any) => {
+      const data = params?.data || {}
+      const creditCardCount = numberValue(data.creditCardCount)
+      const debitCardCount = numberValue(data.debitCardCount)
+      return [
+        params?.name || '未知银行',
+        `${numberValue(params?.value)} 张 · ${numberValue(params?.percent)}%`,
+        `信用卡：${creditCardCount} 张`,
+        `借记卡：${debitCardCount} 张`
+      ].join('<br/>')
+    }
   },
   legend: { show: false },
   series: [
@@ -673,7 +683,9 @@ const bankDistributionChartOption = computed(() => ({
       },
       data: bankRankItems.value.map(item => ({
         name: item.bankName || '未知银行',
-        value: numberValue(item.cardCount)
+        value: numberValue(item.cardCount),
+        creditCardCount: numberValue(item.creditCardCount),
+        debitCardCount: numberValue(item.debitCardCount)
       })),
       z: 1
     },
@@ -2652,12 +2664,13 @@ $purple: #6d28d9;
 
 .bank-chart-legend {
   display: grid;
-  align-content: center;
+  align-content: start;
   gap: 7px;
   min-width: 0;
   min-height: 0;
   max-height: 176px;
-  overflow: hidden;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .bank-legend-row {

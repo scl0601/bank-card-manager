@@ -474,6 +474,16 @@ public class BankCardServiceImpl
             CardUser user = userMap != null ? userMap.get(card.getUserId()) : cardUserMapper.selectById(card.getUserId());
             if (user != null) {
                 vo.setUserName(user.getName());
+                if (user.getParentId() == null) {
+                    vo.setTopUserId(user.getId());
+                    vo.setTopUserName(user.getName());
+                } else {
+                    CardUser parent = userMap == null ? cardUserMapper.selectById(user.getParentId()) : userMap.get(user.getParentId());
+                    if (parent != null) {
+                        vo.setTopUserId(parent.getId());
+                        vo.setTopUserName(parent.getName());
+                    }
+                }
                 vo.setEffectiveFeeRate(resolveEffectiveFeeRate(user, userMap));
             }
         }
