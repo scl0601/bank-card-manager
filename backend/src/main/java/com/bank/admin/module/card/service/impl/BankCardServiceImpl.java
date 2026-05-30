@@ -505,7 +505,7 @@ public class BankCardServiceImpl
         if (!StringUtils.hasText(value)) {
             return DEFAULT_APP;
         }
-        String app = value.trim();
+        String app = value.trim().toLowerCase();
         if ("invoice".equals(app)) {
             return "other";
         }

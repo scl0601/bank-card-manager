@@ -29,6 +29,8 @@
             <el-button v-for="action in quickActions" :key="action.key" :icon="action.icon" @click="action.handler">
               {{ action.label }}
             </el-button>
+            <el-button :loading="wechatImportLoading" @click="openWechatImportFile">导入微信</el-button>
+            <input ref="wechatImportFileRef" class="hidden-file-input" type="file" accept=".xlsx" @change="handleWechatImportFileChange" />
             <ExportButton :loading="exporting" @click="exportCurrent" />
           </div>
 
@@ -372,6 +374,59 @@
       </template>
     </el-drawer>
 
+    <el-dialog v-model="wechatImportDialogVisible" title="导入微信账单" width="960px" class="wechat-import-dialog" destroy-on-close>
+      <div v-if="wechatImportResult" class="import-summary">
+        <span>总计 {{ wechatImportResult.totalRows || 0 }} 笔</span>
+        <span>可导入 {{ wechatImportResult.importableRows || 0 }} 笔</span>
+        <span>待补全 {{ wechatImportResult.pendingRows || 0 }} 笔</span>
+        <span>重复 {{ wechatImportResult.duplicateRows || 0 }} 笔</span>
+        <span>异常 {{ wechatImportResult.errorRows || 0 }} 笔</span>
+      </div>
+      <el-table
+        ref="wechatImportTableRef"
+        :data="wechatImportRows"
+        border
+        size="small"
+        max-height="520"
+        empty-text="暂无预览数据"
+        row-key="sourceHash"
+        @selection-change="handleWechatImportSelectionChange"
+      >
+        <el-table-column type="selection" width="44" :selectable="isWechatImportSelectable" />
+        <el-table-column prop="tradeTime" label="时间" width="154" />
+        <el-table-column label="类型" width="76" align="center">
+          <template #default="{ row }">
+            <StatusTag :value="row.bookType" :label-map="BOOK_TYPE_MAP" :type-map="BOOK_TYPE_TAG_TYPE" size="small" />
+          </template>
+        </el-table-column>
+        <el-table-column label="金额" width="108" align="right">
+          <template #default="{ row }">
+            <span :class="amountClass(row.bookType)">{{ amountPrefix(row.bookType) }}{{ money(row.amount) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="counterparty" label="商家/对象" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="product" label="商品" min-width="180" show-overflow-tooltip />
+        <el-table-column label="分类" width="110" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.categoryName || '待补全' }}</template>
+        </el-table-column>
+        <el-table-column label="账户" width="130" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.accountName || '待补全' }}</template>
+        </el-table-column>
+        <el-table-column label="状态" width="92" align="center">
+          <template #default="{ row }">
+            <el-tag :type="wechatImportStatusType(row.importStatus)" size="small">{{ row.importStatusDesc || '-' }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="message" label="提示" min-width="150" show-overflow-tooltip />
+      </el-table>
+      <template #footer>
+        <el-button @click="wechatImportDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="wechatImportSubmitting" :disabled="!wechatSelectedImportRows.length" @click="confirmWechatImport">
+          确认导入
+        </el-button>
+      </template>
+    </el-dialog>
+
     <el-drawer v-model="accountDrawerVisible" title="账户管理" size="600px" destroy-on-close>
       <div class="drawer-actions"><el-button type="primary" :icon="Plus" @click="openAccountAdd">新增账户</el-button></div>
       <el-table :data="accounts" border size="small">
@@ -448,6 +503,8 @@ import {
   getBookPageApi,
   getBookTrendApi,
   getCategoryListApi,
+  importWechatBookApi,
+  previewWechatBookImportApi,
   saveBookAccountApi,
   saveBookApi,
   saveBookBudgetApi,
@@ -475,7 +532,7 @@ const insightPreviewCount = 5
 
 const { loading, list, total, query, handleSearch, resetQuery, handleCurrentChange, handleSizeChange } = usePageTable({
   fetchApi: getBookPageApi,
-  defaultQuery: { bookType: undefined as any, categoryIds: [] as number[], accountId: undefined as any, keyword: '', yearMonth: currentMonth.value, pageSize: 12 },
+  defaultQuery: { bookType: undefined as any, categoryIds: [] as number[], accountId: undefined as any, keyword: '', yearMonth: currentMonth.value, pageSize: 20 },
   autoSearch: true,
   beforeFetch: (params) => {
     ;(params as any).yearMonth = currentMonth.value
@@ -655,6 +712,16 @@ const budgetDrawerVisible = ref(false)
 const budgetDialogVisible = ref(false)
 const budgetForm = reactive<any>({ id: undefined, budgetMonth: currentMonth.value, categoryId: undefined, amount: 0, remark: '' })
 const categoryDrawerVisible = ref(false)
+const wechatImportFileRef = ref<HTMLInputElement | null>(null)
+const wechatImportFile = ref<File | null>(null)
+const wechatImportLoading = ref(false)
+const wechatImportSubmitting = ref(false)
+const wechatImportDialogVisible = ref(false)
+const wechatImportResult = ref<any>(null)
+const wechatImportTableRef = ref<any>(null)
+const wechatSelectedImportRows = ref<any[]>([])
+const wechatImportRows = computed(() => wechatImportResult.value?.rows || [])
+const wechatEditableImportRows = computed(() => wechatImportRows.value.filter((row: any) => row.importStatus !== 'DUPLICATE' && row.importStatus !== 'ERROR'))
 type InsightDialogType = 'trend' | 'budget' | 'account' | 'rank'
 const insightDialogVisible = ref(false)
 const insightDialogType = ref<InsightDialogType>('trend')
@@ -760,6 +827,84 @@ async function handleDelete(id: number) {
   await deleteBookApi(id)
   ElMessage.success('删除成功')
   refreshAll()
+}
+
+function openWechatImportFile() {
+  if (wechatImportFileRef.value) {
+    wechatImportFileRef.value.value = ''
+    wechatImportFileRef.value.click()
+  }
+}
+
+async function handleWechatImportFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  wechatImportFile.value = file
+  const formData = new FormData()
+  formData.append('file', file)
+  wechatImportLoading.value = true
+  try {
+    const res: any = await previewWechatBookImportApi(formData)
+    wechatImportResult.value = res.data
+    wechatSelectedImportRows.value = []
+    wechatImportDialogVisible.value = true
+    selectDefaultWechatImportRows()
+  } finally {
+    wechatImportLoading.value = false
+  }
+}
+
+async function confirmWechatImport() {
+  const rows = wechatSelectedImportRows.value
+  if (!rows.length) {
+    return ElMessage.warning('请选择需要导入的明细')
+  }
+  wechatImportSubmitting.value = true
+  try {
+    const res: any = await importWechatBookApi({ rows: rows.map(normalizeWechatImportRowPayload) })
+    wechatImportResult.value = res.data
+    ElMessage.success(`导入成功：${res.data?.importedRows || 0} 笔`)
+    wechatImportDialogVisible.value = false
+    refreshAll()
+  } finally {
+    wechatImportSubmitting.value = false
+  }
+}
+
+function normalizeWechatImportRowPayload(row: any) {
+  return {
+    ...row,
+    categoryId: row.bookType === BOOK_TYPE_VALUE.TRANSFER ? undefined : row.categoryId,
+    targetAccountId: row.bookType === BOOK_TYPE_VALUE.TRANSFER ? row.targetAccountId : undefined,
+    categoryName: undefined,
+    accountName: undefined,
+    targetAccountName: undefined
+  }
+}
+
+function selectDefaultWechatImportRows() {
+  setTimeout(() => {
+    wechatEditableImportRows.value.forEach((row: any) => {
+      wechatImportTableRef.value?.toggleRowSelection?.(row, true)
+    })
+  })
+}
+
+function handleWechatImportSelectionChange(selection: any[]) {
+  wechatSelectedImportRows.value = selection || []
+}
+
+function isWechatImportSelectable(row: any) {
+  return row?.importStatus !== 'DUPLICATE' && row?.importStatus !== 'ERROR'
+}
+
+function wechatImportStatusType(status: string) {
+  if (status === 'READY') return 'success'
+  if (status === 'PENDING') return 'warning'
+  if (status === 'DUPLICATE') return 'info'
+  if (status === 'ERROR') return 'danger'
+  return 'info'
 }
 
 function selectCalendarDate(date: string) {
@@ -901,7 +1046,7 @@ onMounted(refreshAll)
 .book-workbench {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   color: #1f2a37;
   --book-ink: #101828;
   --book-muted: #667085;
@@ -914,13 +1059,13 @@ onMounted(refreshAll)
 
 .book-overview-screen {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .book-hero {
   display: grid;
   grid-template-columns: minmax(420px, 1.35fr) minmax(320px, 0.65fr);
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
   min-height: 0;
 }
@@ -946,7 +1091,7 @@ onMounted(refreshAll)
 .hero-main {
   position: relative;
   overflow: hidden;
-  padding: 14px 16px;
+  padding: 12px 14px;
   color: #fff;
   background:
     linear-gradient(118deg, rgba(8, 26, 51, 0.98) 0%, rgba(10, 57, 92, 0.96) 58%, rgba(13, 124, 112, 0.9) 100%),
@@ -1018,7 +1163,7 @@ onMounted(refreshAll)
 .hero-balance {
   position: relative;
   z-index: 1;
-  margin-top: 16px;
+  margin-top: 10px;
 }
 
 .hero-balance span,
@@ -1030,9 +1175,9 @@ onMounted(refreshAll)
 
 .hero-balance strong {
   display: block;
-  margin-top: 6px;
+  margin-top: 4px;
   font-family: var(--font-mono);
-  font-size: clamp(30px, 3.8vh, 40px);
+  font-size: clamp(28px, 3.2vh, 36px);
   line-height: 1;
   letter-spacing: 0;
   overflow-wrap: anywhere;
@@ -1042,14 +1187,14 @@ onMounted(refreshAll)
 .hero-summary {
   position: relative;
   z-index: 1;
-  margin-top: 16px;
+  margin-top: 10px;
   align-items: stretch;
 }
 
 .summary-chip {
   flex: 1;
   min-width: 0;
-  padding: 8px 10px;
+  padding: 7px 9px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.11);
@@ -1071,7 +1216,7 @@ onMounted(refreshAll)
 
 .summary-chip strong {
   display: block;
-  margin-top: 5px;
+  margin-top: 4px;
   font-family: var(--font-mono);
   font-size: 16px;
   line-height: 1.1;
@@ -1083,8 +1228,8 @@ onMounted(refreshAll)
 .hero-side {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px;
+  gap: 6px;
+  padding: 8px;
   overflow: hidden;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 253, 0.98));
@@ -1105,12 +1250,12 @@ onMounted(refreshAll)
 .hero-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
+  gap: 6px;
 }
 
 .hero-actions :deep(.el-button) {
   width: 100%;
-  height: 32px;
+  height: 30px;
   margin-left: 0;
   border-radius: 8px;
   border-color: rgba(13, 79, 130, 0.14);
@@ -1131,7 +1276,7 @@ onMounted(refreshAll)
 }
 
 .budget-brief {
-  padding: 10px;
+  padding: 8px;
   border: 1px solid rgba(13, 79, 130, 0.14);
   border-radius: 8px;
   background: #f8fafc;
@@ -1144,7 +1289,7 @@ onMounted(refreshAll)
 
 .budget-brief-head {
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   font-size: 14px;
   color: #526074;
 }
@@ -1156,7 +1301,7 @@ onMounted(refreshAll)
 }
 
 .budget-brief-foot {
-  margin-top: 8px;
+  margin-top: 6px;
   color: #667085;
   font-size: 13px;
 }
@@ -1164,13 +1309,13 @@ onMounted(refreshAll)
 .insight-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
   align-items: stretch;
   min-height: 0;
 }
 
 .panel {
-  padding: 10px;
+  padding: 8px;
   overflow: hidden;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 251, 253, 0.99));
@@ -1186,8 +1331,8 @@ onMounted(refreshAll)
 
 .panel-head {
   align-items: flex-start;
-  min-height: 42px;
-  margin-bottom: 8px;
+  min-height: 36px;
+  margin-bottom: 6px;
 }
 
 .panel-head > div:first-child {
@@ -1232,7 +1377,7 @@ onMounted(refreshAll)
 }
 
 .trend-chart {
-  height: 214px;
+  height: 168px;
   width: 100%;
 }
 
@@ -1248,15 +1393,15 @@ onMounted(refreshAll)
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
   min-height: 0;
 }
 
 .budget-item,
 .account-row,
 .rank-row {
-  min-height: 48px;
-  padding: 7px 9px;
+  min-height: 40px;
+  padding: 6px 8px;
   border: 1px solid rgba(13, 79, 130, 0.12);
   border-radius: 8px;
   background: #fff;
@@ -1380,6 +1525,7 @@ onMounted(refreshAll)
 .ledger-panel {
   padding: 0;
   overflow: hidden;
+  min-height: 620px;
   background:
     linear-gradient(180deg, #ffffff, #f8fbff),
     radial-gradient(circle at 0% 0%, rgba(22, 119, 255, 0.1), transparent 32%);
@@ -1387,7 +1533,7 @@ onMounted(refreshAll)
 
 .ledger-head {
   align-items: center;
-  padding: 14px 18px 10px;
+  padding: 12px 16px 8px;
   margin-bottom: 0;
 }
 
@@ -1401,7 +1547,7 @@ onMounted(refreshAll)
 
 .ledger-toolbar {
   align-items: center;
-  padding: 0 18px 10px;
+  padding: 0 16px 8px;
   border-bottom: 1px solid rgba(13, 79, 130, 0.12);
 }
 
@@ -1422,9 +1568,10 @@ onMounted(refreshAll)
 }
 
 .ledger-panel :deep(.page-table) {
-  padding: 10px 16px 14px;
+  padding: 8px 12px 12px;
   border-radius: 0;
   box-shadow: none;
+  min-height: 540px;
 }
 
 .ledger-panel :deep(.el-table .cell) {
@@ -1432,7 +1579,7 @@ onMounted(refreshAll)
 }
 
 .ledger-panel :deep(.el-table--small .el-table__cell) {
-  padding: 7px 0;
+  padding: 8px 0;
 }
 
 .date-cell,
@@ -1550,6 +1697,35 @@ onMounted(refreshAll)
 
 .drawer-alert {
   margin-bottom: 8px;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.import-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.import-summary span {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid rgba(13, 79, 130, 0.14);
+  border-radius: 8px;
+  color: #526074;
+  background: #f8fafc;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.muted-text {
+  color: #98a2b3;
+  font-size: 12px;
 }
 
 .compact-form :deep(.el-form-item) {

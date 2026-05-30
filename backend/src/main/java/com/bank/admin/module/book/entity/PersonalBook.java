@@ -48,4 +48,16 @@ public class PersonalBook extends BaseEntity {
 
     /** 商家/对象 */
     private String merchant;
+
+    /** Source channel, for imported records. */
+    private String sourceType;
+
+    /** Source trade/order number. */
+    private String sourceTradeNo;
+
+    /** Stable import dedupe hash. */
+    private String sourceHash;
+
+    /** Import batch number. */
+    private String importBatchNo;
 }

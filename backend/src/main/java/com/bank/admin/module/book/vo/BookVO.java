@@ -73,5 +73,13 @@ public class BookVO {
     private String merchant;
 
     @Schema(description = "创建时间")
+    private String sourceType;
+
+    private String sourceTradeNo;
+
+    private String sourceHash;
+
+    private String importBatchNo;
+
     private LocalDateTime createTime;
 }

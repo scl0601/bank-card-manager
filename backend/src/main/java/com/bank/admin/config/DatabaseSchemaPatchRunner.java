@@ -953,9 +953,14 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
         ensureColumnExists("personal_book", "target_account_id", "ALTER TABLE `personal_book` ADD COLUMN `target_account_id` BIGINT DEFAULT NULL COMMENT 'target account id for transfer' AFTER `account_id`");
         ensureColumnExists("personal_book", "book_time", "ALTER TABLE `personal_book` ADD COLUMN `book_time` TIME DEFAULT NULL COMMENT 'book time' AFTER `book_date`");
         ensureColumnExists("personal_book", "merchant", "ALTER TABLE `personal_book` ADD COLUMN `merchant` VARCHAR(100) DEFAULT NULL COMMENT 'merchant or counterparty' AFTER `description`");
+        ensureColumnExists("personal_book", "source_type", "ALTER TABLE `personal_book` ADD COLUMN `source_type` VARCHAR(32) DEFAULT NULL COMMENT 'import source type' AFTER `merchant`");
+        ensureColumnExists("personal_book", "source_trade_no", "ALTER TABLE `personal_book` ADD COLUMN `source_trade_no` VARCHAR(80) DEFAULT NULL COMMENT 'source trade number' AFTER `source_type`");
+        ensureColumnExists("personal_book", "source_hash", "ALTER TABLE `personal_book` ADD COLUMN `source_hash` VARCHAR(64) DEFAULT NULL COMMENT 'source dedupe hash' AFTER `source_trade_no`");
+        ensureColumnExists("personal_book", "import_batch_no", "ALTER TABLE `personal_book` ADD COLUMN `import_batch_no` VARCHAR(64) DEFAULT NULL COMMENT 'import batch number' AFTER `source_hash`");
         ensureIndexExists("personal_book", "idx_account_id", "ALTER TABLE `personal_book` ADD INDEX `idx_account_id` (`account_id`)");
         ensureIndexExists("personal_book", "idx_target_account_id", "ALTER TABLE `personal_book` ADD INDEX `idx_target_account_id` (`target_account_id`)");
         ensureIndexExists("personal_book", "idx_book_date_type", "ALTER TABLE `personal_book` ADD INDEX `idx_book_date_type` (`book_date`, `book_type`)");
+        ensureIndexExists("personal_book", "uk_source_hash", "ALTER TABLE `personal_book` ADD UNIQUE KEY `uk_source_hash` (`source_hash`)");
     }
 
     private void ensureOpenidColumnIfTableExists(String tableName) {

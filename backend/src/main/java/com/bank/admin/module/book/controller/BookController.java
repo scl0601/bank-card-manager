@@ -9,6 +9,7 @@ import com.bank.admin.module.book.dto.BookBudgetSaveDTO;
 import com.bank.admin.module.book.dto.BookQueryDTO;
 import com.bank.admin.module.book.dto.BookSaveDTO;
 import com.bank.admin.module.book.dto.CategorySaveDTO;
+import com.bank.admin.module.book.dto.WechatBillImportConfirmDTO;
 import com.bank.admin.module.book.service.BookService;
 import com.bank.admin.module.book.vo.*;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,6 +19,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -90,6 +92,21 @@ public class BookController {
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + fileName + ".xlsx");
         bookService.exportExcel(query, response.getOutputStream());
+    }
+
+    @Operation(summary = "预览导入微信账单")
+    @PostMapping("/wechat/import/preview")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public Result<WechatBillImportResultVO> previewWechatImport(@RequestParam("file") MultipartFile file) {
+        return Result.success(bookService.previewWechatImport(file));
+    }
+
+    @Operation(summary = "确认导入微信账单")
+    @Log(module = "个人记账", type = ActionTypeEnum.IMPORT, description = "导入微信账单")
+    @PostMapping("/wechat/import")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public Result<WechatBillImportResultVO> importWechatBill(@Valid @RequestBody WechatBillImportConfirmDTO dto) {
+        return Result.success(bookService.importWechatBill(dto));
     }
 
     @Operation(summary = "获取月度收支统计")

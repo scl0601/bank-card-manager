@@ -6,11 +6,13 @@ import com.bank.admin.module.book.dto.BookBudgetSaveDTO;
 import com.bank.admin.module.book.dto.BookQueryDTO;
 import com.bank.admin.module.book.dto.BookSaveDTO;
 import com.bank.admin.module.book.dto.CategorySaveDTO;
+import com.bank.admin.module.book.dto.WechatBillImportConfirmDTO;
 import com.bank.admin.module.book.vo.*;
 
 import java.io.OutputStream;
 import java.util.List;
 import java.util.Map;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 记账 Service 接口
@@ -28,6 +30,10 @@ public interface BookService {
     void batchDelete(List<Long> ids);
 
     void exportExcel(BookQueryDTO query, OutputStream out);
+
+    WechatBillImportResultVO previewWechatImport(MultipartFile file);
+
+    WechatBillImportResultVO importWechatBill(WechatBillImportConfirmDTO dto);
 
     Map<String, Object> getSummary(String yearMonth);
 

@@ -249,6 +249,10 @@ CREATE TABLE `personal_book` (
   `category_id`       BIGINT          DEFAULT NULL            COMMENT '分类ID',
   `description`       VARCHAR(255)    DEFAULT NULL            COMMENT '描述/备注',
   `merchant`          VARCHAR(100)    DEFAULT NULL            COMMENT '商家/对象',
+  `source_type`       VARCHAR(32)     DEFAULT NULL            COMMENT '导入来源',
+  `source_trade_no`   VARCHAR(80)     DEFAULT NULL            COMMENT '来源交易单号',
+  `source_hash`       VARCHAR(64)     DEFAULT NULL            COMMENT '来源去重哈希',
+  `import_batch_no`   VARCHAR(64)     DEFAULT NULL            COMMENT '导入批次号',
   `card_id`           BIGINT          DEFAULT NULL            COMMENT '关联银行卡ID（可选）',
   `account_id`        BIGINT          DEFAULT NULL            COMMENT '支付/收款账户ID',
   `target_account_id` BIGINT          DEFAULT NULL            COMMENT '转入账户ID',
@@ -264,7 +268,8 @@ CREATE TABLE `personal_book` (
   KEY `idx_category_id` (`category_id`),
   KEY `idx_card_id` (`card_id`),
   KEY `idx_account_id` (`account_id`),
-  KEY `idx_target_account_id` (`target_account_id`)
+  KEY `idx_target_account_id` (`target_account_id`),
+  UNIQUE KEY `uk_source_hash` (`source_hash`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='个人记账表';
 
 CREATE TABLE `book_account` (

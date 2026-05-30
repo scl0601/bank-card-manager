@@ -20,20 +20,37 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.RequiredArgsConstructor;
+import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -44,6 +61,12 @@ import java.util.stream.Collectors;
 public class BookServiceImpl
         extends ServiceImpl<BookMapper, PersonalBook>
         implements BookService {
+
+    private static final String SOURCE_TYPE_WECHAT = "WECHAT";
+    private static final DateTimeFormatter WECHAT_TIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final Set<String> REQUIRED_WECHAT_HEADERS = Set.of(
+            "交易时间", "交易类型", "交易对方", "商品", "收/支", "金额(元)", "支付方式", "当前状态", "交易单号", "商户单号", "备注"
+    );
 
     private final com.bank.admin.module.book.mapper.BookCategoryMapper bookCategoryMapper;
     private final BookAccountMapper bookAccountMapper;
@@ -152,6 +175,48 @@ public class BookServiceImpl
                 .registerWriteHandler(new LongestMatchColumnWidthStyleStrategy())
                 .sheet("个人记账")
                 .doWrite(dataList);
+    }
+
+    @Override
+    public WechatBillImportResultVO previewWechatImport(MultipartFile file) {
+        return parseWechatBill(file, false);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public WechatBillImportResultVO importWechatBill(WechatBillImportConfirmDTO dto) {
+        WechatBillImportResultVO result = prepareEditedWechatImport(dto);
+        String batchNo = "WX-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")) + "-" +
+                UUID.randomUUID().toString().substring(0, 8);
+        result.setBatchNo(batchNo);
+
+        List<PersonalBook> rows = new ArrayList<>();
+        for (WechatBillImportRowVO row : result.getRows()) {
+            if (!"READY".equals(row.getImportStatus()) && !"PENDING".equals(row.getImportStatus())) {
+                continue;
+            }
+            PersonalBook entity = new PersonalBook();
+            entity.setBookDate(row.getBookDate());
+            entity.setBookTime(row.getBookTime());
+            entity.setBookType(row.getBookType());
+            entity.setAmount(row.getAmount());
+            entity.setCategoryId(row.getCategoryId());
+            entity.setAccountId(row.getAccountId());
+            entity.setTargetAccountId(row.getTargetAccountId());
+            entity.setMerchant(limit(row.getCounterparty(), 100));
+            entity.setDescription(limit(buildWechatDescription(row), 255));
+            entity.setSourceType(SOURCE_TYPE_WECHAT);
+            entity.setSourceTradeNo(limit(row.getTradeNo(), 80));
+            entity.setSourceHash(row.getSourceHash());
+            entity.setImportBatchNo(batchNo);
+            rows.add(entity);
+        }
+        if (!rows.isEmpty()) {
+            saveBatch(rows);
+            rows.forEach(row -> applyAccountEffect(row, false));
+        }
+        result.setImportedRows(rows.size());
+        return result;
     }
 
     @Override
@@ -605,6 +670,401 @@ public class BookServiceImpl
                 ));
     }
 
+    private WechatBillImportResultVO parseWechatBill(MultipartFile file, boolean forImport) {
+        validateWechatFile(file);
+        ensureDefaultCategories();
+        try (InputStream in = file.getInputStream(); Workbook workbook = WorkbookFactory.create(in)) {
+            Sheet sheet = workbook.getSheetAt(0);
+            DataFormatter formatter = new DataFormatter();
+            int headerRowIndex = findWechatHeaderRow(sheet, formatter);
+            Row headerRow = sheet.getRow(headerRowIndex);
+            Map<String, Integer> headerMap = buildHeaderMap(headerRow, formatter);
+
+            List<WechatBillImportRowVO> rows = new ArrayList<>();
+            for (int i = headerRowIndex + 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null || rowIsBlank(row, formatter)) {
+                    continue;
+                }
+                rows.add(parseWechatRow(row, i + 1, headerMap, formatter));
+            }
+            if (rows.isEmpty()) {
+                throw new BusinessException(ResultCode.PARAM_ERROR, "微信账单没有可导入的交易明细");
+            }
+            markDuplicatesAndSummarize(rows, forImport);
+            WechatBillImportResultVO result = new WechatBillImportResultVO();
+            result.setRows(rows);
+            result.setTotalRows(rows.size());
+            result.setImportableRows((int) rows.stream().filter(row -> "READY".equals(row.getImportStatus()) || "PENDING".equals(row.getImportStatus())).count());
+            result.setDuplicateRows((int) rows.stream().filter(row -> "DUPLICATE".equals(row.getImportStatus())).count());
+            result.setPendingRows((int) rows.stream().filter(row -> "PENDING".equals(row.getImportStatus())).count());
+            result.setErrorRows((int) rows.stream().filter(row -> "ERROR".equals(row.getImportStatus())).count());
+            return result;
+        } catch (BusinessException e) {
+            throw e;
+        } catch (IOException e) {
+            throw new BusinessException(ResultCode.OPERATION_FAILED, "读取微信账单失败");
+        } catch (Exception e) {
+            throw new BusinessException(ResultCode.OPERATION_FAILED, "解析微信账单失败：" + e.getMessage());
+        }
+    }
+
+    private WechatBillImportResultVO prepareEditedWechatImport(WechatBillImportConfirmDTO dto) {
+        if (dto == null || dto.getRows() == null || dto.getRows().isEmpty()) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "导入明细不能为空");
+        }
+        List<WechatBillImportRowVO> rows = dto.getRows().stream()
+                .filter(Objects::nonNull)
+                .map(this::normalizeEditedWechatRow)
+                .toList();
+        if (rows.isEmpty()) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "导入明细不能为空");
+        }
+        markDuplicatesAndSummarize(rows, true);
+        WechatBillImportResultVO result = new WechatBillImportResultVO();
+        result.setRows(rows);
+        result.setTotalRows(rows.size());
+        result.setImportableRows((int) rows.stream().filter(row -> "READY".equals(row.getImportStatus()) || "PENDING".equals(row.getImportStatus())).count());
+        result.setDuplicateRows((int) rows.stream().filter(row -> "DUPLICATE".equals(row.getImportStatus())).count());
+        result.setPendingRows((int) rows.stream().filter(row -> "PENDING".equals(row.getImportStatus())).count());
+        result.setErrorRows((int) rows.stream().filter(row -> "ERROR".equals(row.getImportStatus())).count());
+        return result;
+    }
+
+    private WechatBillImportRowVO normalizeEditedWechatRow(WechatBillImportRowVO row) {
+        try {
+            if (row.getBookDate() == null) {
+                LocalDateTime tradeTime = LocalDateTime.parse(row.getTradeTime(), WECHAT_TIME_FMT);
+                row.setBookDate(tradeTime.toLocalDate());
+                row.setBookTime(tradeTime.toLocalTime());
+            }
+            if (row.getBookTime() == null && StringUtils.hasText(row.getTradeTime())) {
+                row.setBookTime(LocalDateTime.parse(row.getTradeTime(), WECHAT_TIME_FMT).toLocalTime());
+            }
+            if (row.getBookType() == null) {
+                row.setBookType(resolveWechatBookType(row.getIncomeExpense()));
+            }
+            row.setBookTypeDesc(bookTypeDesc(row.getBookType()));
+            if (row.getAmount() == null || row.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new BusinessException(ResultCode.PARAM_ERROR, "金额必须大于0");
+            }
+            row.setAmount(row.getAmount().abs().setScale(2, RoundingMode.HALF_UP));
+            if (!StringUtils.hasText(row.getSourceHash())) {
+                row.setSourceHash(sha256(String.join("|",
+                        SOURCE_TYPE_WECHAT,
+                        trimToEmpty(row.getTradeTime()),
+                        trimToEmpty(row.getIncomeExpense()),
+                        row.getAmount().toPlainString(),
+                        trimToEmpty(row.getCounterparty()),
+                        trimToEmpty(row.getTradeNo()))));
+            }
+            return row;
+        } catch (Exception e) {
+            row.setImportStatus("ERROR");
+            row.setImportStatusDesc("异常");
+            row.setMessage(e instanceof BusinessException ? e.getMessage() : "编辑内容解析失败：" + e.getMessage());
+            return row;
+        }
+    }
+
+    private void validateWechatFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "请选择微信账单文件");
+        }
+        String filename = file.getOriginalFilename();
+        if (!StringUtils.hasText(filename) || !filename.toLowerCase().endsWith(".xlsx")) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "仅支持导入微信支付导出的xlsx文件");
+        }
+    }
+
+    private int findWechatHeaderRow(Sheet sheet, DataFormatter formatter) {
+        for (int i = 0; i <= sheet.getLastRowNum(); i++) {
+            Row row = sheet.getRow(i);
+            if (row == null) {
+                continue;
+            }
+            Map<String, Integer> headerMap = buildHeaderMap(row, formatter);
+            if (headerMap.keySet().containsAll(REQUIRED_WECHAT_HEADERS)) {
+                return i;
+            }
+        }
+        throw new BusinessException(ResultCode.PARAM_ERROR, "未识别到微信账单明细表头");
+    }
+
+    private Map<String, Integer> buildHeaderMap(Row row, DataFormatter formatter) {
+        Map<String, Integer> map = new HashMap<>();
+        if (row == null) {
+            return map;
+        }
+        for (int i = 0; i < row.getLastCellNum(); i++) {
+            String text = cellText(row, i, formatter);
+            if (StringUtils.hasText(text)) {
+                map.put(text.trim(), i);
+            }
+        }
+        return map;
+    }
+
+    private WechatBillImportRowVO parseWechatRow(Row row, int rowNo, Map<String, Integer> headerMap, DataFormatter formatter) {
+        WechatBillImportRowVO vo = new WechatBillImportRowVO();
+        vo.setRowNo(rowNo);
+        vo.setTradeTime(readCell(row, headerMap, formatter, "交易时间"));
+        vo.setTradeType(readCell(row, headerMap, formatter, "交易类型"));
+        vo.setCounterparty(readCell(row, headerMap, formatter, "交易对方"));
+        vo.setProduct(readCell(row, headerMap, formatter, "商品"));
+        vo.setIncomeExpense(readCell(row, headerMap, formatter, "收/支"));
+        vo.setPaymentMethod(readCell(row, headerMap, formatter, "支付方式"));
+        vo.setStatus(readCell(row, headerMap, formatter, "当前状态"));
+        vo.setTradeNo(stripBacktick(readCell(row, headerMap, formatter, "交易单号")));
+        vo.setMerchantTradeNo(stripBacktick(readCell(row, headerMap, formatter, "商户单号")));
+        vo.setRemark(readCell(row, headerMap, formatter, "备注"));
+        try {
+            LocalDateTime tradeTime = LocalDateTime.parse(vo.getTradeTime(), WECHAT_TIME_FMT);
+            vo.setBookDate(tradeTime.toLocalDate());
+            vo.setBookTime(tradeTime.toLocalTime());
+            vo.setAmount(parseMoney(readCell(row, headerMap, formatter, "金额(元)")));
+            vo.setBookType(resolveWechatBookType(vo.getIncomeExpense()));
+            vo.setBookTypeDesc(bookTypeDesc(vo.getBookType()));
+            resolveCategory(vo);
+            resolveAccount(vo);
+            vo.setSourceHash(sha256(String.join("|",
+                    SOURCE_TYPE_WECHAT,
+                    trimToEmpty(vo.getTradeTime()),
+                    trimToEmpty(vo.getIncomeExpense()),
+                    vo.getAmount().toPlainString(),
+                    trimToEmpty(vo.getCounterparty()),
+                    trimToEmpty(vo.getTradeNo()))));
+            return vo;
+        } catch (Exception e) {
+            vo.setImportStatus("ERROR");
+            vo.setImportStatusDesc("异常");
+            vo.setMessage(e instanceof BusinessException ? e.getMessage() : "解析失败：" + e.getMessage());
+            return vo;
+        }
+    }
+
+    private void resolveCategory(WechatBillImportRowVO vo) {
+        if (!Integer.valueOf(1).equals(vo.getBookType()) && !Integer.valueOf(2).equals(vo.getBookType())) {
+            return;
+        }
+        List<BookCategory> categories = bookCategoryMapper.selectList(new LambdaQueryWrapper<BookCategory>()
+                .eq(BookCategory::getCreateBy, currentUsername())
+                .eq(BookCategory::getType, vo.getBookType())
+                .eq(BookCategory::getStatus, 0));
+        BookCategory category = chooseCategory(categories, vo);
+        if (category != null) {
+            vo.setCategoryId(category.getId());
+            vo.setCategoryName(category.getName());
+        }
+    }
+
+    private BookCategory chooseCategory(List<BookCategory> categories, WechatBillImportRowVO vo) {
+        String haystack = (trimToEmpty(vo.getTradeType()) + " " + trimToEmpty(vo.getCounterparty()) + " " + trimToEmpty(vo.getProduct())).toLowerCase();
+        String[] preferredNames;
+        if (Integer.valueOf(1).equals(vo.getBookType())) {
+            preferredNames = new String[]{"其他收入", "鍏朵粬鏀跺叆"};
+        } else if (containsAny(haystack, "茶", "饮品", "小面", "餐", "饭", "咖啡", "奶茶", "堂食", "美团", "饿了么", "食品")) {
+            preferredNames = new String[]{"餐饮", "椁愰ギ", "零食饮料", "闆堕楗枡"};
+        } else if (containsAny(haystack, "打车", "地铁", "公交", "客运", "高铁", "机票", "加油", "停车", "索道")) {
+            preferredNames = new String[]{"交通", "浜ら€?", "打车", "鎵撹溅"};
+        } else if (containsAny(haystack, "京东", "淘宝", "购物", "超市", "商场", "便利", "好又多", "日用")) {
+            preferredNames = new String[]{"购物", "璐墿", "日用品", "鏃ョ敤鍝?"};
+        } else if (containsAny(haystack, "医院", "药", "医疗")) {
+            preferredNames = new String[]{"医疗", "鍖荤枟"};
+        } else if (containsAny(haystack, "学", "课程", "教育")) {
+            preferredNames = new String[]{"教育", "鏁欒偛"};
+        } else if (containsAny(haystack, "旅游", "门票", "电影", "娱乐", "景区", "黄山")) {
+            preferredNames = new String[]{"娱乐", "濞变箰"};
+        } else {
+            preferredNames = new String[]{"其他支出", "鍏朵粬鏀嚭"};
+        }
+        for (String name : preferredNames) {
+            BookCategory matched = categories.stream()
+                    .filter(cat -> Objects.equals(cat.getName(), name))
+                    .findFirst()
+                    .orElse(null);
+            if (matched != null) {
+                return matched;
+            }
+        }
+        return null;
+    }
+
+    private void resolveAccount(WechatBillImportRowVO vo) {
+        if (Integer.valueOf(3).equals(vo.getBookType())) {
+            return;
+        }
+        String method = trimToEmpty(vo.getPaymentMethod()).toLowerCase();
+        if (!StringUtils.hasText(method)) {
+            return;
+        }
+        List<BookAccount> accounts = bookAccountMapper.selectList(new LambdaQueryWrapper<BookAccount>()
+                .eq(BookAccount::getCreateBy, currentUsername())
+                .eq(BookAccount::getStatus, 0));
+        BookAccount matched = accounts.stream()
+                .filter(account -> accountMatchesPayment(account, method))
+                .findFirst()
+                .orElse(null);
+        if (matched != null) {
+            vo.setAccountId(matched.getId());
+            vo.setAccountName(matched.getName());
+        }
+    }
+
+    private boolean accountMatchesPayment(BookAccount account, String paymentMethod) {
+        String name = trimToEmpty(account.getName()).toLowerCase();
+        if (!StringUtils.hasText(name)) {
+            return false;
+        }
+        if (paymentMethod.contains(name) || name.contains(paymentMethod)) {
+            return true;
+        }
+        if (paymentMethod.contains("零钱") && name.contains("零钱")) {
+            return true;
+        }
+        if (paymentMethod.contains("分付") && name.contains("分付")) {
+            return true;
+        }
+        String digits = paymentMethod.replaceAll("\\D+", "");
+        return StringUtils.hasText(digits) && name.contains(digits);
+    }
+
+    private void markDuplicatesAndSummarize(List<WechatBillImportRowVO> rows, boolean forImport) {
+        Set<String> existingHashes = loadExistingSourceHashes(rows);
+        Set<String> seenInFile = new HashSet<>();
+        for (WechatBillImportRowVO row : rows) {
+            if ("ERROR".equals(row.getImportStatus())) {
+                continue;
+            }
+            if (!seenInFile.add(row.getSourceHash()) || existingHashes.contains(row.getSourceHash())) {
+                row.setImportStatus("DUPLICATE");
+                row.setImportStatusDesc("重复");
+                row.setMessage(forImport ? "已导入，跳过" : "系统中已存在，确认导入时会跳过");
+                continue;
+            }
+            boolean pending = row.getCategoryId() == null || row.getAccountId() == null || Integer.valueOf(3).equals(row.getBookType());
+            row.setImportStatus(pending ? "PENDING" : "READY");
+            row.setImportStatusDesc(pending ? "待补全" : "可导入");
+            row.setMessage(pending ? "账户/分类或转账账户待补全" : "");
+        }
+    }
+
+    private Set<String> loadExistingSourceHashes(List<WechatBillImportRowVO> rows) {
+        List<String> hashes = rows.stream()
+                .map(WechatBillImportRowVO::getSourceHash)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        if (hashes.isEmpty()) {
+            return Set.of();
+        }
+        return list(new LambdaQueryWrapper<PersonalBook>()
+                .select(PersonalBook::getSourceHash)
+                .eq(PersonalBook::getCreateBy, currentUsername())
+                .eq(PersonalBook::getSourceType, SOURCE_TYPE_WECHAT)
+                .in(PersonalBook::getSourceHash, hashes))
+                .stream()
+                .map(PersonalBook::getSourceHash)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toSet());
+    }
+
+    private static boolean rowIsBlank(Row row, DataFormatter formatter) {
+        for (int i = 0; i < row.getLastCellNum(); i++) {
+            if (StringUtils.hasText(cellText(row, i, formatter))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static String readCell(Row row, Map<String, Integer> headerMap, DataFormatter formatter, String header) {
+        Integer index = headerMap.get(header);
+        return index == null ? "" : cellText(row, index, formatter);
+    }
+
+    private static String cellText(Row row, int index, DataFormatter formatter) {
+        if (row == null || index < 0) {
+            return "";
+        }
+        return formatter.formatCellValue(row.getCell(index)).trim();
+    }
+
+    private static BigDecimal parseMoney(String value) {
+        String normalized = trimToEmpty(value).replace(",", "").replace("¥", "").replace("￥", "").replace("元", "");
+        if (!StringUtils.hasText(normalized)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "金额不能为空");
+        }
+        return new BigDecimal(normalized).abs().setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private static Integer resolveWechatBookType(String incomeExpense) {
+        String value = trimToEmpty(incomeExpense);
+        if ("收入".equals(value)) {
+            return 1;
+        }
+        if ("支出".equals(value)) {
+            return 2;
+        }
+        return 3;
+    }
+
+    private static String buildWechatDescription(WechatBillImportRowVO row) {
+        List<String> parts = new ArrayList<>();
+        if (StringUtils.hasText(row.getProduct()) && !"/".equals(row.getProduct())) {
+            parts.add(row.getProduct());
+        }
+        if (StringUtils.hasText(row.getTradeType())) {
+            parts.add("微信类型:" + row.getTradeType());
+        }
+        if (StringUtils.hasText(row.getPaymentMethod())) {
+            parts.add("支付方式:" + row.getPaymentMethod());
+        }
+        if (StringUtils.hasText(row.getStatus())) {
+            parts.add("状态:" + row.getStatus());
+        }
+        if (StringUtils.hasText(row.getRemark()) && !"/".equals(row.getRemark())) {
+            parts.add("备注:" + row.getRemark());
+        }
+        return String.join("；", parts);
+    }
+
+    private static boolean containsAny(String text, String... keywords) {
+        for (String keyword : keywords) {
+            if (StringUtils.hasText(keyword) && text.contains(keyword.toLowerCase())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String stripBacktick(String value) {
+        String text = trimToEmpty(value);
+        return text.startsWith("`") ? text.substring(1) : text;
+    }
+
+    private static String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] encoded = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder();
+            for (byte b : encoded) {
+                builder.append(String.format("%02x", b));
+            }
+            return builder.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static String limit(String value, int maxLength) {
+        String text = trimToNull(value);
+        if (text == null || text.length() <= maxLength) {
+            return text;
+        }
+        return text.substring(0, maxLength);
+    }
+
     private static String bookTypeDesc(Integer type) {
         if (Integer.valueOf(1).equals(type)) return "收入";
         if (Integer.valueOf(2).equals(type)) return "支出";
@@ -659,6 +1119,11 @@ public class BookServiceImpl
         if (value == null) return null;
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static String trimToEmpty(String value) {
+        String trimmed = trimToNull(value);
+        return trimmed == null ? "" : trimmed;
     }
 
     private static String currentUsername() {

@@ -22,6 +22,10 @@
             ta.account_type AS target_account_type,
             pb.book_time,
             pb.merchant,
+            pb.source_type,
+            pb.source_trade_no,
+            pb.source_hash,
+            pb.import_batch_no,
             c.card_no_last4,
             c.bank_name,
             pb.create_time

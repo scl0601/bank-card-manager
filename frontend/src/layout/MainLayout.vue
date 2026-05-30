@@ -113,10 +113,10 @@ const allMenuItems = [
   { path: '/users',        title: '用户信息',   icon: 'UserFilled' },
   { path: '/cards',        title: '卡务管理',   icon: 'CreditCard' },
   { path: '/bills',        title: '账单信息',   icon: 'Document' },
-  { path: '/books',        title: '个人记账',   icon: 'Wallet' },
   { path: '/profits',      title: '收益统计',   icon: 'TrendCharts' },
   { path: '/special',      title: '特殊通道',   icon: 'Connection' },
   { path: '/calendar',     title: '日历计划',   icon: 'Calendar' },
+  { path: '/books',        title: '个人记账',   icon: 'Wallet' },
   { path: '/monitor',      title: '监控列表',   icon: 'Monitor', roles: ['MONITOR'] },
   { path: '/announcements', title: '公告管理',   icon: 'Bell', roles: ['MONITOR'] },
   { path: '/logs',         title: '系统日志',   icon: 'Tickets', roles: ['MONITOR'] }
