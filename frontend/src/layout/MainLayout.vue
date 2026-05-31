@@ -130,7 +130,7 @@ const menuItems = computed(() => {
 })
 
 const activeMenu = computed(() => route.path)
-const denseRouteNames = new Set(['Cards', 'CardUsers', 'Bills', 'ProfitStats', 'SpecialChannel'])
+const denseRouteNames = new Set(['Cards', 'CardUsers', 'Bills', 'ProfitStats', 'SpecialChannel', 'Books'])
 const isDenseRoute = computed(() => denseRouteNames.has(String(route.name || '')))
 const currentTitle = computed(() =>
   menuItems.value.find(m => m.path === route.path)?.title || ''
@@ -391,9 +391,11 @@ onUnmounted(cancelIdle)
 .content-area.dense-content-area :deep(.cards-page),
 .content-area.dense-content-area :deep(.card-user-page),
 .content-area.dense-content-area :deep(.bill-page),
+.content-area.dense-content-area :deep(.book-workbench),
 .content-area.dense-content-area :deep(.profit-page),
 .content-area.dense-content-area :deep(.special-page) {
   flex: 1;
   min-height: 0;
+  min-width: 0;
 }
 </style>

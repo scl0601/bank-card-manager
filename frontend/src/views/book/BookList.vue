@@ -218,6 +218,7 @@
           <span v-else>查看、筛选或补记本月流水</span>
         </div>
         <div class="ledger-tabs">
+          <el-button type="primary" link :loading="monthLedgerLoading" @click="openMonthLedgerDialog">本月总览</el-button>
           <el-segmented v-model="viewMode" :options="[{ label: '流水', value: 'list' }, { label: '日历', value: 'calendar' }]" />
           <el-button v-if="selectedDate" link type="primary" @click="openAdd(selectedDate)">按当天记一笔</el-button>
         </div>
@@ -250,11 +251,14 @@
 
       <PageTable
         v-if="viewMode === 'list'"
+        class="ledger-page-table"
+        :class="{ 'is-scroll-mode': query.pageSize > 7 }"
         :data="list"
         :loading="loading"
         :total="total"
         :page-num="query.pageNum"
         :page-size="query.pageSize"
+        :page-sizes="[7, 10, 20, 50]"
         border
         size="small"
         @update:page-num="(val) => { query.pageNum = val }"
@@ -328,6 +332,73 @@
         </div>
       </div>
     </section>
+
+    <el-dialog
+      v-model="monthLedgerDialogVisible"
+      :title="`${currentMonth} 本月流水总览`"
+      width="1000px"
+      class="month-ledger-dialog"
+      destroy-on-close
+    >
+      <div class="month-ledger-summary">
+        <span>总计 <strong>{{ monthLedgerRows.length }}</strong> 笔</span>
+        <span>收入 <strong class="amount-positive">+{{ money(monthLedgerSummary.income) }}</strong></span>
+        <span>支出 <strong class="amount-negative">-{{ money(monthLedgerSummary.expense) }}</strong></span>
+        <span>净额 <strong :class="Number(monthLedgerSummary.net) >= 0 ? 'amount-positive' : 'amount-negative'">{{ signedMoney(monthLedgerSummary.net) }}</strong></span>
+      </div>
+      <el-table
+        v-loading="monthLedgerLoading"
+        :data="monthLedgerRows"
+        border
+        size="small"
+        max-height="560"
+        empty-text="本月暂无流水"
+      >
+        <el-table-column label="日期" width="126">
+          <template #default="{ row }">
+            <div class="date-cell">
+              <strong>{{ row.bookDate }}</strong>
+              <span>{{ row.bookTime || '--:--' }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="类型" width="76" align="center">
+          <template #default="{ row }">
+            <StatusTag :value="row.bookType" :label-map="BOOK_TYPE_MAP" :type-map="BOOK_TYPE_TAG_TYPE" size="small" />
+          </template>
+        </el-table-column>
+        <el-table-column label="分类/对象" min-width="160">
+          <template #default="{ row }">
+            <div class="main-cell">
+              <strong>{{ row.bookType === BOOK_TYPE_VALUE.TRANSFER ? '账户转账' : (row.categoryName || '未分类') }}</strong>
+              <span>{{ row.merchant || row.description || '-' }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="账户" min-width="180" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span v-if="row.bookType === BOOK_TYPE_VALUE.TRANSFER">{{ row.accountName || '未关联账户' }} → {{ row.targetAccountName || '未关联账户' }}</span>
+            <span v-else>{{ row.accountName || '未关联账户' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="金额" width="128" align="right">
+          <template #default="{ row }">
+            <span :class="amountClass(row.bookType)">
+              {{ amountPrefix(row.bookType) }}{{ money(row.amount) }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="description" label="备注" min-width="150" show-overflow-tooltip />
+        <el-table-column label="操作" width="112" fixed="right" align="center">
+          <template #default="{ row }">
+            <el-button type="primary" link @click="openEdit(row)">编辑</el-button>
+            <el-popconfirm title="确认删除这条流水？" @confirm="handleMonthLedgerDelete(row.id)">
+              <template #reference><el-button type="danger" link>删除</el-button></template>
+            </el-popconfirm>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
 
     <el-drawer v-model="recordDrawerVisible" :title="recordDialogTitle" size="500px" destroy-on-close>
       <el-alert v-if="!activeAccounts.length" title="暂无可用账户，请先新增一个账户再记账。" type="warning" :closable="false" class="drawer-alert" />
@@ -528,11 +599,26 @@ const budgets = ref<any[]>([])
 const trendRows = ref<any[]>([])
 const calendarRows = ref<any[]>([])
 const allCategoryTree = ref<any[]>([])
-const insightPreviewCount = 5
+const insightPreviewCount = 3
+const monthLedgerDialogVisible = ref(false)
+const monthLedgerLoading = ref(false)
+const monthLedgerRows = ref<any[]>([])
+const monthLedgerSummary = computed(() => {
+  return monthLedgerRows.value.reduce((summary, row) => {
+    const amount = Number(row.amount || 0)
+    if (row.bookType === BOOK_TYPE_VALUE.INCOME) {
+      summary.income += amount
+    } else if (row.bookType === BOOK_TYPE_VALUE.EXPENSE) {
+      summary.expense += amount
+    }
+    summary.net = summary.income - summary.expense
+    return summary
+  }, { income: 0, expense: 0, net: 0 })
+})
 
 const { loading, list, total, query, handleSearch, resetQuery, handleCurrentChange, handleSizeChange } = usePageTable({
   fetchApi: getBookPageApi,
-  defaultQuery: { bookType: undefined as any, categoryIds: [] as number[], accountId: undefined as any, keyword: '', yearMonth: currentMonth.value, pageSize: 20 },
+  defaultQuery: { bookType: undefined as any, categoryIds: [] as number[], accountId: undefined as any, keyword: '', yearMonth: currentMonth.value, pageSize: 7 },
   autoSearch: true,
   beforeFetch: (params) => {
     ;(params as any).yearMonth = currentMonth.value
@@ -817,7 +903,10 @@ async function handleSubmit() {
     else await saveBookApi(payload)
     ElMessage.success('保存成功')
     recordDrawerVisible.value = false
-    refreshAll()
+    await refreshAll()
+    if (monthLedgerDialogVisible.value) {
+      await loadMonthLedgerRows()
+    }
   } finally {
     submitting.value = false
   }
@@ -827,6 +916,43 @@ async function handleDelete(id: number) {
   await deleteBookApi(id)
   ElMessage.success('删除成功')
   refreshAll()
+}
+
+async function handleMonthLedgerDelete(id: number) {
+  await handleDelete(id)
+  if (monthLedgerDialogVisible.value) {
+    await loadMonthLedgerRows()
+  }
+}
+
+async function openMonthLedgerDialog() {
+  monthLedgerDialogVisible.value = true
+  await loadMonthLedgerRows()
+}
+
+async function loadMonthLedgerRows() {
+  monthLedgerLoading.value = true
+  try {
+    const pageSize = 100
+    const baseParams = { yearMonth: currentMonth.value, current: 1, size: pageSize }
+    const firstRes: any = await getBookPageApi(baseParams)
+    const firstPage = firstRes.data || {}
+    const totalRows = Number(firstPage.total || 0)
+    const rows = [...(firstPage.records || [])]
+    const totalPages = Math.ceil(totalRows / pageSize)
+
+    if (totalPages > 1) {
+      const restPages = Array.from({ length: totalPages - 1 }, (_, index) => index + 2)
+      const responses = await Promise.all(restPages.map(current => getBookPageApi({ ...baseParams, current })))
+      responses.forEach((res: any) => {
+        rows.push(...(res.data?.records || []))
+      })
+    }
+
+    monthLedgerRows.value = rows
+  } finally {
+    monthLedgerLoading.value = false
+  }
 }
 
 function openWechatImportFile() {
@@ -1046,7 +1172,13 @@ onMounted(refreshAll)
 .book-workbench {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  flex: 1;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   color: #1f2a37;
   --book-ink: #101828;
   --book-muted: #667085;
@@ -1059,13 +1191,16 @@ onMounted(refreshAll)
 
 .book-overview-screen {
   display: grid;
-  gap: 8px;
+  flex: 0 0 auto;
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
 }
 
 .book-hero {
   display: grid;
   grid-template-columns: minmax(420px, 1.35fr) minmax(320px, 0.65fr);
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
   min-height: 0;
 }
@@ -1091,7 +1226,7 @@ onMounted(refreshAll)
 .hero-main {
   position: relative;
   overflow: hidden;
-  padding: 12px 14px;
+  padding: 10px 12px;
   color: #fff;
   background:
     linear-gradient(118deg, rgba(8, 26, 51, 0.98) 0%, rgba(10, 57, 92, 0.96) 58%, rgba(13, 124, 112, 0.9) 100%),
@@ -1134,7 +1269,7 @@ onMounted(refreshAll)
 }
 
 .page-title {
-  font-size: 23px;
+  font-size: 20px;
   line-height: 1.15;
   font-weight: 800;
   color: inherit;
@@ -1163,7 +1298,7 @@ onMounted(refreshAll)
 .hero-balance {
   position: relative;
   z-index: 1;
-  margin-top: 10px;
+  margin-top: 6px;
 }
 
 .hero-balance span,
@@ -1175,9 +1310,9 @@ onMounted(refreshAll)
 
 .hero-balance strong {
   display: block;
-  margin-top: 4px;
+  margin-top: 3px;
   font-family: var(--font-mono);
-  font-size: clamp(28px, 3.2vh, 36px);
+  font-size: clamp(24px, 3vh, 32px);
   line-height: 1;
   letter-spacing: 0;
   overflow-wrap: anywhere;
@@ -1187,14 +1322,14 @@ onMounted(refreshAll)
 .hero-summary {
   position: relative;
   z-index: 1;
-  margin-top: 10px;
+  margin-top: 7px;
   align-items: stretch;
 }
 
 .summary-chip {
   flex: 1;
   min-width: 0;
-  padding: 7px 9px;
+  padding: 6px 8px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.11);
@@ -1216,9 +1351,9 @@ onMounted(refreshAll)
 
 .summary-chip strong {
   display: block;
-  margin-top: 4px;
+  margin-top: 3px;
   font-family: var(--font-mono);
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1.1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1228,8 +1363,8 @@ onMounted(refreshAll)
 .hero-side {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px;
+  gap: 5px;
+  padding: 7px;
   overflow: hidden;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 253, 0.98));
@@ -1250,12 +1385,13 @@ onMounted(refreshAll)
 .hero-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
+  gap: 5px;
 }
 
 .hero-actions :deep(.el-button) {
   width: 100%;
-  height: 30px;
+  height: 28px;
+  padding: 0 8px;
   margin-left: 0;
   border-radius: 8px;
   border-color: rgba(13, 79, 130, 0.14);
@@ -1276,7 +1412,7 @@ onMounted(refreshAll)
 }
 
 .budget-brief {
-  padding: 8px;
+  padding: 7px;
   border: 1px solid rgba(13, 79, 130, 0.14);
   border-radius: 8px;
   background: #f8fafc;
@@ -1289,33 +1425,34 @@ onMounted(refreshAll)
 
 .budget-brief-head {
   align-items: center;
-  margin-bottom: 6px;
-  font-size: 14px;
+  margin-bottom: 4px;
+  font-size: 13px;
   color: #526074;
 }
 
 .budget-brief-head strong {
   font-family: var(--font-mono);
-  font-size: 18px;
+  font-size: 16px;
   color: #1f2a37;
 }
 
 .budget-brief-foot {
-  margin-top: 6px;
+  margin-top: 4px;
   color: #667085;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .insight-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
   align-items: stretch;
+  height: 176px;
   min-height: 0;
 }
 
 .panel {
-  padding: 8px;
+  padding: 7px;
   overflow: hidden;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 251, 253, 0.99));
@@ -1331,8 +1468,8 @@ onMounted(refreshAll)
 
 .panel-head {
   align-items: flex-start;
-  min-height: 36px;
-  margin-bottom: 6px;
+  min-height: 30px;
+  margin-bottom: 4px;
 }
 
 .panel-head > div:first-child {
@@ -1355,7 +1492,7 @@ onMounted(refreshAll)
 .panel-head h3,
 .ledger-head h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.2;
   color: var(--book-ink);
 }
@@ -1363,10 +1500,10 @@ onMounted(refreshAll)
 .panel-head span,
 .ledger-head span {
   display: block;
-  margin-top: 3px;
+  margin-top: 2px;
   color: #7c8799;
-  font-size: 12px;
-  line-height: 1.25;
+  font-size: 11px;
+  line-height: 1.2;
 }
 
 .panel-total {
@@ -1377,7 +1514,7 @@ onMounted(refreshAll)
 }
 
 .trend-chart {
-  height: 168px;
+  height: 126px;
   width: 100%;
 }
 
@@ -1393,15 +1530,15 @@ onMounted(refreshAll)
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   min-height: 0;
 }
 
 .budget-item,
 .account-row,
 .rank-row {
-  min-height: 40px;
-  padding: 6px 8px;
+  min-height: 32px;
+  padding: 5px 7px;
   border: 1px solid rgba(13, 79, 130, 0.12);
   border-radius: 8px;
   background: #fff;
@@ -1433,7 +1570,7 @@ onMounted(refreshAll)
 }
 
 .budget-item :deep(.el-progress) {
-  margin-top: 5px;
+  margin-top: 3px;
 }
 
 .account-row {
@@ -1465,8 +1602,8 @@ onMounted(refreshAll)
 }
 
 .account-row b {
-  font-size: 13px;
-  line-height: 1.15;
+  font-size: 12px;
+  line-height: 1.1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1479,7 +1616,7 @@ onMounted(refreshAll)
 }
 
 .rank-bar {
-  height: 7px;
+  height: 6px;
   overflow: hidden;
   border-radius: 999px;
   background: #e7eef5;
@@ -1495,6 +1632,43 @@ onMounted(refreshAll)
 
 .insight-dialog :deep(.el-dialog) {
   max-width: calc(100vw - 32px);
+}
+
+.month-ledger-dialog :deep(.el-dialog) {
+  max-width: calc(100vw - 32px);
+}
+
+.month-ledger-dialog :deep(.el-dialog__body) {
+  padding-top: 8px;
+}
+
+.month-ledger-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.month-ledger-summary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(13, 79, 130, 0.14);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #526074;
+  font-size: 12px;
+}
+
+.month-ledger-summary strong {
+  font-family: var(--font-mono);
+  color: #1f2a37;
+}
+
+.month-ledger-dialog :deep(.el-table .cell) {
+  line-height: 18px;
 }
 
 .insight-dialog-body {
@@ -1523,17 +1697,21 @@ onMounted(refreshAll)
 }
 
 .ledger-panel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
   padding: 0;
   overflow: hidden;
-  min-height: 620px;
+  min-height: 0;
   background:
     linear-gradient(180deg, #ffffff, #f8fbff),
     radial-gradient(circle at 0% 0%, rgba(22, 119, 255, 0.1), transparent 32%);
 }
 
 .ledger-head {
+  flex-shrink: 0;
   align-items: center;
-  padding: 12px 16px 8px;
+  padding: 8px 12px 5px;
   margin-bottom: 0;
 }
 
@@ -1541,13 +1719,14 @@ onMounted(refreshAll)
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 .ledger-toolbar {
+  flex-shrink: 0;
   align-items: center;
-  padding: 0 16px 8px;
+  padding: 0 12px 6px;
   border-bottom: 1px solid rgba(13, 79, 130, 0.12);
 }
 
@@ -1555,38 +1734,98 @@ onMounted(refreshAll)
   display: flex;
   flex: 1;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
 
 .ledger-filters :deep(.el-input__wrapper),
 .ledger-filters :deep(.el-select__wrapper) {
-  min-height: 32px;
+  min-height: 28px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.86);
   box-shadow: 0 0 0 1px rgba(13, 79, 130, 0.11) inset;
 }
 
-.ledger-panel :deep(.page-table) {
-  padding: 8px 12px 12px;
+.ledger-filters :deep(.el-input),
+.ledger-filters :deep(.el-select),
+.ledger-filters :deep(.el-cascader) {
+  width: clamp(96px, 11vw, 150px) !important;
+}
+
+.ledger-filters :deep(.el-button) {
+  height: 28px;
+  padding: 0 10px;
+}
+
+.ledger-panel :deep(.ledger-page-table) {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding: 6px 8px 7px;
   border-radius: 0;
   box-shadow: none;
-  min-height: 540px;
+  overflow: hidden;
+}
+
+.ledger-panel :deep(.ledger-page-table:not(.is-scroll-mode) > .el-table) {
+  flex: 0 0 auto;
+}
+
+.ledger-panel :deep(.ledger-page-table:not(.is-scroll-mode) .el-table__inner-wrapper),
+.ledger-panel :deep(.ledger-page-table:not(.is-scroll-mode) .el-table__body-wrapper),
+.ledger-panel :deep(.ledger-page-table:not(.is-scroll-mode) .el-scrollbar),
+.ledger-panel :deep(.ledger-page-table:not(.is-scroll-mode) .el-scrollbar__wrap) {
+  overflow: hidden !important;
+}
+
+.ledger-panel :deep(.ledger-page-table.is-scroll-mode > .el-table) {
+  flex: 1;
+  min-height: 0;
+}
+
+.ledger-panel :deep(.el-table__inner-wrapper),
+.ledger-panel :deep(.el-scrollbar),
+.ledger-panel :deep(.el-scrollbar__wrap),
+.ledger-panel :deep(.el-table__body-wrapper) {
+  min-height: 0;
 }
 
 .ledger-panel :deep(.el-table .cell) {
-  line-height: 18px;
+  line-height: 16px;
+  padding: 0 6px;
 }
 
 .ledger-panel :deep(.el-table--small .el-table__cell) {
-  padding: 8px 0;
+  padding: 5px 0;
+}
+
+.ledger-panel :deep(.pagination-wrapper) {
+  flex-shrink: 0;
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.ledger-panel :deep(.el-pagination) {
+  transform: scale(0.92);
+  transform-origin: right center;
+}
+
+.ledger-panel :deep(.el-pagination__total),
+.ledger-panel :deep(.el-pagination__jump),
+.ledger-panel :deep(.el-pagination__sizes) {
+  margin-right: 6px;
+}
+
+.ledger-panel :deep(.el-table__fixed-right) {
+  height: 100% !important;
 }
 
 .date-cell,
 .main-cell {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
 }
 
@@ -1618,7 +1857,12 @@ onMounted(refreshAll)
 }
 
 .calendar-wrap {
-  padding: 14px 16px 16px;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding: 7px 10px 8px;
+  overflow: hidden;
 }
 
 .calendar-weekdays,
@@ -1628,26 +1872,29 @@ onMounted(refreshAll)
 }
 
 .calendar-weekdays {
-  margin-bottom: 8px;
+  flex-shrink: 0;
+  margin-bottom: 5px;
   color: #7c8799;
   font-size: 12px;
   text-align: center;
 }
 
 .calendar-grid {
-  gap: 8px;
+  flex: 1;
+  min-height: 0;
+  gap: 5px;
 }
 
 .calendar-day {
-  min-height: 76px;
+  min-height: 0;
   border: 1px solid rgba(13, 79, 130, 0.12);
   border-radius: 8px;
   background: #fff;
-  padding: 8px;
+  padding: 5px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: 3px;
   cursor: pointer;
   transition: border-color 0.2s ease, background-color 0.2s ease;
 }
@@ -1670,6 +1917,7 @@ onMounted(refreshAll)
 }
 
 .day-num {
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -1677,13 +1925,13 @@ onMounted(refreshAll)
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 3px;
+  gap: 1px;
   min-width: 0;
 }
 
 .day-amounts small {
   max-width: 100%;
-  font-size: 11px;
+  font-size: 10px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1811,15 +2059,33 @@ onMounted(refreshAll)
 
 @media (max-width: 1180px) {
   .book-hero {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(360px, 1.2fr) minmax(280px, 0.8fr);
   }
 
   .insight-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .trend-panel {
-    grid-column: 1 / -1;
+    grid-column: span 2;
+  }
+
+  .panel-actions {
+    gap: 2px;
+  }
+
+  .panel-actions :deep(.el-button) {
+    padding: 0 2px;
+  }
+
+  .panel-total {
+    display: none;
+  }
+
+  .ledger-filters :deep(.el-input),
+  .ledger-filters :deep(.el-select),
+  .ledger-filters :deep(.el-cascader) {
+    width: 112px !important;
   }
 }
 
