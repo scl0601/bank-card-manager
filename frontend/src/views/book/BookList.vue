@@ -29,8 +29,17 @@
             <el-button v-for="action in quickActions" :key="action.key" :icon="action.icon" @click="action.handler">
               {{ action.label }}
             </el-button>
-            <el-button :loading="wechatImportLoading" @click="openWechatImportFile">导入微信</el-button>
+            <el-dropdown trigger="click" @command="handleBillImportCommand">
+              <el-button :loading="wechatImportLoading || alipayImportLoading">导入账单</el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="WECHAT">微信账单</el-dropdown-item>
+                  <el-dropdown-item command="ALIPAY">支付宝账单</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
             <input ref="wechatImportFileRef" class="hidden-file-input" type="file" accept=".xlsx" @change="handleWechatImportFileChange" />
+            <input ref="alipayImportFileRef" class="hidden-file-input" type="file" accept=".csv" @change="handleAlipayImportFileChange" />
             <ExportButton :loading="exporting" @click="exportCurrent" />
           </div>
 
@@ -259,6 +268,7 @@
         :page-num="query.pageNum"
         :page-size="query.pageSize"
         :page-sizes="[7, 10, 20, 50]"
+        height="100%"
         border
         size="small"
         @update:page-num="(val) => { query.pageNum = val }"
@@ -445,7 +455,7 @@
       </template>
     </el-drawer>
 
-    <el-dialog v-model="wechatImportDialogVisible" title="导入微信账单" width="960px" class="wechat-import-dialog" destroy-on-close>
+    <el-dialog v-model="wechatImportDialogVisible" :title="`${importProviderLabel}账单导入`" width="960px" class="wechat-import-dialog" destroy-on-close>
       <div v-if="wechatImportResult" class="import-summary">
         <span>总计 {{ wechatImportResult.totalRows || 0 }} 笔</span>
         <span>可导入 {{ wechatImportResult.importableRows || 0 }} 笔</span>
@@ -574,7 +584,9 @@ import {
   getBookPageApi,
   getBookTrendApi,
   getCategoryListApi,
+  importAlipayBookApi,
   importWechatBookApi,
+  previewAlipayBookImportApi,
   previewWechatBookImportApi,
   saveBookAccountApi,
   saveBookApi,
@@ -799,13 +811,17 @@ const budgetDialogVisible = ref(false)
 const budgetForm = reactive<any>({ id: undefined, budgetMonth: currentMonth.value, categoryId: undefined, amount: 0, remark: '' })
 const categoryDrawerVisible = ref(false)
 const wechatImportFileRef = ref<HTMLInputElement | null>(null)
+const alipayImportFileRef = ref<HTMLInputElement | null>(null)
 const wechatImportFile = ref<File | null>(null)
 const wechatImportLoading = ref(false)
+const alipayImportLoading = ref(false)
 const wechatImportSubmitting = ref(false)
 const wechatImportDialogVisible = ref(false)
 const wechatImportResult = ref<any>(null)
 const wechatImportTableRef = ref<any>(null)
 const wechatSelectedImportRows = ref<any[]>([])
+const importProvider = ref<'WECHAT' | 'ALIPAY'>('WECHAT')
+const importProviderLabel = computed(() => importProvider.value === 'ALIPAY' ? '支付宝' : '微信')
 const wechatImportRows = computed(() => wechatImportResult.value?.rows || [])
 const wechatEditableImportRows = computed(() => wechatImportRows.value.filter((row: any) => row.importStatus !== 'DUPLICATE' && row.importStatus !== 'ERROR'))
 type InsightDialogType = 'trend' | 'budget' | 'account' | 'rank'
@@ -962,22 +978,47 @@ function openWechatImportFile() {
   }
 }
 
+function openAlipayImportFile() {
+  if (alipayImportFileRef.value) {
+    alipayImportFileRef.value.value = ''
+    alipayImportFileRef.value.click()
+  }
+}
+
+function handleBillImportCommand(command: 'WECHAT' | 'ALIPAY') {
+  if (command === 'ALIPAY') openAlipayImportFile()
+  else openWechatImportFile()
+}
+
 async function handleWechatImportFileChange(event: Event) {
+  await handleBillImportFileChange(event, 'WECHAT')
+}
+
+async function handleAlipayImportFileChange(event: Event) {
+  await handleBillImportFileChange(event, 'ALIPAY')
+}
+
+async function handleBillImportFileChange(event: Event, provider: 'WECHAT' | 'ALIPAY') {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
   wechatImportFile.value = file
   const formData = new FormData()
   formData.append('file', file)
-  wechatImportLoading.value = true
+  importProvider.value = provider
+  if (provider === 'ALIPAY') alipayImportLoading.value = true
+  else wechatImportLoading.value = true
   try {
-    const res: any = await previewWechatBookImportApi(formData)
+    const res: any = provider === 'ALIPAY'
+      ? await previewAlipayBookImportApi(formData)
+      : await previewWechatBookImportApi(formData)
     wechatImportResult.value = res.data
     wechatSelectedImportRows.value = []
     wechatImportDialogVisible.value = true
     selectDefaultWechatImportRows()
   } finally {
-    wechatImportLoading.value = false
+    if (provider === 'ALIPAY') alipayImportLoading.value = false
+    else wechatImportLoading.value = false
   }
 }
 
@@ -988,7 +1029,10 @@ async function confirmWechatImport() {
   }
   wechatImportSubmitting.value = true
   try {
-    const res: any = await importWechatBookApi({ rows: rows.map(normalizeWechatImportRowPayload) })
+    const payload = { rows: rows.map(normalizeWechatImportRowPayload) }
+    const res: any = importProvider.value === 'ALIPAY'
+      ? await importAlipayBookApi(payload)
+      : await importWechatBookApi(payload)
     wechatImportResult.value = res.data
     ElMessage.success(`导入成功：${res.data?.importedRows || 0} 笔`)
     wechatImportDialogVisible.value = false
@@ -1388,6 +1432,10 @@ onMounted(refreshAll)
   gap: 5px;
 }
 
+.hero-actions :deep(.el-dropdown) {
+  width: 100%;
+}
+
 .hero-actions :deep(.el-button) {
   width: 100%;
   height: 28px;
@@ -1768,18 +1816,7 @@ onMounted(refreshAll)
   overflow: hidden;
 }
 
-.ledger-panel :deep(.ledger-page-table:not(.is-scroll-mode) > .el-table) {
-  flex: 0 0 auto;
-}
-
-.ledger-panel :deep(.ledger-page-table:not(.is-scroll-mode) .el-table__inner-wrapper),
-.ledger-panel :deep(.ledger-page-table:not(.is-scroll-mode) .el-table__body-wrapper),
-.ledger-panel :deep(.ledger-page-table:not(.is-scroll-mode) .el-scrollbar),
-.ledger-panel :deep(.ledger-page-table:not(.is-scroll-mode) .el-scrollbar__wrap) {
-  overflow: hidden !important;
-}
-
-.ledger-panel :deep(.ledger-page-table.is-scroll-mode > .el-table) {
+.ledger-panel :deep(.ledger-page-table > .el-table) {
   flex: 1;
   min-height: 0;
 }

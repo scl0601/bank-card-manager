@@ -109,6 +109,21 @@ public class BookController {
         return Result.success(bookService.importWechatBill(dto));
     }
 
+    @Operation(summary = "预览导入支付宝账单")
+    @PostMapping("/alipay/import/preview")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public Result<WechatBillImportResultVO> previewAlipayImport(@RequestParam("file") MultipartFile file) {
+        return Result.success(bookService.previewAlipayImport(file));
+    }
+
+    @Operation(summary = "确认导入支付宝账单")
+    @Log(module = "个人记账", type = ActionTypeEnum.IMPORT, description = "导入支付宝账单")
+    @PostMapping("/alipay/import")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public Result<WechatBillImportResultVO> importAlipayBill(@Valid @RequestBody WechatBillImportConfirmDTO dto) {
+        return Result.success(bookService.importAlipayBill(dto));
+    }
+
     @Operation(summary = "获取月度收支统计")
     @GetMapping("/summary")
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR','VIEWER')")

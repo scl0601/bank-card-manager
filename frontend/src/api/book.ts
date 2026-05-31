@@ -9,6 +9,8 @@ export const batchDeleteBookApi = (ids: number[]) => request.delete('/books/batc
 export const exportBookApi = (params: any) => request.get('/books/export', { params, responseType: 'blob' })
 export const previewWechatBookImportApi = (data: FormData) => request.post('/books/wechat/import/preview', data)
 export const importWechatBookApi = (data: any) => request.post('/books/wechat/import', data)
+export const previewAlipayBookImportApi = (data: FormData) => request.post('/books/alipay/import/preview', data)
+export const importAlipayBookApi = (data: any) => request.post('/books/alipay/import', data)
 
 // ========== 统计 ==========
 export const getBookSummaryApi = (yearMonth?: string) => request.get('/books/summary', { params: { yearMonth } })

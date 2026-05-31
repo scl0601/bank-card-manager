@@ -34,6 +34,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -63,9 +64,13 @@ public class BookServiceImpl
         implements BookService {
 
     private static final String SOURCE_TYPE_WECHAT = "WECHAT";
+    private static final String SOURCE_TYPE_ALIPAY = "ALIPAY";
     private static final DateTimeFormatter WECHAT_TIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final Set<String> REQUIRED_WECHAT_HEADERS = Set.of(
             "交易时间", "交易类型", "交易对方", "商品", "收/支", "金额(元)", "支付方式", "当前状态", "交易单号", "商户单号", "备注"
+    );
+    private static final Set<String> REQUIRED_ALIPAY_HEADERS = Set.of(
+            "交易时间", "交易分类", "交易对方", "商品说明", "收/支", "金额", "收/付款方式", "交易状态", "交易订单号", "商家订单号", "备注"
     );
 
     private final com.bank.admin.module.book.mapper.BookCategoryMapper bookCategoryMapper;
@@ -183,13 +188,28 @@ public class BookServiceImpl
     }
 
     @Override
+    public WechatBillImportResultVO previewAlipayImport(MultipartFile file) {
+        return parseAlipayBill(file, false);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public WechatBillImportResultVO importWechatBill(WechatBillImportConfirmDTO dto) {
-        WechatBillImportResultVO result = prepareEditedWechatImport(dto);
-        String batchNo = "WX-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")) + "-" +
+        WechatBillImportResultVO result = prepareEditedImport(dto, SOURCE_TYPE_WECHAT);
+        return saveImportedRows(result, SOURCE_TYPE_WECHAT, "WX-");
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public WechatBillImportResultVO importAlipayBill(WechatBillImportConfirmDTO dto) {
+        WechatBillImportResultVO result = prepareEditedImport(dto, SOURCE_TYPE_ALIPAY);
+        return saveImportedRows(result, SOURCE_TYPE_ALIPAY, "ALI-");
+    }
+
+    private WechatBillImportResultVO saveImportedRows(WechatBillImportResultVO result, String sourceType, String batchPrefix) {
+        String batchNo = batchPrefix + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")) + "-" +
                 UUID.randomUUID().toString().substring(0, 8);
         result.setBatchNo(batchNo);
-
         List<PersonalBook> rows = new ArrayList<>();
         for (WechatBillImportRowVO row : result.getRows()) {
             if (!"READY".equals(row.getImportStatus()) && !"PENDING".equals(row.getImportStatus())) {
@@ -204,8 +224,8 @@ public class BookServiceImpl
             entity.setAccountId(row.getAccountId());
             entity.setTargetAccountId(row.getTargetAccountId());
             entity.setMerchant(limit(row.getCounterparty(), 100));
-            entity.setDescription(limit(buildWechatDescription(row), 255));
-            entity.setSourceType(SOURCE_TYPE_WECHAT);
+            entity.setDescription(limit(buildImportDescription(row, sourceType), 255));
+            entity.setSourceType(sourceType);
             entity.setSourceTradeNo(limit(row.getTradeNo(), 80));
             entity.setSourceHash(row.getSourceHash());
             entity.setImportBatchNo(batchNo);
@@ -691,15 +711,8 @@ public class BookServiceImpl
             if (rows.isEmpty()) {
                 throw new BusinessException(ResultCode.PARAM_ERROR, "微信账单没有可导入的交易明细");
             }
-            markDuplicatesAndSummarize(rows, forImport);
-            WechatBillImportResultVO result = new WechatBillImportResultVO();
-            result.setRows(rows);
-            result.setTotalRows(rows.size());
-            result.setImportableRows((int) rows.stream().filter(row -> "READY".equals(row.getImportStatus()) || "PENDING".equals(row.getImportStatus())).count());
-            result.setDuplicateRows((int) rows.stream().filter(row -> "DUPLICATE".equals(row.getImportStatus())).count());
-            result.setPendingRows((int) rows.stream().filter(row -> "PENDING".equals(row.getImportStatus())).count());
-            result.setErrorRows((int) rows.stream().filter(row -> "ERROR".equals(row.getImportStatus())).count());
-            return result;
+            markDuplicatesAndSummarize(rows, forImport, SOURCE_TYPE_WECHAT);
+            return buildImportResult(rows);
         } catch (BusinessException e) {
             throw e;
         } catch (IOException e) {
@@ -709,29 +722,22 @@ public class BookServiceImpl
         }
     }
 
-    private WechatBillImportResultVO prepareEditedWechatImport(WechatBillImportConfirmDTO dto) {
+    private WechatBillImportResultVO prepareEditedImport(WechatBillImportConfirmDTO dto, String sourceType) {
         if (dto == null || dto.getRows() == null || dto.getRows().isEmpty()) {
             throw new BusinessException(ResultCode.PARAM_ERROR, "导入明细不能为空");
         }
         List<WechatBillImportRowVO> rows = dto.getRows().stream()
                 .filter(Objects::nonNull)
-                .map(this::normalizeEditedWechatRow)
+                .map(row -> normalizeEditedImportRow(row, sourceType))
                 .toList();
         if (rows.isEmpty()) {
             throw new BusinessException(ResultCode.PARAM_ERROR, "导入明细不能为空");
         }
-        markDuplicatesAndSummarize(rows, true);
-        WechatBillImportResultVO result = new WechatBillImportResultVO();
-        result.setRows(rows);
-        result.setTotalRows(rows.size());
-        result.setImportableRows((int) rows.stream().filter(row -> "READY".equals(row.getImportStatus()) || "PENDING".equals(row.getImportStatus())).count());
-        result.setDuplicateRows((int) rows.stream().filter(row -> "DUPLICATE".equals(row.getImportStatus())).count());
-        result.setPendingRows((int) rows.stream().filter(row -> "PENDING".equals(row.getImportStatus())).count());
-        result.setErrorRows((int) rows.stream().filter(row -> "ERROR".equals(row.getImportStatus())).count());
-        return result;
+        markDuplicatesAndSummarize(rows, true, sourceType);
+        return buildImportResult(rows);
     }
 
-    private WechatBillImportRowVO normalizeEditedWechatRow(WechatBillImportRowVO row) {
+    private WechatBillImportRowVO normalizeEditedImportRow(WechatBillImportRowVO row, String sourceType) {
         try {
             if (row.getBookDate() == null) {
                 LocalDateTime tradeTime = LocalDateTime.parse(row.getTradeTime(), WECHAT_TIME_FMT);
@@ -742,22 +748,14 @@ public class BookServiceImpl
                 row.setBookTime(LocalDateTime.parse(row.getTradeTime(), WECHAT_TIME_FMT).toLocalTime());
             }
             if (row.getBookType() == null) {
-                row.setBookType(resolveWechatBookType(row.getIncomeExpense()));
+                row.setBookType(resolveBookType(row.getIncomeExpense()));
             }
             row.setBookTypeDesc(bookTypeDesc(row.getBookType()));
             if (row.getAmount() == null || row.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
                 throw new BusinessException(ResultCode.PARAM_ERROR, "金额必须大于0");
             }
             row.setAmount(row.getAmount().abs().setScale(2, RoundingMode.HALF_UP));
-            if (!StringUtils.hasText(row.getSourceHash())) {
-                row.setSourceHash(sha256(String.join("|",
-                        SOURCE_TYPE_WECHAT,
-                        trimToEmpty(row.getTradeTime()),
-                        trimToEmpty(row.getIncomeExpense()),
-                        row.getAmount().toPlainString(),
-                        trimToEmpty(row.getCounterparty()),
-                        trimToEmpty(row.getTradeNo()))));
-            }
+            row.setSourceHash(buildSourceHash(sourceType, row));
             return row;
         } catch (Exception e) {
             row.setImportStatus("ERROR");
@@ -774,6 +772,112 @@ public class BookServiceImpl
         String filename = file.getOriginalFilename();
         if (!StringUtils.hasText(filename) || !filename.toLowerCase().endsWith(".xlsx")) {
             throw new BusinessException(ResultCode.PARAM_ERROR, "仅支持导入微信支付导出的xlsx文件");
+        }
+    }
+
+    private WechatBillImportResultVO parseAlipayBill(MultipartFile file, boolean forImport) {
+        validateAlipayFile(file);
+        ensureDefaultCategories();
+        try {
+            List<String> lines = readAlipayLines(file);
+            int headerIndex = findAlipayHeaderLine(lines);
+            Map<String, Integer> headerMap = buildCsvHeaderMap(parseCsvLine(lines.get(headerIndex)));
+            List<WechatBillImportRowVO> rows = new ArrayList<>();
+            for (int i = headerIndex + 1; i < lines.size(); i++) {
+                String line = lines.get(i);
+                if (!StringUtils.hasText(line) || line.startsWith("---")) {
+                    continue;
+                }
+                List<String> values = parseCsvLine(line);
+                if (values.stream().noneMatch(StringUtils::hasText)) {
+                    continue;
+                }
+                rows.add(parseAlipayRow(values, i + 1, headerMap));
+            }
+            if (rows.isEmpty()) {
+                throw new BusinessException(ResultCode.PARAM_ERROR, "支付宝账单没有可导入的交易明细");
+            }
+            markDuplicatesAndSummarize(rows, forImport, SOURCE_TYPE_ALIPAY);
+            return buildImportResult(rows);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BusinessException(ResultCode.OPERATION_FAILED, "解析支付宝账单失败：" + e.getMessage());
+        }
+    }
+
+    private void validateAlipayFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "请选择支付宝账单文件");
+        }
+        String filename = file.getOriginalFilename();
+        if (!StringUtils.hasText(filename) || !filename.toLowerCase().endsWith(".csv")) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "仅支持导入支付宝导出的csv文件");
+        }
+    }
+
+    private List<String> readAlipayLines(MultipartFile file) throws IOException {
+        byte[] bytes = file.getBytes();
+        for (Charset charset : List.of(StandardCharsets.UTF_8, Charset.forName("GB18030"), Charset.forName("GBK"))) {
+            String text = new String(bytes, charset);
+            List<String> lines = text.lines().map(line -> stripBom(line).trim()).toList();
+            if (lines.stream().anyMatch(line -> buildCsvHeaderMap(parseCsvLine(line)).keySet().containsAll(REQUIRED_ALIPAY_HEADERS))) {
+                return lines;
+            }
+        }
+        throw new BusinessException(ResultCode.PARAM_ERROR, "未识别到支付宝账单明细表头");
+    }
+
+    private int findAlipayHeaderLine(List<String> lines) {
+        for (int i = 0; i < lines.size(); i++) {
+            Map<String, Integer> headerMap = buildCsvHeaderMap(parseCsvLine(lines.get(i)));
+            if (headerMap.keySet().containsAll(REQUIRED_ALIPAY_HEADERS)) {
+                return i;
+            }
+        }
+        throw new BusinessException(ResultCode.PARAM_ERROR, "未识别到支付宝账单明细表头");
+    }
+
+    private Map<String, Integer> buildCsvHeaderMap(List<String> headers) {
+        Map<String, Integer> map = new HashMap<>();
+        for (int i = 0; i < headers.size(); i++) {
+            String text = stripBom(trimToEmpty(headers.get(i)));
+            if (StringUtils.hasText(text)) {
+                map.put(text, i);
+            }
+        }
+        return map;
+    }
+
+    private WechatBillImportRowVO parseAlipayRow(List<String> values, int rowNo, Map<String, Integer> headerMap) {
+        WechatBillImportRowVO vo = new WechatBillImportRowVO();
+        vo.setRowNo(rowNo);
+        vo.setTradeTime(readCsvValue(values, headerMap, "交易时间"));
+        vo.setTradeType(readCsvValue(values, headerMap, "交易分类"));
+        vo.setCounterparty(readCsvValue(values, headerMap, "交易对方"));
+        vo.setProduct(readCsvValue(values, headerMap, "商品说明"));
+        vo.setIncomeExpense(readCsvValue(values, headerMap, "收/支"));
+        vo.setPaymentMethod(readCsvValue(values, headerMap, "收/付款方式"));
+        vo.setStatus(readCsvValue(values, headerMap, "交易状态"));
+        vo.setTradeNo(stripBacktick(readCsvValue(values, headerMap, "交易订单号")));
+        vo.setMerchantTradeNo(stripBacktick(readCsvValue(values, headerMap, "商家订单号")));
+        vo.setRemark(readCsvValue(values, headerMap, "备注"));
+        try {
+            LocalDateTime tradeTime = LocalDateTime.parse(vo.getTradeTime(), WECHAT_TIME_FMT);
+            vo.setBookDate(tradeTime.toLocalDate());
+            vo.setBookTime(tradeTime.toLocalTime());
+            vo.setAmount(parseMoney(readCsvValue(values, headerMap, "金额")));
+            vo.setBookType(resolveBookType(vo.getIncomeExpense()));
+            vo.setBookTypeDesc(bookTypeDesc(vo.getBookType()));
+            resolveCategory(vo);
+            resolveAccount(vo);
+            vo.setSourceHash(buildSourceHash(SOURCE_TYPE_ALIPAY, vo));
+            return vo;
+        } catch (Exception e) {
+            vo.setImportStatus("ERROR");
+            vo.setImportStatusDesc("异常");
+            vo.setMessage(e instanceof BusinessException ? e.getMessage() : "解析失败：" + e.getMessage());
+            return vo;
         }
     }
 
@@ -823,17 +927,11 @@ public class BookServiceImpl
             vo.setBookDate(tradeTime.toLocalDate());
             vo.setBookTime(tradeTime.toLocalTime());
             vo.setAmount(parseMoney(readCell(row, headerMap, formatter, "金额(元)")));
-            vo.setBookType(resolveWechatBookType(vo.getIncomeExpense()));
+            vo.setBookType(resolveBookType(vo.getIncomeExpense()));
             vo.setBookTypeDesc(bookTypeDesc(vo.getBookType()));
             resolveCategory(vo);
             resolveAccount(vo);
-            vo.setSourceHash(sha256(String.join("|",
-                    SOURCE_TYPE_WECHAT,
-                    trimToEmpty(vo.getTradeTime()),
-                    trimToEmpty(vo.getIncomeExpense()),
-                    vo.getAmount().toPlainString(),
-                    trimToEmpty(vo.getCounterparty()),
-                    trimToEmpty(vo.getTradeNo()))));
+            vo.setSourceHash(buildSourceHash(SOURCE_TYPE_WECHAT, vo));
             return vo;
         } catch (Exception e) {
             vo.setImportStatus("ERROR");
@@ -863,11 +961,11 @@ public class BookServiceImpl
         String[] preferredNames;
         if (Integer.valueOf(1).equals(vo.getBookType())) {
             preferredNames = new String[]{"其他收入", "鍏朵粬鏀跺叆"};
-        } else if (containsAny(haystack, "茶", "饮品", "小面", "餐", "饭", "咖啡", "奶茶", "堂食", "美团", "饿了么", "食品")) {
+        } else if (containsAny(haystack, "茶", "饮品", "小面", "餐", "饭", "咖啡", "奶茶", "堂食", "美团", "饿了么", "食品", "餐饮美食")) {
             preferredNames = new String[]{"餐饮", "椁愰ギ", "零食饮料", "闆堕楗枡"};
-        } else if (containsAny(haystack, "打车", "地铁", "公交", "客运", "高铁", "机票", "加油", "停车", "索道")) {
+        } else if (containsAny(haystack, "打车", "地铁", "公交", "客运", "高铁", "机票", "加油", "停车", "索道", "交通出行", "高德")) {
             preferredNames = new String[]{"交通", "浜ら€?", "打车", "鎵撹溅"};
-        } else if (containsAny(haystack, "京东", "淘宝", "购物", "超市", "商场", "便利", "好又多", "日用")) {
+        } else if (containsAny(haystack, "京东", "淘宝", "购物", "超市", "商场", "便利", "好又多", "日用", "日用百货", "淘宝闪购", "盒马")) {
             preferredNames = new String[]{"购物", "璐墿", "日用品", "鏃ョ敤鍝?"};
         } else if (containsAny(haystack, "医院", "药", "医疗")) {
             preferredNames = new String[]{"医疗", "鍖荤枟"};
@@ -875,6 +973,12 @@ public class BookServiceImpl
             preferredNames = new String[]{"教育", "鏁欒偛"};
         } else if (containsAny(haystack, "旅游", "门票", "电影", "娱乐", "景区", "黄山")) {
             preferredNames = new String[]{"娱乐", "濞变箰"};
+        } else if (containsAny(haystack, "充值缴费", "话费", "电信", "移动", "联通", "水电", "燃气", "宽带")) {
+            preferredNames = new String[]{"居住", "物业宽带", "水电燃气"};
+        } else if (containsAny(haystack, "公益捐赠", "捐赠")) {
+            preferredNames = new String[]{"人情", "其他支出"};
+        } else if (containsAny(haystack, "投资理财", "基金", "余额宝", "蚂蚁财富")) {
+            preferredNames = new String[]{"投资理财", "其他支出"};
         } else {
             preferredNames = new String[]{"其他支出", "鍏朵粬鏀嚭"};
         }
@@ -925,12 +1029,26 @@ public class BookServiceImpl
         if (paymentMethod.contains("分付") && name.contains("分付")) {
             return true;
         }
+        if (paymentMethod.contains("余额宝") && name.contains("余额宝")) {
+            return true;
+        }
         String digits = paymentMethod.replaceAll("\\D+", "");
         return StringUtils.hasText(digits) && name.contains(digits);
     }
 
-    private void markDuplicatesAndSummarize(List<WechatBillImportRowVO> rows, boolean forImport) {
-        Set<String> existingHashes = loadExistingSourceHashes(rows);
+    private WechatBillImportResultVO buildImportResult(List<WechatBillImportRowVO> rows) {
+        WechatBillImportResultVO result = new WechatBillImportResultVO();
+        result.setRows(rows);
+        result.setTotalRows(rows.size());
+        result.setImportableRows((int) rows.stream().filter(row -> "READY".equals(row.getImportStatus()) || "PENDING".equals(row.getImportStatus())).count());
+        result.setDuplicateRows((int) rows.stream().filter(row -> "DUPLICATE".equals(row.getImportStatus())).count());
+        result.setPendingRows((int) rows.stream().filter(row -> "PENDING".equals(row.getImportStatus())).count());
+        result.setErrorRows((int) rows.stream().filter(row -> "ERROR".equals(row.getImportStatus())).count());
+        return result;
+    }
+
+    private void markDuplicatesAndSummarize(List<WechatBillImportRowVO> rows, boolean forImport, String sourceType) {
+        Set<String> existingHashes = loadExistingSourceHashes(rows, sourceType);
         Set<String> seenInFile = new HashSet<>();
         for (WechatBillImportRowVO row : rows) {
             if ("ERROR".equals(row.getImportStatus())) {
@@ -949,7 +1067,7 @@ public class BookServiceImpl
         }
     }
 
-    private Set<String> loadExistingSourceHashes(List<WechatBillImportRowVO> rows) {
+    private Set<String> loadExistingSourceHashes(List<WechatBillImportRowVO> rows, String sourceType) {
         List<String> hashes = rows.stream()
                 .map(WechatBillImportRowVO::getSourceHash)
                 .filter(StringUtils::hasText)
@@ -961,7 +1079,7 @@ public class BookServiceImpl
         return list(new LambdaQueryWrapper<PersonalBook>()
                 .select(PersonalBook::getSourceHash)
                 .eq(PersonalBook::getCreateBy, currentUsername())
-                .eq(PersonalBook::getSourceType, SOURCE_TYPE_WECHAT)
+                .eq(PersonalBook::getSourceType, sourceType)
                 .in(PersonalBook::getSourceHash, hashes))
                 .stream()
                 .map(PersonalBook::getSourceHash)
@@ -983,6 +1101,38 @@ public class BookServiceImpl
         return index == null ? "" : cellText(row, index, formatter);
     }
 
+    private static String readCsvValue(List<String> values, Map<String, Integer> headerMap, String header) {
+        Integer index = headerMap.get(header);
+        if (index == null || index < 0 || index >= values.size()) {
+            return "";
+        }
+        return trimToEmpty(values.get(index));
+    }
+
+    private static List<String> parseCsvLine(String line) {
+        List<String> values = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean quoted = false;
+        for (int i = 0; i < line.length(); i++) {
+            char ch = line.charAt(i);
+            if (ch == '"') {
+                if (quoted && i + 1 < line.length() && line.charAt(i + 1) == '"') {
+                    current.append('"');
+                    i++;
+                } else {
+                    quoted = !quoted;
+                }
+            } else if (ch == ',' && !quoted) {
+                values.add(current.toString().trim());
+                current.setLength(0);
+            } else {
+                current.append(ch);
+            }
+        }
+        values.add(current.toString().trim());
+        return values;
+    }
+
     private static String cellText(Row row, int index, DataFormatter formatter) {
         if (row == null || index < 0) {
             return "";
@@ -998,7 +1148,7 @@ public class BookServiceImpl
         return new BigDecimal(normalized).abs().setScale(2, RoundingMode.HALF_UP);
     }
 
-    private static Integer resolveWechatBookType(String incomeExpense) {
+    private static Integer resolveBookType(String incomeExpense) {
         String value = trimToEmpty(incomeExpense);
         if ("收入".equals(value)) {
             return 1;
@@ -1009,16 +1159,27 @@ public class BookServiceImpl
         return 3;
     }
 
-    private static String buildWechatDescription(WechatBillImportRowVO row) {
+    private static String buildSourceHash(String sourceType, WechatBillImportRowVO row) {
+        return sha256(String.join("|",
+                sourceType,
+                trimToEmpty(row.getTradeTime()),
+                trimToEmpty(row.getIncomeExpense()),
+                row.getAmount() == null ? "" : row.getAmount().toPlainString(),
+                trimToEmpty(row.getCounterparty()),
+                trimToEmpty(row.getTradeNo())));
+    }
+
+    private static String buildImportDescription(WechatBillImportRowVO row, String sourceType) {
         List<String> parts = new ArrayList<>();
         if (StringUtils.hasText(row.getProduct()) && !"/".equals(row.getProduct())) {
             parts.add(row.getProduct());
         }
+        String sourceName = SOURCE_TYPE_ALIPAY.equals(sourceType) ? "支付宝" : "微信";
         if (StringUtils.hasText(row.getTradeType())) {
-            parts.add("微信类型:" + row.getTradeType());
+            parts.add(sourceName + "类型:" + row.getTradeType());
         }
         if (StringUtils.hasText(row.getPaymentMethod())) {
-            parts.add("支付方式:" + row.getPaymentMethod());
+            parts.add((SOURCE_TYPE_ALIPAY.equals(sourceType) ? "收/付款方式:" : "支付方式:") + row.getPaymentMethod());
         }
         if (StringUtils.hasText(row.getStatus())) {
             parts.add("状态:" + row.getStatus());
@@ -1041,6 +1202,13 @@ public class BookServiceImpl
     private static String stripBacktick(String value) {
         String text = trimToEmpty(value);
         return text.startsWith("`") ? text.substring(1) : text;
+    }
+
+    private static String stripBom(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.startsWith("\uFEFF") ? value.substring(1) : value;
     }
 
     private static String sha256(String value) {

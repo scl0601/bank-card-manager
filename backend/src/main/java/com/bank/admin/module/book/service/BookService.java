@@ -35,6 +35,10 @@ public interface BookService {
 
     WechatBillImportResultVO importWechatBill(WechatBillImportConfirmDTO dto);
 
+    WechatBillImportResultVO previewAlipayImport(MultipartFile file);
+
+    WechatBillImportResultVO importAlipayBill(WechatBillImportConfirmDTO dto);
+
     Map<String, Object> getSummary(String yearMonth);
 
     BookOverviewVO getOverview(String yearMonth);
