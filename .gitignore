@@ -42,6 +42,7 @@ build*.log
 
 # === Database Backups ===
 backup_*.sql
+bank_admin_backup_*.sql
 *.backup.sql
 
 # === Claude Worktrees ===
