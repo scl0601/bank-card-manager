@@ -1,8 +1,29 @@
 # Deployment
 
-This deployment wrapper is specific to this project:
+## macOS
 
-`C:\Users\Administrator\CodeBuddy\20260327094619`
+From this repository on macOS, run:
+
+```bash
+./deploy-cloudbase.sh
+```
+
+The script builds the frontend, builds the backend with Java 21+, deploys
+`bank-admin-backend` to CloudBase CloudRun, refreshes static hosting, and
+verifies the public frontend domains plus backend OpenAPI schema.
+
+Required local tools:
+
+- Node.js and npm
+- Java 21+
+- Maven
+- CloudBase CLI (`cloudbase`)
+
+Before deploying, make sure production secrets are configured in CloudBase
+environment variables. Do not commit database credentials, JWT secrets, or
+Tencent Cloud keys to Git.
+
+## Windows
 
 Run:
 
@@ -10,6 +31,9 @@ Run:
 powershell -ExecutionPolicy Bypass -File .\deploy-cloudbase.ps1
 ```
 
-The script builds the frontend, builds the backend with JDK 21, deploys `bank-admin-backend` to CloudBase CloudRun, refreshes static hosting, and verifies the public frontend domains plus backend OpenAPI schema.
+The PowerShell wrapper is specific to this project path:
 
-Do not copy this script to another project without editing its hardcoded CloudBase environment, service name, paths, and verification fields.
+`C:\Users\Administrator\CodeBuddy\20260327094619`
+
+Do not copy either deployment script to another project without editing its
+CloudBase environment, service name, paths, and verification fields.

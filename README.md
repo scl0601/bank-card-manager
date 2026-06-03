@@ -124,11 +124,19 @@ reset-db.bat
 ### 测试
 ```bash
 cd frontend
-npm run test
+npm run build
 
 cd ../backend
 mvn test
 ```
+
+### macOS 部署
+```bash
+./deploy-cloudbase.sh
+```
+
+macOS 部署前需要确保 `node`、`npm`、Java 21+、`mvn`、`cloudbase` 均在 `PATH` 中。
+部署脚本只构建和发布应用，不会自动提交 Git、推送分支或修改数据库数据。
 
 ## 部署记录
 
