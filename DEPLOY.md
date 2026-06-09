@@ -19,9 +19,15 @@ Required local tools:
 - Maven
 - CloudBase CLI (`cloudbase`)
 
+On this macOS machine, `deploy-cloudbase.sh` prepends the known local Node 22,
+Maven 3.9.16, and Java 21 paths before checking commands, so deployment does
+not depend on the shell default Java 8 / Node 16 toolchain.
+
 Before deploying, make sure production secrets are configured in CloudBase
 environment variables. Do not commit database credentials, JWT secrets, or
-Tencent Cloud keys to Git.
+Tencent Cloud keys to Git. Production schema patching is disabled by default;
+set `APP_SCHEMA_PATCH_ENABLED=true` only during a controlled database
+maintenance window, then turn it back off.
 
 ## Windows
 

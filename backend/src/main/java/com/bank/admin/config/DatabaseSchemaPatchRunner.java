@@ -32,7 +32,8 @@ public class DatabaseSchemaPatchRunner implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         if (!appProperties.getSchemaPatch().isEnabled()) {
-            log.info("Database schema patch runner forced on for production compatibility even though app.schema-patch.enabled=false");
+            log.info("Database schema patch runner disabled by app.schema-patch.enabled=false");
+            return;
         }
 
         ensurePatchHistoryTable();

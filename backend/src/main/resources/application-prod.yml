@@ -18,12 +18,12 @@ mybatis-plus:
     log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
 
 jwt:
-  secret: ${JWT_SECRET:bank-admin-jwt-secret-key-2024-very-long-secret}
+  secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION:86400000}
 
 app:
   schema-patch:
-    enabled: ${APP_SCHEMA_PATCH_ENABLED:true}
+    enabled: ${APP_SCHEMA_PATCH_ENABLED:false}
   bootstrap-users:
     enabled: ${APP_BOOTSTRAP_USERS_ENABLED:false}
   cors:
@@ -43,4 +43,3 @@ cloudbase:
     secret-key: ${TENCENT_SECRET_KEY:your-secret-key}
     model: hunyuan-pro
     max-tokens: 2000
-

@@ -20,6 +20,13 @@ npm --version
 cloudbase --version
 ```
 
+当前 macOS 也已安装 Java 21 和 Maven 3.9.16；一键部署脚本会自动优先使用这些路径：
+
+```bash
+export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
+export PATH="/Users/shichenlong/shichenlong-work/tools/node-v22/current/bin:/Users/shichenlong/shichenlong-work/tools/maven/apache-maven-3.9.16/bin:$JAVA_HOME/bin:$PATH"
+```
+
 如果需要补装 Java 21 和 Maven，可优先使用 Homebrew：
 
 ```bash

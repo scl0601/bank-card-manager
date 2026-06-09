@@ -136,7 +136,8 @@ mvn test
 ```
 
 macOS 部署前需要确保 `node`、`npm`、Java 21+、`mvn`、`cloudbase` 均在 `PATH` 中。
-部署脚本只构建和发布应用，不会自动提交 Git、推送分支或修改数据库数据。
+部署脚本会优先使用本机已安装的 Node 22、Maven 3.9.16 和 Java 21；如果找不到这些工具，会回退检查当前 `PATH`。
+部署脚本只构建和发布应用，不会自动提交 Git、推送分支或修改数据库数据。生产环境默认不会执行数据库结构补丁，如需维护生产库，先在 CloudBase 环境变量中临时设置 `APP_SCHEMA_PATCH_ENABLED=true`，完成后再改回 `false`。
 
 ## 部署记录
 

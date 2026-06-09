@@ -9,6 +9,8 @@ FRONTEND_DIR="$PROJECT_ROOT/frontend"
 BACKEND_DIR="$PROJECT_ROOT/backend"
 FRONTEND_DIST="$FRONTEND_DIR/dist"
 BACKEND_API_DOCS_URL="${BACKEND_API_DOCS_URL:-https://bank-admin-backend-239413-10-1411764939.sh.run.tcloudbase.com/v3/api-docs}"
+PREFERRED_NODE_BIN="/Users/shichenlong/shichenlong-work/tools/node-v22/current/bin"
+PREFERRED_MAVEN_BIN="/Users/shichenlong/shichenlong-work/tools/maven/apache-maven-3.9.16/bin"
 FRONTEND_URLS=(
   "https://bankaiscl.top/"
   "https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.com/"
@@ -31,12 +33,43 @@ require_command() {
   fi
 }
 
+prepend_path_if_exists() {
+  local path_entry="$1"
+  if [[ -d "$path_entry" ]]; then
+    PATH="$path_entry:$PATH"
+  fi
+}
+
+configure_toolchain() {
+  prepend_path_if_exists "$PREFERRED_NODE_BIN"
+  prepend_path_if_exists "$PREFERRED_MAVEN_BIN"
+
+  if [[ -z "${JAVA_HOME:-}" || ! -x "${JAVA_HOME:-}/bin/java" ]]; then
+    if command -v /usr/libexec/java_home >/dev/null 2>&1; then
+      JAVA_HOME="$(/usr/libexec/java_home -v 21 2>/dev/null || true)"
+      if [[ -n "$JAVA_HOME" ]]; then
+        export JAVA_HOME
+      fi
+    fi
+  fi
+
+  if [[ -n "${JAVA_HOME:-}" && -x "$JAVA_HOME/bin/java" ]]; then
+    PATH="$JAVA_HOME/bin:$PATH"
+  fi
+
+  export PATH
+}
+
 java_major_version() {
   java -version 2>&1 | awk -F '"' '/version/ {
     split($2, parts, ".")
     if (parts[1] == "1") print parts[2]; else print parts[1]
     exit
   }'
+}
+
+node_major_version() {
+  node -v 2>/dev/null | sed -E 's/^v([0-9]+).*/\1/'
 }
 
 get_frontend_index_asset() {
@@ -67,6 +100,7 @@ test_backend_schema() {
 }
 
 step "Checking project and tools"
+configure_toolchain
 [[ -d "$FRONTEND_DIR" ]] || { printf 'Frontend dir not found: %s\n' "$FRONTEND_DIR" >&2; exit 1; }
 [[ -d "$BACKEND_DIR" ]] || { printf 'Backend dir not found: %s\n' "$BACKEND_DIR" >&2; exit 1; }
 require_command node
@@ -76,6 +110,12 @@ require_command mvn
 require_command cloudbase
 require_command curl
 require_command grep
+
+NODE_MAJOR="$(node_major_version)"
+if [[ -z "$NODE_MAJOR" || "$NODE_MAJOR" -lt 20 ]]; then
+  printf 'Node.js 20+ is required. Current node version: %s\n' "$(node -v 2>/dev/null || printf 'not found')" >&2
+  exit 1
+fi
 
 JAVA_MAJOR="$(java_major_version)"
 if [[ -z "$JAVA_MAJOR" || "$JAVA_MAJOR" -lt 21 ]]; then
@@ -88,6 +128,7 @@ printf 'Project: %s\n' "$PROJECT_ROOT"
 printf 'CloudBase env: %s\n' "$ENV_ID"
 printf 'CloudRun service: %s\n' "$CLOUD_RUN_SERVICE"
 printf 'Node: %s\n' "$(command -v node)"
+printf 'Node version: %s\n' "$(node -v)"
 printf 'NPM: %s\n' "$(command -v npm)"
 printf 'Maven: %s\n' "$(command -v mvn)"
 printf 'Java: %s\n' "$(java -version 2>&1 | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g')"
