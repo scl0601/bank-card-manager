@@ -1,153 +1,408 @@
 <template>
   <div class="book-workbench">
-    <section class="book-overview-screen">
-      <section class="book-hero">
-        <div class="hero-main">
-          <div class="hero-topline">
-            <div>
-              <div class="page-title">个人记账</div>
-            </div>
-            <el-date-picker v-model="currentMonth" class="hero-month" type="month" value-format="YYYY-MM" :clearable="false" />
-          </div>
-
-          <div class="hero-balance">
-            <span>本月支出</span>
-            <strong>-{{ money(overview.totalExpense) }}</strong>
-          </div>
-
-          <div class="hero-summary">
-            <div v-for="card in secondaryMetrics" :key="card.key" class="summary-chip" :class="card.tone">
-              <span>{{ card.label }}</span>
-              <strong :class="card.amountClass">{{ card.value }}</strong>
-            </div>
-          </div>
-        </div>
-
-        <div class="hero-side">
-          <div class="hero-actions">
-            <el-button type="primary" :icon="Plus" @click="openAdd()">记一笔</el-button>
-            <el-button v-for="action in quickActions" :key="action.key" :icon="action.icon" @click="action.handler">
-              {{ action.label }}
-            </el-button>
-            <el-dropdown trigger="click" @command="handleBillImportCommand">
-              <el-button :loading="wechatImportLoading || alipayImportLoading">导入账单</el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="WECHAT">微信账单</el-dropdown-item>
-                  <el-dropdown-item command="ALIPAY">支付宝账单</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-            <input ref="wechatImportFileRef" class="hidden-file-input" type="file" accept=".xlsx" @change="handleWechatImportFileChange" />
-            <input ref="alipayImportFileRef" class="hidden-file-input" type="file" accept=".csv" @change="handleAlipayImportFileChange" />
-            <ExportButton :loading="exporting" @click="exportCurrent" />
-          </div>
-
-          <div class="budget-brief" :class="budgetStatus.tone">
-            <div class="budget-brief-head">
-              <span>{{ budgetStatus.title }}</span>
-              <strong>{{ budgetStatus.percentText }}</strong>
-            </div>
-            <el-progress :percentage="budgetProgressPercent" :status="budgetStatus.progressStatus" :show-text="false" />
-            <div class="budget-brief-foot">
-              <span>预算 {{ money(overview.totalBudget) }}</span>
-              <span>剩余 {{ money(overview.budgetRemaining) }}</span>
+    <section class="book-page-header">
+      <div class="header-left">
+        <span class="page-title-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 5a2 2 0 0 1 2-2h10l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
+            <path d="M16 3v5h5" />
+            <path d="M8 13h8" />
+            <path d="M8 17h5" />
+            <path d="M9 8h3" />
+          </svg>
+        </span>
+        <div class="header-title-group">
+          <h1 class="page-title">个人记账</h1>
+          <div class="page-subtitle">
+            <div class="view-switch">
+              <button type="button" :class="{ active: activeBookSheet === 'overview' }" @click="activeBookSheet = 'overview'">总览</button>
+              <button type="button" :class="{ active: activeBookSheet === 'ledger' }" @click="activeBookSheet = 'ledger'">流水</button>
+              <button type="button" :class="{ active: activeBookSheet === 'entry' }" @click="activeBookSheet = 'entry'">记账</button>
             </div>
           </div>
         </div>
-      </section>
+      </div>
 
-      <section class="insight-grid">
-        <div class="panel trend-panel">
-          <div class="panel-head">
-            <div>
-              <h3>本月趋势</h3>
-              <span>按天汇总收入与支出</span>
-            </div>
-            <div class="panel-actions">
-              <span class="panel-total">净额 {{ signedMoney(overview.netAmount) }}</span>
-              <el-button link type="primary" @click="openInsightDialog('trend')">展开全部</el-button>
-            </div>
-          </div>
-          <VChart class="trend-chart" :option="trendOption" autoresize />
-        </div>
-
-        <div class="panel insight-panel">
-          <div class="panel-head">
-            <div>
-              <h3>预算进度</h3>
-              <span>{{ budgetSummaryText }}</span>
-            </div>
-            <div class="panel-actions">
-              <el-button link type="primary" @click="openBudgetAdd">{{ budgets.length ? '调整' : '新增预算' }}</el-button>
-              <el-button link type="primary" @click="openInsightDialog('budget')">展开全部</el-button>
-            </div>
-          </div>
-          <div v-if="budgets.length" class="budget-list">
-            <div v-for="item in previewBudgets" :key="item.id" class="budget-item">
-              <div>
-                <span>{{ item.categoryName || '总预算' }}</span>
-                <strong>{{ money(item.usedAmount) }} / {{ money(item.amount) }}</strong>
-              </div>
-              <el-progress :percentage="Math.min(100, Number(item.usagePercent || 0))" :status="Number(item.usagePercent) > 100 ? 'exception' : undefined" :show-text="false" />
-            </div>
-          </div>
-          <el-empty v-else :image-size="42" description="本月还没有预算" />
-        </div>
-
-        <div class="panel insight-panel">
-          <div class="panel-head">
-            <div>
-              <h3>账户余额</h3>
-              <span>点击账户筛选对应流水</span>
-            </div>
-            <div class="panel-actions">
-              <el-button link type="primary" @click="openAccountAdd">{{ accounts.length ? '新增' : '新增账户' }}</el-button>
-              <el-button link type="primary" @click="openInsightDialog('account')">展开全部</el-button>
-            </div>
-          </div>
-          <div class="account-list" v-if="visibleAccounts.length">
-            <button
-              v-for="account in visibleAccounts"
-              :key="account.id"
-              class="account-row"
-              :class="{ active: query.accountId === account.id }"
-              @click="selectAccount(account.id)"
-            >
-              <span>
-                <b>{{ account.name }}</b>
-                <small>{{ account.accountTypeDesc || accountTypeText(account.accountType) }}</small>
-              </span>
-              <strong>{{ money(account.currentBalance) }}</strong>
-            </button>
-          </div>
-          <el-empty v-else :image-size="42" description="暂无账户，先新增一个账户" />
-        </div>
-
-        <div class="panel insight-panel">
-          <div class="panel-head">
-            <div>
-              <h3>支出排行</h3>
-              <span>本月主要消费分类</span>
-            </div>
-            <div class="panel-actions">
-              <el-button link type="primary" @click="openInsightDialog('rank')">展开全部</el-button>
-            </div>
-          </div>
-          <div v-if="topCategoryRanks.length" class="rank-list">
-            <div v-for="item in topCategoryRanks" :key="item.categoryId || item.categoryName" class="rank-row">
-              <div class="rank-meta">
-                <span>{{ item.categoryName || '未分类' }}</span>
-                <strong>{{ money(item.amount) }}</strong>
-              </div>
-              <div class="rank-bar"><i :style="{ width: `${item.percent}%` }" /></div>
-            </div>
-          </div>
-          <el-empty v-else :image-size="42" description="暂无支出记录" />
-        </div>
-
-      </section>
+      <div class="book-header-actions">
+        <el-date-picker v-model="currentMonth" class="book-month" type="month" value-format="YYYY-MM" :clearable="false" />
+        <el-button type="primary" :icon="Plus" @click="openAdd()">记一笔</el-button>
+        <el-dropdown trigger="click" @command="handleBillImportCommand">
+          <el-button :loading="wechatImportLoading || alipayImportLoading">导入账单</el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="WECHAT">微信账单</el-dropdown-item>
+              <el-dropdown-item command="ALIPAY">支付宝账单</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+        <ExportButton :loading="exporting" @click="exportCurrent" />
+      </div>
     </section>
+
+    <input ref="wechatImportFileRef" class="hidden-file-input" type="file" accept=".xlsx" @change="handleWechatImportFileChange" />
+    <input ref="alipayImportFileRef" class="hidden-file-input" type="file" accept=".csv" @change="handleAlipayImportFileChange" />
+
+    <main class="main-body">
+      <section v-show="activeBookSheet === 'overview'" class="book-sheet overview-sheet">
+        <section class="panel overview-summary-panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title"><span class="panel-dot is-primary"></span>本月总览</div>
+              <span>{{ currentMonth }} 财务概况</span>
+            </div>
+            <div class="panel-actions">
+              <el-button link type="primary" @click="openInsightDialog('trend')">趋势</el-button>
+              <el-button link type="primary" @click="activeBookSheet = 'ledger'">查看流水</el-button>
+            </div>
+          </div>
+          <div class="mini-stats mini-stats-6">
+            <div v-for="card in overviewMetricCards" :key="card.key" class="mini-stat" :class="card.tone">
+              <span class="ms-label">{{ card.label }}</span>
+              <span class="ms-value font-mono" :class="card.amountClass">{{ card.value }}</span>
+              <small>{{ card.caption }}</small>
+            </div>
+          </div>
+        </section>
+
+        <section class="overview-grid">
+          <section class="panel trend-panel">
+            <div class="panel-head">
+              <div>
+                <div class="panel-title"><span class="panel-dot"></span>本月趋势</div>
+                <span>按天汇总收入与支出</span>
+              </div>
+              <div class="panel-actions">
+                <span class="panel-total">净额 {{ signedMoney(overview.netAmount) }}</span>
+                <el-button link type="primary" @click="openInsightDialog('trend')">展开全部</el-button>
+              </div>
+            </div>
+            <VChart class="trend-chart" :option="trendOption" autoresize />
+          </section>
+
+          <section class="panel insight-panel">
+            <div class="panel-head">
+              <div>
+                <div class="panel-title"><span class="panel-dot warning"></span>预算进度</div>
+                <span>{{ budgetSummaryText }}</span>
+              </div>
+              <div class="panel-actions">
+                <el-button link type="primary" @click="openBudgetAdd">{{ budgets.length ? '调整' : '新增预算' }}</el-button>
+                <el-button link type="primary" @click="openInsightDialog('budget')">展开全部</el-button>
+              </div>
+            </div>
+            <div v-if="budgets.length" class="budget-list">
+              <div v-for="item in previewBudgets" :key="item.id" class="budget-item">
+                <div>
+                  <span>{{ item.categoryName || '总预算' }}</span>
+                  <strong>{{ money(item.usedAmount) }} / {{ money(item.amount) }}</strong>
+                </div>
+                <el-progress :percentage="Math.min(100, Number(item.usagePercent || 0))" :status="Number(item.usagePercent) > 100 ? 'exception' : undefined" :show-text="false" />
+              </div>
+            </div>
+            <el-empty v-else :image-size="42" description="本月还没有预算" />
+          </section>
+
+          <section class="panel insight-panel">
+            <div class="panel-head">
+              <div>
+                <div class="panel-title"><span class="panel-dot success"></span>账户余额</div>
+                <span>点击账户筛选对应流水</span>
+              </div>
+              <div class="panel-actions">
+                <el-button link type="primary" @click="openAccountAdd">{{ accounts.length ? '新增' : '新增账户' }}</el-button>
+                <el-button link type="primary" @click="openInsightDialog('account')">展开全部</el-button>
+              </div>
+            </div>
+            <div class="account-list" v-if="visibleAccounts.length">
+              <button
+                v-for="account in visibleAccounts"
+                :key="account.id"
+                class="account-row"
+                :class="{ active: query.accountId === account.id }"
+                @click="selectAccount(account.id)"
+              >
+                <span>
+                  <b>{{ account.name }}</b>
+                  <small>{{ account.accountTypeDesc || accountTypeText(account.accountType) }}</small>
+                </span>
+                <strong>{{ money(account.currentBalance) }}</strong>
+              </button>
+            </div>
+            <el-empty v-else :image-size="42" description="暂无账户，先新增一个账户" />
+          </section>
+
+          <section class="panel insight-panel rank-panel">
+            <div class="panel-head">
+              <div>
+                <div class="panel-title"><span class="panel-dot danger"></span>支出排行</div>
+                <span>本月主要消费分类</span>
+              </div>
+              <div class="panel-actions">
+                <el-button link type="primary" @click="openInsightDialog('rank')">展开全部</el-button>
+              </div>
+            </div>
+            <div v-if="topCategoryRanks.length" class="rank-list">
+              <div v-for="item in topCategoryRanks" :key="item.categoryId || item.categoryName" class="rank-row">
+                <div class="rank-meta">
+                  <span>{{ item.categoryName || '未分类' }}</span>
+                  <strong>{{ money(item.amount) }}</strong>
+                </div>
+                <div class="rank-bar"><i :style="{ width: `${item.percent}%` }" /></div>
+              </div>
+            </div>
+            <el-empty v-else :image-size="42" description="暂无支出记录" />
+          </section>
+
+          <section class="panel action-panel">
+            <div class="panel-head">
+              <div>
+                <div class="panel-title"><span class="panel-dot"></span>管理入口</div>
+                <span>账户、预算与分类</span>
+              </div>
+            </div>
+            <div class="action-card-grid">
+              <button v-for="action in quickActions" :key="action.key" type="button" class="action-card" @click="action.handler">
+                <el-icon><component :is="action.icon" /></el-icon>
+                <span>{{ action.label }}</span>
+                <small>{{ action.caption }}</small>
+              </button>
+            </div>
+          </section>
+        </section>
+      </section>
+
+      <section v-show="activeBookSheet === 'ledger'" class="book-sheet ledger-sheet">
+        <section class="panel ledger-panel" :class="{ 'is-calendar-mode': viewMode === 'calendar' }">
+          <div class="ledger-head">
+            <div>
+              <div class="panel-title"><span class="panel-dot is-primary"></span>收支流水</div>
+              <span v-if="selectedDate">已筛选 {{ selectedDate }}</span>
+              <span v-else>查看、筛选或补记本月流水</span>
+            </div>
+            <div class="ledger-tabs">
+              <el-button type="primary" link :loading="monthLedgerLoading" @click="openMonthLedgerDialog">本月总览</el-button>
+              <el-segmented v-model="viewMode" :options="[{ label: '流水', value: 'list' }, { label: '日历', value: 'calendar' }]" />
+              <el-button v-if="selectedDate" link type="primary" @click="openAdd(selectedDate)">按当天记一笔</el-button>
+            </div>
+          </div>
+
+          <div class="ledger-toolbar">
+            <div class="ledger-filters">
+              <el-select v-model="query.bookType" placeholder="全部类型" clearable style="width: 108px" @change="runSearch">
+                <el-option v-for="item in BOOK_TYPE_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+              </el-select>
+              <el-select v-model="query.accountId" placeholder="全部账户" clearable filterable style="width: 132px" @change="runSearch">
+                <el-option v-for="item in accounts" :key="item.id" :label="item.name" :value="item.id" />
+              </el-select>
+              <el-cascader
+                v-model="query.categoryIds"
+                :options="categoryOptions"
+                :props="{ multiple: true, checkStrictly: true, value: 'id', label: 'name', children: 'children', emitPath: false }"
+                placeholder="全部分类"
+                clearable
+                collapse-tags
+                collapse-tags-tooltip
+                style="width: 180px"
+                @change="runSearch"
+              />
+              <el-input v-model="query.keyword" placeholder="搜索备注、商家、账户" clearable style="width: 180px" @keyup.enter="runSearch" @clear="runSearch" />
+              <el-button @click="resetFilters">重置</el-button>
+            </div>
+            <el-button v-if="selectedDate" link type="primary" @click="clearDateFilter">清除日期</el-button>
+          </div>
+
+          <PageTable
+            v-if="viewMode === 'list'"
+            class="ledger-page-table"
+            :class="{ 'is-scroll-mode': query.pageSize > 7 }"
+            :data="list"
+            :loading="loading"
+            :total="total"
+            :page-num="query.pageNum"
+            :page-size="query.pageSize"
+            :page-sizes="[7, 10, 20, 50]"
+            height="100%"
+            border
+            size="small"
+            @update:page-num="(val) => { query.pageNum = val }"
+            @update:page-size="(val) => { query.pageSize = val }"
+            @current-change="handleCurrentChange"
+            @size-change="handleSizeChange"
+          >
+            <el-table-column label="日期" width="126">
+              <template #default="{ row }">
+                <div class="date-cell">
+                  <strong>{{ row.bookDate }}</strong>
+                  <span>{{ row.bookTime || '--:--' }}</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="类型" width="76" align="center">
+              <template #default="{ row }">
+                <StatusTag :value="row.bookType" :label-map="BOOK_TYPE_MAP" :type-map="BOOK_TYPE_TAG_TYPE" size="small" />
+              </template>
+            </el-table-column>
+            <el-table-column label="分类/对象" min-width="150">
+              <template #default="{ row }">
+                <div class="main-cell">
+                  <strong>{{ row.bookType === BOOK_TYPE_VALUE.TRANSFER ? '账户转账' : (row.categoryName || '未分类') }}</strong>
+                  <span>{{ row.merchant || row.description || '-' }}</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="账户" min-width="160">
+              <template #default="{ row }">
+                <span v-if="row.bookType === BOOK_TYPE_VALUE.TRANSFER">{{ row.accountName || '未关联账户' }} → {{ row.targetAccountName || '未关联账户' }}</span>
+                <span v-else>{{ row.accountName || '未关联账户' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="金额" width="118" align="right">
+              <template #default="{ row }">
+                <span :class="amountClass(row.bookType)">
+                  {{ amountPrefix(row.bookType) }}{{ money(row.amount) }}
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="description" label="备注" min-width="130" show-overflow-tooltip />
+            <el-table-column label="操作" width="112" fixed="right" align="center">
+              <template #default="{ row }">
+                <el-button type="primary" link @click="openEdit(row)">编辑</el-button>
+                <el-popconfirm title="确认删除这条流水？" @confirm="handleDelete(row.id)">
+                  <template #reference><el-button type="danger" link>删除</el-button></template>
+                </el-popconfirm>
+              </template>
+            </el-table-column>
+          </PageTable>
+
+          <div v-else class="calendar-wrap">
+            <div class="calendar-weekdays">
+              <span v-for="day in ['日', '一', '二', '三', '四', '五', '六']" :key="day">{{ day }}</span>
+            </div>
+            <div class="calendar-grid">
+              <button
+                v-for="day in calendarDays"
+                :key="day.date"
+                class="calendar-day"
+                :class="{ active: selectedDate === day.date, muted: !day.inMonth, filled: day.income > 0 || day.expense > 0 }"
+                @click="selectCalendarDate(day.date)"
+              >
+                <span class="day-num">{{ day.day }}</span>
+                <span class="day-amounts">
+                  <small v-if="day.income > 0" class="amount-positive">+{{ shortMoney(day.income) }}</small>
+                  <small v-if="day.expense > 0" class="amount-negative">-{{ shortMoney(day.expense) }}</small>
+                </span>
+              </button>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section v-show="activeBookSheet === 'entry'" class="book-sheet entry-sheet">
+        <section class="panel entry-form-panel">
+          <div class="entry-form-header">
+            <div>
+              <div class="panel-title"><span class="panel-dot is-primary"></span>{{ recordDialogTitle }}</div>
+              <span>{{ formData.bookDate }} {{ formData.bookTime?.slice(0, 5) || '' }}</span>
+            </div>
+            <div class="entry-form-actions">
+              <el-button @click="resetEntryForm()">清空</el-button>
+              <el-button type="primary" :loading="submitting" @click="handleSubmit">
+                {{ isEdit ? '保存修改' : '保存并记下一笔' }}
+              </el-button>
+            </div>
+          </div>
+
+          <el-alert v-if="!activeAccounts.length" title="暂无可用账户，请先新增一个账户再记账。" type="warning" :closable="false" class="drawer-alert" />
+          <el-alert v-if="formData.bookType !== BOOK_TYPE_VALUE.TRANSFER && !formCategoryOptions.length" title="暂无可用分类，请先在分类管理中新增分类。" type="warning" :closable="false" class="drawer-alert" />
+          <el-form ref="recordFormRef" :model="formData" :rules="rules" label-width="78px" class="compact-form record-form">
+            <div class="record-entry-card">
+              <el-form-item class="record-type-item" prop="bookType">
+                <el-segmented v-model="formData.bookType" :options="BOOK_TYPE_OPTIONS" @change="onTypeChange" />
+              </el-form-item>
+              <el-form-item class="record-amount-item" prop="amount">
+                <span class="record-currency">¥</span>
+                <el-input-number v-model="formData.amount" :min="0.01" :precision="2" :controls="false" style="width:100%" />
+              </el-form-item>
+            </div>
+            <div class="entry-form-grid">
+              <el-form-item label="日期" prop="bookDate">
+                <el-date-picker v-model="formData.bookDate" type="date" value-format="YYYY-MM-DD" style="width:100%" />
+              </el-form-item>
+              <el-form-item label="时间">
+                <el-time-picker v-model="formData.bookTime" value-format="HH:mm:ss" format="HH:mm" style="width:100%" />
+              </el-form-item>
+              <el-form-item v-if="formData.bookType !== BOOK_TYPE_VALUE.TRANSFER" label="分类" prop="categoryId">
+                <el-cascader
+                  ref="recordCategoryCascaderRef"
+                  v-model="formData.categoryId"
+                  :options="formCategoryOptions"
+                  :props="{ checkStrictly: true, value: 'id', label: 'name', children: 'children', emitPath: false }"
+                  filterable
+                  style="width:100%"
+                  @change="handleRecordCategoryChange"
+                />
+              </el-form-item>
+              <el-form-item :label="formData.bookType === BOOK_TYPE_VALUE.TRANSFER ? '转出账户' : '账户'" prop="accountId">
+                <el-select v-model="formData.accountId" placeholder="请选择账户" filterable style="width:100%">
+                  <el-option v-for="item in activeAccounts" :key="item.id" :label="item.name" :value="item.id" />
+                </el-select>
+              </el-form-item>
+              <el-form-item v-if="formData.bookType === BOOK_TYPE_VALUE.TRANSFER" label="转入账户" prop="targetAccountId">
+                <el-select v-model="formData.targetAccountId" placeholder="请选择转入账户" filterable style="width:100%">
+                  <el-option v-for="item in activeAccounts" :key="item.id" :label="item.name" :value="item.id" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="商家/对象">
+                <el-input v-model="formData.merchant" placeholder="如：便利店、房东、工资" />
+              </el-form-item>
+            </div>
+            <el-form-item label="备注">
+              <el-input v-model="formData.description" type="textarea" :rows="3" placeholder="补充说明（可选）" />
+            </el-form-item>
+          </el-form>
+        </section>
+
+        <aside class="entry-side">
+          <section class="panel entry-side-panel">
+            <div class="panel-head">
+              <div>
+                <div class="panel-title"><span class="panel-dot"></span>本月概览</div>
+                <span>{{ currentMonth }}</span>
+              </div>
+            </div>
+            <div class="mini-stats entry-mini-grid">
+              <div v-for="card in overviewMetricCards.slice(0, 4)" :key="card.key" class="mini-stat" :class="card.tone">
+                <span class="ms-label">{{ card.label }}</span>
+                <span class="ms-value font-mono" :class="card.amountClass">{{ card.value }}</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel entry-side-panel">
+            <div class="panel-head">
+              <div>
+                <div class="panel-title"><span class="panel-dot"></span>管理入口</div>
+                <span>账户、预算与分类</span>
+              </div>
+            </div>
+            <div class="entry-action-grid">
+              <el-button v-for="action in quickActions" :key="action.key" :icon="action.icon" @click="action.handler">
+                {{ action.label }}
+              </el-button>
+              <el-dropdown trigger="click" @command="handleBillImportCommand">
+                <el-button :loading="wechatImportLoading || alipayImportLoading">导入账单</el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="WECHAT">微信账单</el-dropdown-item>
+                    <el-dropdown-item command="ALIPAY">支付宝账单</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
+          </section>
+        </aside>
+      </section>
+    </main>
 
     <el-dialog v-model="insightDialogVisible" :title="insightDialogTitle" width="760px" class="insight-dialog" destroy-on-close>
       <div v-if="insightDialogType === 'trend'" class="insight-dialog-body">
@@ -220,130 +475,6 @@
       </el-table>
     </el-dialog>
 
-    <section class="panel ledger-panel">
-      <div class="ledger-head">
-        <div>
-          <h3>收支流水</h3>
-          <span v-if="selectedDate">已筛选 {{ selectedDate }}</span>
-          <span v-else>查看、筛选或补记本月流水</span>
-        </div>
-        <div class="ledger-tabs">
-          <el-button type="primary" link :loading="monthLedgerLoading" @click="openMonthLedgerDialog">本月总览</el-button>
-          <el-segmented v-model="viewMode" :options="[{ label: '流水', value: 'list' }, { label: '日历', value: 'calendar' }]" />
-          <el-button v-if="selectedDate" link type="primary" @click="openAdd(selectedDate)">按当天记一笔</el-button>
-        </div>
-      </div>
-
-      <div class="ledger-toolbar">
-        <div class="ledger-filters">
-          <el-select v-model="query.bookType" placeholder="全部类型" clearable style="width: 108px" @change="runSearch">
-            <el-option v-for="item in BOOK_TYPE_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
-          </el-select>
-          <el-select v-model="query.accountId" placeholder="全部账户" clearable filterable style="width: 132px" @change="runSearch">
-            <el-option v-for="item in accounts" :key="item.id" :label="item.name" :value="item.id" />
-          </el-select>
-          <el-cascader
-            v-model="query.categoryIds"
-            :options="categoryOptions"
-            :props="{ multiple: true, checkStrictly: true, value: 'id', label: 'name', children: 'children', emitPath: false }"
-            placeholder="全部分类"
-            clearable
-            collapse-tags
-            collapse-tags-tooltip
-            style="width: 180px"
-            @change="runSearch"
-          />
-          <el-input v-model="query.keyword" placeholder="搜索备注、商家、账户" clearable style="width: 180px" @keyup.enter="runSearch" @clear="runSearch" />
-          <el-button @click="resetFilters">重置</el-button>
-        </div>
-        <el-button v-if="selectedDate" link type="primary" @click="clearDateFilter">清除日期</el-button>
-      </div>
-
-      <PageTable
-        v-if="viewMode === 'list'"
-        class="ledger-page-table"
-        :class="{ 'is-scroll-mode': query.pageSize > 7 }"
-        :data="list"
-        :loading="loading"
-        :total="total"
-        :page-num="query.pageNum"
-        :page-size="query.pageSize"
-        :page-sizes="[7, 10, 20, 50]"
-        height="100%"
-        border
-        size="small"
-        @update:page-num="(val) => { query.pageNum = val }"
-        @update:page-size="(val) => { query.pageSize = val }"
-        @current-change="handleCurrentChange"
-        @size-change="handleSizeChange"
-      >
-        <el-table-column label="日期" width="126">
-          <template #default="{ row }">
-            <div class="date-cell">
-              <strong>{{ row.bookDate }}</strong>
-              <span>{{ row.bookTime || '--:--' }}</span>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column label="类型" width="76" align="center">
-          <template #default="{ row }">
-            <StatusTag :value="row.bookType" :label-map="BOOK_TYPE_MAP" :type-map="BOOK_TYPE_TAG_TYPE" size="small" />
-          </template>
-        </el-table-column>
-        <el-table-column label="分类/对象" min-width="150">
-          <template #default="{ row }">
-            <div class="main-cell">
-              <strong>{{ row.bookType === BOOK_TYPE_VALUE.TRANSFER ? '账户转账' : (row.categoryName || '未分类') }}</strong>
-              <span>{{ row.merchant || row.description || '-' }}</span>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column label="账户" min-width="160">
-          <template #default="{ row }">
-            <span v-if="row.bookType === BOOK_TYPE_VALUE.TRANSFER">{{ row.accountName || '未关联账户' }} → {{ row.targetAccountName || '未关联账户' }}</span>
-            <span v-else>{{ row.accountName || '未关联账户' }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="金额" width="118" align="right">
-          <template #default="{ row }">
-            <span :class="amountClass(row.bookType)">
-              {{ amountPrefix(row.bookType) }}{{ money(row.amount) }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="description" label="备注" min-width="130" show-overflow-tooltip />
-        <el-table-column label="操作" width="112" fixed="right" align="center">
-          <template #default="{ row }">
-            <el-button type="primary" link @click="openEdit(row)">编辑</el-button>
-            <el-popconfirm title="确认删除这条流水？" @confirm="handleDelete(row.id)">
-              <template #reference><el-button type="danger" link>删除</el-button></template>
-            </el-popconfirm>
-          </template>
-        </el-table-column>
-      </PageTable>
-
-      <div v-else class="calendar-wrap">
-        <div class="calendar-weekdays">
-          <span v-for="day in ['日', '一', '二', '三', '四', '五', '六']" :key="day">{{ day }}</span>
-        </div>
-        <div class="calendar-grid">
-          <button
-            v-for="day in calendarDays"
-            :key="day.date"
-            class="calendar-day"
-            :class="{ active: selectedDate === day.date, muted: !day.inMonth, filled: day.income > 0 || day.expense > 0 }"
-            @click="selectCalendarDate(day.date)"
-          >
-            <span class="day-num">{{ day.day }}</span>
-            <span class="day-amounts">
-              <small v-if="day.income > 0" class="amount-positive">+{{ shortMoney(day.income) }}</small>
-              <small v-if="day.expense > 0" class="amount-negative">-{{ shortMoney(day.expense) }}</small>
-            </span>
-          </button>
-        </div>
-      </div>
-    </section>
-
     <el-dialog
       v-model="monthLedgerDialogVisible"
       :title="`${currentMonth} 本月流水总览`"
@@ -410,59 +541,6 @@
         </el-table-column>
       </el-table>
     </el-dialog>
-
-    <el-drawer v-model="recordDrawerVisible" :title="recordDialogTitle" size="500px" destroy-on-close>
-      <el-alert v-if="!activeAccounts.length" title="暂无可用账户，请先新增一个账户再记账。" type="warning" :closable="false" class="drawer-alert" />
-      <el-alert v-if="formData.bookType !== BOOK_TYPE_VALUE.TRANSFER && !formCategoryOptions.length" title="暂无可用分类，请先在分类管理中新增分类。" type="warning" :closable="false" class="drawer-alert" />
-      <el-form ref="recordFormRef" :model="formData" :rules="rules" label-width="78px" class="compact-form record-form">
-        <div class="record-entry-card">
-          <el-form-item class="record-type-item" prop="bookType">
-            <el-segmented v-model="formData.bookType" :options="BOOK_TYPE_OPTIONS" @change="onTypeChange" />
-          </el-form-item>
-          <el-form-item class="record-amount-item" prop="amount">
-            <span class="record-currency">¥</span>
-            <el-input-number v-model="formData.amount" :min="0.01" :precision="2" :controls="false" style="width:100%" />
-          </el-form-item>
-        </div>
-        <el-form-item label="日期" prop="bookDate">
-          <el-date-picker v-model="formData.bookDate" type="date" value-format="YYYY-MM-DD" style="width:100%" />
-        </el-form-item>
-        <el-form-item label="时间">
-          <el-time-picker v-model="formData.bookTime" value-format="HH:mm:ss" format="HH:mm" style="width:100%" />
-        </el-form-item>
-        <el-form-item v-if="formData.bookType !== BOOK_TYPE_VALUE.TRANSFER" label="分类" prop="categoryId">
-          <el-cascader
-            ref="recordCategoryCascaderRef"
-            v-model="formData.categoryId"
-            :options="formCategoryOptions"
-            :props="{ checkStrictly: true, value: 'id', label: 'name', children: 'children', emitPath: false }"
-            filterable
-            style="width:100%"
-            @change="handleRecordCategoryChange"
-          />
-        </el-form-item>
-        <el-form-item :label="formData.bookType === BOOK_TYPE_VALUE.TRANSFER ? '转出账户' : '账户'" prop="accountId">
-          <el-select v-model="formData.accountId" placeholder="请选择账户" filterable style="width:100%">
-            <el-option v-for="item in activeAccounts" :key="item.id" :label="item.name" :value="item.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item v-if="formData.bookType === BOOK_TYPE_VALUE.TRANSFER" label="转入账户" prop="targetAccountId">
-          <el-select v-model="formData.targetAccountId" placeholder="请选择转入账户" filterable style="width:100%">
-            <el-option v-for="item in activeAccounts" :key="item.id" :label="item.name" :value="item.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="商家/对象">
-          <el-input v-model="formData.merchant" placeholder="如：便利店、房东、工资" />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="formData.description" type="textarea" :rows="3" placeholder="补充说明（可选）" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="recordDrawerVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleSubmit">保存</el-button>
-      </template>
-    </el-drawer>
 
     <el-dialog v-model="wechatImportDialogVisible" :title="`${importProviderLabel}账单导入`" width="960px" class="wechat-import-dialog" destroy-on-close>
       <div v-if="wechatImportResult" class="import-summary">
@@ -612,6 +690,7 @@ use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer
 
 const now = new Date()
 const currentMonth = ref(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
+const activeBookSheet = ref<'overview' | 'ledger' | 'entry'>('overview')
 const viewMode = ref<'list' | 'calendar'>('list')
 const selectedDate = ref('')
 const overview = ref<any>({ totalIncome: 0, totalExpense: 0, netAmount: 0, totalAssets: 0, totalBudget: 0, budgetRemaining: 0, budgetUsagePercent: 0, budgets: [], categoryRanks: [] })
@@ -663,17 +742,25 @@ const incomeCategoryOptions = computed(() => buildCascaderOptions(allCategoryTre
 const expenseCategoryOptions = computed(() => buildCascaderOptions(allCategoryTree.value.filter(item => Number(item.type) === BOOK_TYPE_VALUE.EXPENSE)))
 const formCategoryOptions = computed(() => formData.bookType === BOOK_TYPE_VALUE.INCOME ? incomeCategoryOptions.value : expenseCategoryOptions.value)
 const budgetPercent = computed(() => Math.min(999, Number(overview.value.budgetUsagePercent || 0)))
-const budgetProgressPercent = computed(() => Math.min(100, Number(overview.value.budgetUsagePercent || 0)))
 const budgetSummaryText = computed(() => overview.value.totalBudget > 0 ? `已用 ${money(overview.value.budgetUsed)}，${budgetPercent.value}%` : '设置总预算或分类预算')
 const accountEnabled = computed({
   get: () => Number(accountForm.status) === 0,
   set: (val: boolean) => { accountForm.status = val ? 0 : 1 }
 })
-const secondaryMetrics = computed(() => [
+const overviewMetricCards = computed(() => [
+  {
+    key: 'expense',
+    label: '本月支出',
+    value: `-${money(overview.value.totalExpense)}`,
+    caption: '当月全部支出流水',
+    tone: 'expense',
+    amountClass: 'amount-negative'
+  },
   {
     key: 'income',
     label: '本月收入',
     value: `+${money(overview.value.totalIncome)}`,
+    caption: '当月全部收入流水',
     tone: 'income',
     amountClass: 'amount-positive'
   },
@@ -681,6 +768,7 @@ const secondaryMetrics = computed(() => [
     key: 'net',
     label: '本月结余',
     value: signedMoney(overview.value.netAmount),
+    caption: Number(overview.value.netAmount) >= 0 ? '收入覆盖支出' : '支出高于收入',
     tone: Number(overview.value.netAmount) >= 0 ? 'income' : 'expense',
     amountClass: Number(overview.value.netAmount) >= 0 ? 'amount-positive' : 'amount-negative'
   },
@@ -688,8 +776,25 @@ const secondaryMetrics = computed(() => [
     key: 'asset',
     label: '账户资产',
     value: money(overview.value.totalAssets),
+    caption: `${activeAccounts.value.length} 个启用账户`,
     tone: 'asset',
     amountClass: 'amount-transfer'
+  },
+  {
+    key: 'budget',
+    label: '预算进度',
+    value: budgetStatus.value.percentText,
+    caption: `剩余 ${money(overview.value.budgetRemaining)}`,
+    tone: budgetStatus.value.tone,
+    amountClass: Number(overview.value.budgetUsagePercent || 0) > 100 ? 'amount-negative' : 'amount-transfer'
+  },
+  {
+    key: 'ledger',
+    label: '流水数量',
+    value: String(total.value || 0),
+    caption: selectedDate.value ? `已筛选 ${selectedDate.value}` : '当前筛选条件',
+    tone: 'neutral',
+    amountClass: ''
   }
 ])
 const budgetStatus = computed(() => {
@@ -720,9 +825,9 @@ const insightDialogTitle = computed(() => {
   return titleMap[insightDialogType.value]
 })
 const quickActions = computed(() => [
-  { key: 'account', label: '账户', icon: Wallet, handler: () => { accountDrawerVisible.value = true } },
-  { key: 'budget', label: '预算', icon: Aim, handler: () => { budgetDrawerVisible.value = true } },
-  { key: 'category', label: '分类', icon: Setting, handler: () => { categoryDrawerVisible.value = true } }
+  { key: 'account', label: '账户管理', caption: `${accounts.value.length} 个账户`, icon: Wallet, handler: () => { accountDrawerVisible.value = true } },
+  { key: 'budget', label: '预算管理', caption: `${budgets.value.length} 个预算项`, icon: Aim, handler: () => { budgetDrawerVisible.value = true } },
+  { key: 'category', label: '分类管理', caption: '收入与支出分类', icon: Setting, handler: () => { categoryDrawerVisible.value = true } }
 ])
 
 function buildRankRows(rows: any[]) {
@@ -797,7 +902,6 @@ const calendarDays = computed(() => {
   })
 })
 
-const recordDrawerVisible = ref(false)
 const isEdit = ref(false)
 const submitting = ref(false)
 const recordFormRef = ref<any>(null)
@@ -903,16 +1007,37 @@ function exportCurrent() {
 
 function openAdd(date?: string) {
   isEdit.value = false
-  const defaultType = expenseCategoryOptions.value.length ? BOOK_TYPE_VALUE.EXPENSE : BOOK_TYPE_VALUE.INCOME
-  Object.assign(formData, { id: undefined, bookType: BOOK_TYPE_VALUE.EXPENSE, amount: 0, bookDate: date || selectedDate.value || today(), bookTime: currentTime(), categoryId: undefined, accountId: activeAccounts.value[0]?.id, targetAccountId: undefined, merchant: '', description: '' })
-  formData.bookType = defaultType
-  recordDrawerVisible.value = true
+  resetEntryForm(date || selectedDate.value || today())
+  activeBookSheet.value = 'entry'
 }
 
 function openEdit(row: any) {
   isEdit.value = true
   Object.assign(formData, { id: row.id, bookType: row.bookType, amount: row.amount, bookDate: row.bookDate, bookTime: row.bookTime || currentTime(), categoryId: row.categoryId || undefined, accountId: row.accountId || undefined, targetAccountId: row.targetAccountId || undefined, merchant: row.merchant || '', description: row.description || '' })
-  recordDrawerVisible.value = true
+  activeBookSheet.value = 'entry'
+  monthLedgerDialogVisible.value = false
+  nextTick(() => {
+    recordFormRef.value?.clearValidate?.()
+  })
+}
+
+function resetEntryForm(date?: string) {
+  Object.assign(formData, {
+    id: undefined,
+    bookType: BOOK_TYPE_VALUE.EXPENSE,
+    amount: 0,
+    bookDate: date || today(),
+    bookTime: currentTime(),
+    categoryId: undefined,
+    accountId: activeAccounts.value[0]?.id,
+    targetAccountId: undefined,
+    merchant: '',
+    description: ''
+  })
+  isEdit.value = false
+  nextTick(() => {
+    recordFormRef.value?.clearValidate?.()
+  })
 }
 
 function onTypeChange() {
@@ -935,10 +1060,17 @@ async function handleSubmit() {
     if (isEdit.value) await updateBookApi(payload)
     else await saveBookApi(payload)
     ElMessage.success('保存成功')
-    recordDrawerVisible.value = false
+    const wasEdit = isEdit.value
     await refreshAll()
     if (monthLedgerDialogVisible.value) {
       await loadMonthLedgerRows()
+    }
+    if (wasEdit) {
+      activeBookSheet.value = 'ledger'
+      resetEntryForm()
+    } else {
+      resetEntryForm(formData.bookDate || today())
+      activeBookSheet.value = 'entry'
     }
   } finally {
     submitting.value = false
@@ -1231,51 +1363,230 @@ onMounted(refreshAll)
 
 <style scoped lang="scss">
 .book-workbench {
-  display: grid;
-  grid-template-columns: minmax(520px, 1.12fr) minmax(520px, 0.88fr);
-  grid-template-rows: minmax(0, 1fr);
+  display: flex;
   flex: 1;
-  gap: 6px;
-  align-items: stretch;
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  color: #213047;
-  --book-ink: #172033;
+  color: var(--color-text-primary);
+  --book-ink: #1f2a37;
   --book-muted: #64748b;
-  --book-line: rgba(42, 92, 130, 0.14);
-  --book-glow: rgba(36, 133, 128, 0.14);
-  --book-accent: #2f7f89;
-  --book-accent-soft: #edf7f7;
-  --book-panel: #fbfdff;
-  scroll-snap-type: none;
+  --book-line: #e5eaf0;
+  --book-accent: #1677ff;
+  --book-accent-soft: #eaf3ff;
+  --book-panel: #ffffff;
 }
 
-.book-overview-screen {
-  display: grid;
-  grid-column: 1;
-  grid-row: 1;
-  grid-template-rows: minmax(96px, 0.2fr) minmax(0, 0.8fr);
-  align-content: stretch;
-  gap: 6px;
+.book-shell {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
+}
+
+.book-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--book-line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.header-main {
+  min-width: 0;
+}
+
+.page-subtitle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+  color: var(--book-muted);
+  font-size: 12px;
+}
+
+.page-subtitle span + span::before {
+  content: '';
+  display: inline-block;
+  width: 1px;
+  height: 10px;
+  margin-right: 8px;
+  vertical-align: -1px;
+  background: #d7dee8;
+}
+
+.book-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.book-header-actions :deep(.el-button) {
+  margin-left: 0;
+}
+
+.book-tabs {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.book-tabs :deep(.el-tabs__header) {
+  flex-shrink: 0;
+  margin: 0 0 8px;
+  padding: 0 2px;
+}
+
+.book-tabs :deep(.el-tabs__content) {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.book-tabs :deep(.el-tab-pane) {
   height: 100%;
+  min-height: 0;
+}
+
+.overview-tab,
+.entry-tab {
+  height: 100%;
+  min-height: 0;
   overflow: auto;
 }
 
-.book-hero {
-  display: grid;
-  grid-template-columns: minmax(300px, 1.25fr) minmax(220px, 0.75fr);
-  gap: 6px;
-  min-width: 0;
-  min-height: 0;
+.overview-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.hero-main,
-.hero-side,
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.metric-card {
+  min-width: 0;
+  min-height: 86px;
+  padding: 10px 12px;
+  border: 1px solid var(--book-line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  border-top: 3px solid #d7dee8;
+}
+
+.metric-card.income { border-top-color: var(--color-success); }
+.metric-card.expense,
+.metric-card.danger { border-top-color: var(--color-danger); }
+.metric-card.asset,
+.metric-card.safe,
+.metric-card.neutral { border-top-color: var(--color-primary); }
+.metric-card.warning { border-top-color: var(--color-warning); }
+.metric-card.empty { border-top-color: #b8c4d4; }
+
+.metric-card span,
+.metric-card small {
+  display: block;
+  color: var(--book-muted);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.metric-card strong {
+  display: block;
+  margin: 8px 0 6px;
+  font-family: var(--font-mono);
+  font-size: 18px;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-action-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.overview-action-card {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 2px 9px;
+  min-width: 0;
+  min-height: 62px;
+  padding: 9px 12px;
+  border: 1px solid var(--book-line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--book-ink);
+  text-align: left;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.overview-action-card:hover {
+  border-color: rgba(22, 119, 255, 0.3);
+  background: var(--book-accent-soft);
+}
+
+.overview-action-card .el-icon {
+  grid-row: 1 / 3;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--book-accent-soft);
+  color: var(--color-primary);
+  font-size: 18px;
+}
+
+.overview-action-card span,
+.overview-action-card small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-action-card span {
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.overview-action-card small {
+  color: var(--book-muted);
+  font-size: 12px;
+}
+
+.book-overview-screen {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  overflow: visible;
+}
+
 .panel {
   position: relative;
   border: 1px solid var(--book-line);
@@ -1286,47 +1597,17 @@ onMounted(refreshAll)
   transition: border-color 0.22s ease, box-shadow 0.22s ease;
 }
 
-.hero-side:hover,
 .panel:hover {
-  border-color: rgba(42, 92, 130, 0.22);
+  border-color: rgba(22, 119, 255, 0.22);
   box-shadow: 0 14px 30px rgba(28, 49, 76, 0.08);
 }
 
-.hero-main {
-  position: relative;
-  overflow: hidden;
-  padding: 6px 8px;
-  color: var(--book-ink);
-  background:
-    linear-gradient(135deg, #f4fbfb 0%, #f8fbff 54%, #eef7f4 100%);
-  border-color: rgba(42, 92, 130, 0.14);
-  box-shadow: 0 12px 28px rgba(28, 49, 76, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-}
-
-.hero-main::before {
-  content: none;
-}
-
-.hero-main::after {
-  content: none;
-}
-
-.hero-topline,
-.hero-summary,
-.budget-brief-head,
-.budget-brief-foot,
 .ledger-head,
 .ledger-toolbar,
 .panel-head {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-}
-
-.hero-topline {
-  position: relative;
-  z-index: 1;
-  align-items: flex-start;
 }
 
 .page-title {
@@ -1338,171 +1619,31 @@ onMounted(refreshAll)
   text-shadow: none;
 }
 
-.hero-month {
+.book-month {
   width: 122px;
   flex-shrink: 0;
 }
 
-.hero-month :deep(.el-input__wrapper) {
+.book-month :deep(.el-input__wrapper) {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.78);
   box-shadow: 0 0 0 1px rgba(42, 92, 130, 0.12) inset;
 }
 
-.hero-month :deep(.el-input__inner),
-.hero-month :deep(.el-input__prefix),
-.hero-month :deep(.el-input__suffix) {
+.book-month :deep(.el-input__inner),
+.book-month :deep(.el-input__prefix),
+.book-month :deep(.el-input__suffix) {
   color: var(--book-ink);
 }
 
-.hero-balance {
-  position: relative;
-  z-index: 1;
-  margin-top: 2px;
-}
-
-.hero-balance span,
-.summary-chip span {
-  display: block;
-  font-size: 11px;
-  color: var(--book-muted);
-}
-
-.hero-balance strong {
-  display: block;
-  margin-top: 2px;
-  font-family: var(--font-mono);
-  font-size: clamp(18px, 2vh, 22px);
-  line-height: 1;
-  letter-spacing: 0;
-  overflow-wrap: anywhere;
-  text-shadow: none;
-  color: #b42318;
-}
-
-.hero-summary {
-  position: relative;
-  z-index: 1;
-  margin-top: 4px;
-  align-items: stretch;
-}
-
-.summary-chip {
-  flex: 1;
-  min-width: 0;
-  padding: 3px 5px;
-  border: 1px solid rgba(42, 92, 130, 0.12);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
-}
-
-.summary-chip.income {
-  box-shadow: inset 0 2px 0 rgba(47, 158, 68, 0.5);
-}
-
-.summary-chip.expense {
-  box-shadow: inset 0 2px 0 rgba(207, 19, 34, 0.38);
-}
-
-.summary-chip.asset {
-  box-shadow: inset 0 2px 0 rgba(47, 127, 137, 0.38);
-}
-
-.summary-chip strong {
-  display: block;
-  margin-top: 2px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.hero-side {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 5px;
-  overflow: hidden;
-  background: var(--book-panel);
-}
-
-.hero-side::before,
 .panel::before {
   content: none;
 }
 
-.hero-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-}
-
-.hero-actions :deep(.el-dropdown) {
-  width: 100%;
-}
-
-.hero-actions :deep(.el-button) {
-  width: 100%;
-  height: 24px;
-  padding: 0 8px;
-  margin-left: 0;
-  border-radius: 8px;
-  border-color: rgba(42, 92, 130, 0.14);
-  background: #fff;
-  box-shadow: none;
-  color: var(--book-ink);
-}
-
-.hero-actions :deep(.el-button .el-icon) {
-  color: inherit;
-}
-
-.hero-actions :deep(.el-button--primary) {
-  border-color: rgba(47, 127, 137, 0.42);
-  background: #2f7f89;
-  box-shadow: 0 8px 16px rgba(47, 127, 137, 0.16);
-  color: #fff;
-}
-
-.budget-brief {
-  padding: 4px 5px;
-  border: 1px solid rgba(13, 79, 130, 0.14);
-  border-radius: 8px;
-  background: #f8fafc;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
-}
-
-.budget-brief.safe { background: #f3faf6; border-color: #d7eadf; }
-.budget-brief.warning { background: #fffaf0; border-color: #f3dfb8; }
-.budget-brief.danger { background: #fff6f4; border-color: #edcbc7; }
-
-.budget-brief-head {
-  align-items: center;
-  margin-bottom: 2px;
-  font-size: 11px;
-  color: #526074;
-}
-
-.budget-brief-head strong {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: #1f2a37;
-}
-
-.budget-brief-foot {
-  margin-top: 2px;
-  color: #667085;
-  font-size: 11px;
-}
-
 .insight-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-rows: minmax(176px, 0.48fr) minmax(180px, 0.52fr);
-  gap: 6px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
   align-items: stretch;
   height: auto;
   min-height: 0;
@@ -1515,8 +1656,6 @@ onMounted(refreshAll)
 }
 
 .trend-panel {
-  grid-column: 1 / -1;
-  grid-row: 2;
   background: var(--book-panel);
   border-color: var(--book-line);
   color: var(--book-ink);
@@ -1567,12 +1706,12 @@ onMounted(refreshAll)
   flex-shrink: 0;
   font-family: var(--font-mono);
   font-weight: 700;
-  color: var(--book-accent);
+  color: var(--color-primary);
 }
 
 .trend-chart {
   height: calc(100% - 34px);
-  min-height: 126px;
+  min-height: 120px;
   width: 100%;
 }
 
@@ -1684,12 +1823,12 @@ onMounted(refreshAll)
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #4d8f98, #7aa6a1);
+  background: linear-gradient(90deg, #1677ff, #69b1ff);
   box-shadow: none;
 }
 
 .rank-bar i.success {
-  background: linear-gradient(90deg, #4b9b62, #7aa6a1);
+  background: linear-gradient(90deg, #2f9e44, #73d13d);
 }
 
 .rank-bar i.warning {
@@ -1766,16 +1905,130 @@ onMounted(refreshAll)
   text-align: right;
 }
 
+.entry-tab {
+  display: grid;
+  grid-template-columns: minmax(520px, 1fr) minmax(280px, 360px);
+  gap: 8px;
+  align-items: start;
+}
+
+.entry-form-panel {
+  padding: 14px;
+}
+
+.entry-form-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.entry-form-header h3 {
+  margin: 0;
+  color: var(--book-ink);
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.entry-form-header span {
+  display: block;
+  margin-top: 3px;
+  color: var(--book-muted);
+  font-size: 12px;
+}
+
+.entry-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.entry-form-actions :deep(.el-button) {
+  margin-left: 0;
+}
+
+.entry-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 12px;
+}
+
+.entry-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.entry-side-panel {
+  padding: 12px;
+}
+
+.entry-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.entry-mini-card {
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid var(--book-line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.entry-mini-card.income { background: #f6ffed; }
+.entry-mini-card.expense,
+.entry-mini-card.danger { background: #fff5f5; }
+.entry-mini-card.asset,
+.entry-mini-card.safe,
+.entry-mini-card.neutral { background: #f3f8ff; }
+.entry-mini-card.warning { background: #fffaf0; }
+
+.entry-mini-card span {
+  display: block;
+  color: var(--book-muted);
+  font-size: 12px;
+}
+
+.entry-mini-card strong {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entry-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.entry-action-grid :deep(.el-button),
+.entry-action-grid :deep(.el-dropdown) {
+  width: 100%;
+  margin-left: 0;
+}
+
+.entry-action-grid :deep(.el-button) {
+  justify-content: center;
+}
+
 .ledger-panel {
   display: flex;
-  grid-column: 2;
-  grid-row: 1;
-  height: 100%;
+  margin-top: 8px;
   flex-direction: column;
   padding: 0;
   overflow: hidden;
   min-width: 0;
-  min-height: 0;
+  min-height: 440px;
   border-color: var(--book-line);
   box-shadow: 0 12px 28px rgba(28, 49, 76, 0.06);
   background: var(--book-panel);
@@ -1977,7 +2230,7 @@ onMounted(refreshAll)
 
 .calendar-day.filled {
   background: #f8fbff;
-  box-shadow: inset 0 2px 0 rgba(20, 184, 166, 0.28);
+  box-shadow: inset 0 2px 0 rgba(22, 119, 255, 0.28);
 }
 
 .day-num {
@@ -2055,8 +2308,8 @@ onMounted(refreshAll)
   border: 1px solid rgba(13, 79, 130, 0.16);
   border-radius: 8px;
   background:
-    linear-gradient(135deg, rgba(8, 26, 51, 0.96), rgba(10, 119, 111, 0.86)),
-    radial-gradient(circle at 100% 0%, rgba(125, 226, 255, 0.24), transparent 40%);
+    linear-gradient(135deg, rgba(8, 26, 51, 0.96), rgba(22, 119, 255, 0.84)),
+    radial-gradient(circle at 100% 0%, rgba(105, 177, 255, 0.26), transparent 40%);
   box-shadow: 0 16px 34px rgba(9, 35, 63, 0.18);
 }
 
@@ -2123,9 +2376,30 @@ onMounted(refreshAll)
 
 @media (max-width: 1180px) {
   .book-workbench {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(620px, 1fr);
     overflow: auto;
+  }
+
+  .book-page-header,
+  .book-header-actions {
+    align-items: flex-start;
+  }
+
+  .book-page-header {
+    flex-direction: column;
+  }
+
+  .book-header-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .metric-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .overview-action-grid,
+  .insight-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .book-overview-screen,
@@ -2144,16 +2418,8 @@ onMounted(refreshAll)
     min-height: 620px;
   }
 
-  .book-hero {
-    grid-template-columns: minmax(360px, 1.2fr) minmax(280px, 0.8fr);
-  }
-
-  .insight-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .trend-panel {
-    grid-column: 1 / -1;
+  .entry-tab {
+    grid-template-columns: 1fr;
   }
 
   .panel-actions {
@@ -2176,34 +2442,29 @@ onMounted(refreshAll)
 }
 
 @media (max-width: 760px) {
-  .book-hero,
   .insight-grid {
     grid-template-columns: 1fr;
     grid-template-rows: auto;
   }
 
-  .trend-panel {
-    grid-column: auto;
-    grid-row: auto;
+  .metric-grid,
+  .overview-action-grid,
+  .entry-form-grid,
+  .entry-mini-grid,
+  .entry-action-grid {
+    grid-template-columns: 1fr;
   }
 
-  .hero-topline,
-  .hero-summary,
-  .ledger-head,
-  .ledger-toolbar {
-    flex-direction: column;
-  }
-
-  .hero-month {
+  .book-header-actions :deep(.el-button),
+  .book-header-actions :deep(.el-dropdown),
+  .book-header-actions :deep(.export-button),
+  .book-month {
     width: 100%;
   }
 
-  .hero-balance strong {
-    font-size: 30px;
-  }
-
-  .hero-actions {
-    grid-template-columns: 1fr;
+  .ledger-head,
+  .ledger-toolbar {
+    flex-direction: column;
   }
 
   .ledger-tabs,
@@ -2219,6 +2480,1111 @@ onMounted(refreshAll)
   .calendar-day {
     min-height: 68px;
     padding: 6px;
+  }
+}
+
+$book-primary:       #0958d9;
+$book-primary-light: #1677ff;
+$book-primary-soft:  #eaf2ff;
+$book-ink:           #1f2937;
+$book-ink2:          #4b5563;
+$book-sub:           #667085;
+$book-faint:         #8a97a8;
+$book-border:        #dbe2ea;
+$book-surface:       #ffffff;
+$book-bg:            #f5f7fb;
+$book-danger:        #cf1322;
+$book-warning:       #d97706;
+$book-success:       #2f9e44;
+$book-shadow-sm:     0 10px 22px rgba(15, 23, 42, 0.05);
+
+.book-workbench {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  background: $book-bg;
+  color: $book-ink;
+  box-sizing: border-box;
+  --color-primary: #0958d9;
+  --color-primary-light: #1677ff;
+  --color-primary-dark: #0540b0;
+}
+
+.book-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 12px 20px;
+  border: 0;
+  border-bottom: 1px solid rgba(203, 213, 225, 0.82);
+  border-radius: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(246, 249, 253, 0.99) 100%);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.045);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.page-title-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(9, 88, 217, 0.14) 0%, rgba(9, 88, 217, 0.06) 100%);
+  color: $book-primary;
+  box-shadow: 0 8px 18px rgba(9, 88, 217, 0.09);
+}
+
+.header-title-group {
+  display: flex;
+  align-items: center;
+  flex-direction: row;
+  gap: 10px;
+  min-width: 0;
+}
+
+.page-title {
+  margin: 0;
+  color: $book-ink;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+.page-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-top: 0;
+  color: $book-sub;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.page-subtitle span + span::before {
+  content: none;
+}
+
+.view-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(226, 232, 240, 0.82);
+}
+
+.view-switch button {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: transparent;
+  color: $book-ink2;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+}
+
+.view-switch button.active {
+  background: $book-surface;
+  color: $book-primary;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.1);
+}
+
+.book-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.book-header-actions :deep(.el-button) {
+  margin-left: 0;
+}
+
+.book-month {
+  width: 124px;
+  flex-shrink: 0;
+}
+
+.book-month :deep(.el-input__wrapper) {
+  min-height: 30px;
+  border-radius: 8px;
+  background: #f8fafc;
+  box-shadow: 0 0 0 1px rgba(203, 213, 225, 0.78) inset;
+}
+
+.main-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.book-sheet {
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 10px 12px 12px;
+  box-sizing: border-box;
+}
+
+.overview-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+}
+
+.ledger-sheet {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.entry-sheet {
+  display: grid;
+  grid-template-columns: minmax(520px, 1fr) minmax(280px, 360px);
+  gap: 10px;
+  align-items: start;
+  overflow: auto;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(203, 213, 225, 0.82);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 1) 0%, rgba(247, 250, 253, 0.99) 100%);
+  box-shadow: $book-shadow-sm;
+}
+
+.panel:hover {
+  border-color: rgba(203, 213, 225, 0.82);
+  box-shadow: $book-shadow-sm;
+}
+
+.panel-head,
+.ledger-head,
+.entry-form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(203, 213, 225, 0.78);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(241, 245, 249, 0.94) 100%);
+  margin-bottom: 0;
+}
+
+.panel-head > div:first-child,
+.ledger-head > div:first-child,
+.entry-form-header > div:first-child {
+  min-width: 0;
+}
+
+.panel-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: $book-ink;
+  font-size: 13.5px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.panel-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: $book-ink2;
+  flex-shrink: 0;
+}
+
+.panel-dot.is-primary {
+  background: $book-primary;
+}
+
+.panel-dot.success,
+.panel-dot.is-success {
+  background: $book-success;
+}
+
+.panel-dot.warning,
+.panel-dot.is-warning {
+  background: $book-warning;
+}
+
+.panel-dot.danger,
+.panel-dot.is-danger {
+  background: $book-danger;
+}
+
+.panel-head span,
+.ledger-head span,
+.entry-form-header span {
+  display: block;
+  margin-top: 3px;
+  color: $book-sub;
+  font-size: 11.5px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel-actions,
+.ledger-tabs,
+.entry-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.panel-actions :deep(.el-button),
+.ledger-tabs :deep(.el-button),
+.entry-form-actions :deep(.el-button) {
+  margin-left: 0;
+}
+
+.panel-total {
+  color: $book-primary;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.overview-summary-panel .mini-stats,
+.entry-side-panel .mini-stats {
+  padding: 10px 12px 12px;
+}
+
+.mini-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.mini-stats-6 {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.mini-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  min-height: 74px;
+  padding: 10px 10px 9px;
+  overflow: hidden;
+  border: 1px solid rgba(203, 213, 225, 0.78);
+  border-radius: 8px;
+  background: rgba(241, 245, 249, 0.92);
+}
+
+.mini-stat.income {
+  border-color: rgba(47, 158, 68, 0.24);
+}
+
+.mini-stat.expense,
+.mini-stat.danger {
+  border-color: rgba(207, 19, 34, 0.22);
+}
+
+.mini-stat.warning {
+  border-color: rgba(217, 119, 6, 0.24);
+}
+
+.mini-stat.asset,
+.mini-stat.safe,
+.mini-stat.neutral,
+.mini-stat.empty {
+  border-color: rgba(9, 88, 217, 0.18);
+}
+
+.ms-label {
+  overflow: hidden;
+  color: $book-ink2;
+  font-size: 11.5px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ms-value {
+  overflow: hidden;
+  color: $book-ink;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-stat small {
+  overflow: hidden;
+  color: $book-faint;
+  font-size: 11px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  align-items: stretch;
+}
+
+.trend-panel {
+  grid-column: span 2;
+  min-height: 260px;
+}
+
+.insight-panel {
+  min-height: 220px;
+}
+
+.action-panel,
+.rank-panel {
+  grid-column: span 2;
+}
+
+.trend-chart {
+  width: 100%;
+  min-height: 208px;
+  height: 100%;
+  padding: 8px 10px 10px;
+  box-sizing: border-box;
+}
+
+.budget-list,
+.account-list,
+.rank-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  padding: 10px 12px 12px;
+}
+
+.budget-item,
+.account-row,
+.rank-row {
+  min-height: 38px;
+  padding: 7px 9px;
+  border: 1px solid rgba(203, 213, 225, 0.72);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.budget-item div,
+.rank-meta,
+.account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.budget-item span,
+.rank-meta span {
+  color: $book-ink2;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.budget-item strong,
+.rank-meta strong,
+.account-row strong {
+  color: $book-ink;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.budget-item :deep(.el-progress) {
+  margin-top: 5px;
+}
+
+.account-row {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.account-row:hover,
+.account-row.active {
+  border-color: rgba(9, 88, 217, 0.36);
+  background: $book-primary-soft;
+  box-shadow: inset 3px 0 0 $book-primary;
+}
+
+.account-row span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 3px;
+}
+
+.account-row b {
+  overflow: hidden;
+  color: $book-ink;
+  font-size: 12px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-row small {
+  overflow: hidden;
+  color: $book-faint;
+  font-size: 11px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rank-row {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+}
+
+.rank-bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8eef3;
+}
+
+.rank-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, $book-primary, #69b1ff);
+  box-shadow: none;
+}
+
+.action-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 12px 12px;
+}
+
+.action-card {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  min-height: 62px;
+  gap: 2px 9px;
+  padding: 9px 10px;
+  border: 1px solid rgba(203, 213, 225, 0.78);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  color: $book-ink;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.action-card:hover {
+  border-color: rgba(9, 88, 217, 0.34);
+  background: $book-primary-soft;
+}
+
+.action-card .el-icon {
+  grid-row: 1 / 3;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: $book-primary-soft;
+  color: $book-primary;
+  font-size: 18px;
+}
+
+.action-card span,
+.action-card small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action-card span {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.action-card small {
+  color: $book-sub;
+  font-size: 12px;
+}
+
+.ledger-panel {
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  margin-top: 0;
+  padding: 0;
+}
+
+.ledger-panel.is-calendar-mode .ledger-head {
+  padding: 9px 14px;
+}
+
+.ledger-panel.is-calendar-mode .ledger-toolbar {
+  padding: 6px 12px;
+}
+
+.ledger-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(203, 213, 225, 0.68);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.ledger-filters {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ledger-filters :deep(.el-input__wrapper),
+.ledger-filters :deep(.el-select__wrapper) {
+  min-height: 30px;
+  border-radius: 8px;
+  background: #f8fafc;
+  box-shadow: 0 0 0 1px rgba(203, 213, 225, 0.72) inset;
+}
+
+.ledger-filters :deep(.el-button) {
+  height: 30px;
+  padding: 0 10px;
+}
+
+.ledger-panel :deep(.page-table.ledger-page-table) {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding: 8px 10px 10px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.ledger-panel :deep(.page-table.ledger-page-table > .el-table) {
+  flex: 1;
+  min-height: 0;
+}
+
+.ledger-panel :deep(.el-table .cell) {
+  line-height: 17px;
+  padding: 0 7px;
+}
+
+.ledger-panel :deep(.el-table--small .el-table__cell) {
+  padding: 6px 0;
+}
+
+.ledger-panel :deep(.pagination-wrapper) {
+  flex-shrink: 0;
+  margin-top: 8px;
+}
+
+.ledger-panel :deep(.el-pagination) {
+  justify-content: flex-end;
+  transform: scale(0.94);
+  transform-origin: right center;
+}
+
+.date-cell,
+.main-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.date-cell strong,
+.main-cell strong {
+  overflow: hidden;
+  color: $book-ink;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.date-cell span,
+.main-cell span {
+  overflow: hidden;
+  color: $book-faint;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.amount-positive {
+  color: $book-success;
+  font-family: var(--font-mono);
+  font-weight: 800;
+}
+
+.amount-negative {
+  color: $book-danger;
+  font-family: var(--font-mono);
+  font-weight: 800;
+}
+
+.amount-transfer {
+  color: $book-warning;
+  font-family: var(--font-mono);
+  font-weight: 800;
+}
+
+.calendar-wrap {
+  display: flex;
+  flex: 1;
+  flex-basis: 0;
+  flex-direction: column;
+  min-height: 0;
+  padding: 8px 10px 10px;
+  overflow: hidden;
+}
+
+.calendar-weekdays,
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.calendar-weekdays {
+  flex-shrink: 0;
+  margin-bottom: 5px;
+  color: $book-sub;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+}
+
+.calendar-grid {
+  flex: 1;
+  min-height: 0;
+  gap: 5px;
+  align-content: stretch;
+  grid-template-rows: repeat(6, minmax(0, 1fr));
+}
+
+.calendar-day {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-height: 0;
+  height: 100%;
+  padding: 6px;
+  overflow: hidden;
+  aspect-ratio: auto;
+  box-sizing: border-box;
+  border: 1px solid rgba(203, 213, 225, 0.78);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+  transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.calendar-day:hover,
+.calendar-day.active {
+  border-color: rgba(9, 88, 217, 0.42);
+  background: $book-primary-soft;
+  box-shadow: inset 0 0 0 1px rgba(9, 88, 217, 0.08);
+}
+
+.calendar-day.muted {
+  background: #f8fafc;
+  color: #a3adbd;
+}
+
+.calendar-day.filled {
+  box-shadow: inset 0 2px 0 rgba(9, 88, 217, 0.28);
+}
+
+.day-num {
+  color: $book-ink;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.day-amounts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+}
+
+.day-amounts small {
+  max-width: 100%;
+  line-height: 1.15;
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entry-form-panel {
+  padding: 0;
+}
+
+.entry-form-header {
+  margin-bottom: 0;
+}
+
+.record-form {
+  padding: 12px 14px 14px;
+}
+
+.compact-form :deep(.el-form-item) {
+  margin-bottom: 12px;
+}
+
+.compact-form :deep(.el-form-item__label) {
+  color: #526074;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.compact-form :deep(.el-input__wrapper),
+.compact-form :deep(.el-select__wrapper) {
+  min-height: 32px;
+  border-radius: 8px;
+}
+
+.record-entry-card {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) minmax(260px, 1fr);
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid rgba(203, 213, 225, 0.82);
+  border-radius: 8px;
+  background: rgba(241, 245, 249, 0.92);
+  box-shadow: none;
+}
+
+.record-entry-card :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+
+.record-type-item :deep(.el-form-item__content),
+.record-amount-item :deep(.el-form-item__content) {
+  margin-left: 0 !important;
+}
+
+.record-type-item :deep(.el-segmented) {
+  width: 100%;
+  border-radius: 8px;
+  background: rgba(226, 232, 240, 0.92);
+}
+
+.record-type-item :deep(.el-segmented__item) {
+  color: $book-ink2;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.record-type-item :deep(.el-segmented__item.is-selected) {
+  color: $book-primary;
+}
+
+.record-amount-item {
+  position: relative;
+}
+
+.record-currency {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  z-index: 1;
+  color: $book-primary;
+  font-size: 18px;
+  font-weight: 900;
+  transform: translateY(-50%);
+}
+
+.record-amount-item :deep(.el-input-number .el-input__inner) {
+  height: 44px;
+  padding-left: 28px;
+  color: $book-ink;
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 900;
+  text-align: left;
+}
+
+.record-entry-card :deep(.el-input__wrapper) {
+  background: $book-surface;
+  box-shadow: 0 0 0 1px rgba(203, 213, 225, 0.78) inset;
+}
+
+.entry-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 12px;
+}
+
+.entry-side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.entry-side-panel {
+  padding: 0;
+}
+
+.entry-mini-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.entry-mini-grid .mini-stat {
+  min-height: 62px;
+}
+
+.entry-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 12px 12px;
+}
+
+.entry-action-grid :deep(.el-button),
+.entry-action-grid :deep(.el-dropdown) {
+  width: 100%;
+  margin-left: 0;
+}
+
+.entry-action-grid :deep(.el-button) {
+  justify-content: center;
+}
+
+.drawer-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.drawer-alert {
+  margin: 0 14px 10px;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.import-summary,
+.month-ledger-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.import-summary span,
+.month-ledger-summary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid rgba(203, 213, 225, 0.82);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: $book-ink2;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.insight-dialog :deep(.el-dialog),
+.month-ledger-dialog :deep(.el-dialog),
+.wechat-import-dialog :deep(.el-dialog) {
+  max-width: calc(100vw - 32px);
+  border-radius: 10px;
+}
+
+.insight-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dialog-trend-chart {
+  width: 100%;
+  height: 340px;
+}
+
+.dialog-rank-cell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 10px;
+}
+
+.dialog-rank-cell span {
+  color: $book-sub;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-align: right;
+}
+
+.panel :deep(.el-empty) {
+  padding: 10px 0;
+}
+
+.panel :deep(.el-empty__description) {
+  margin-top: 4px;
+}
+
+@media (max-width: 1280px) {
+  .mini-stats-6 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .overview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .trend-panel,
+  .action-panel,
+  .rank-panel {
+    grid-column: span 2;
+  }
+
+  .entry-sheet {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 860px) {
+  .book-workbench {
+    overflow: auto;
+  }
+
+  .book-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 12px;
+  }
+
+  .header-title-group {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .book-header-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .book-header-actions :deep(.el-button),
+  .book-header-actions :deep(.el-dropdown),
+  .book-header-actions :deep(.export-button),
+  .book-month {
+    width: 100%;
+  }
+
+  .main-body {
+    overflow: visible;
+  }
+
+  .book-sheet {
+    height: auto;
+    overflow: visible;
+  }
+
+  .mini-stats-6,
+  .mini-stats,
+  .overview-grid,
+  .action-card-grid,
+  .entry-form-grid,
+  .entry-mini-grid,
+  .entry-action-grid,
+  .record-entry-card {
+    grid-template-columns: 1fr;
+  }
+
+  .trend-panel,
+  .action-panel,
+  .rank-panel {
+    grid-column: span 1;
+  }
+
+  .ledger-panel {
+    min-height: 640px;
+  }
+
+  .ledger-head,
+  .ledger-toolbar,
+  .entry-form-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .ledger-tabs,
+  .ledger-filters,
+  .entry-form-actions {
+    justify-content: flex-start;
+    width: 100%;
   }
 }
 </style>
