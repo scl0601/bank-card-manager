@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { useAuthStore } from '@/store/modules/auth'
+import { resolveRouteRedirect } from './access'
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -156,31 +157,14 @@ const router = createRouter({
 // 路由守卫
 router.beforeEach((to) => {
   const authStore = useAuthStore()
-  const isMobileRoute = !!to.meta?.isMobile
-  const loginPath = isMobileRoute ? '/m/login' : '/login'
-
-  if (to.meta.requiresAuth !== false && !authStore.token) {
-    return loginPath
-  }
-  const routeRoles = to.meta.roles as string[] | undefined
-  if (routeRoles?.length && !routeRoles.includes(authStore.role)) {
-    return authStore.role === 'MONITOR' ? '/monitor' : '/'
-  }
-  if ((to.path === '/login' || to.path === '/m/login') && authStore.token) {
-    if (authStore.role === 'MONITOR') {
-      return '/monitor'
-    }
-    return isMobileRoute ? '/m/calendar' : '/'
-  }
-  if (authStore.role === 'MONITOR' && isMobileRoute) {
-    return '/monitor'
-  }
-  if (authStore.role === 'MONITOR' && !isMobileRoute) {
-    const allowedPaths = new Set(['/monitor', '/logs', '/announcements'])
-    if (!allowedPaths.has(to.path)) {
-      return '/monitor'
-    }
-  }
+  return resolveRouteRedirect({
+    path: to.path,
+    requiresAuth: to.meta.requiresAuth as boolean | undefined,
+    roles: to.meta.roles as string[] | undefined,
+    isMobileRoute: !!to.meta?.isMobile,
+    token: authStore.token,
+    role: authStore.role
+  })
 })
 
 export default router

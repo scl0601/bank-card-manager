@@ -2,20 +2,16 @@ import axios from 'axios'
 import { ElMessage } from '@/plugins/element-feedback'
 import { useAuthStore } from '@/store/modules/auth'
 import router from '@/router'
-
-const CLOUD_PROD_API_BASE_URL = 'https://bank-admin-backend-239413-10-1411764939.sh.run.tcloudbase.com/api'
+import { normalizeApiBaseUrl, shouldAttachAuthToken } from './requestHelpers'
 
 function resolveApiBaseUrl() {
-  const envBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim()
+  const envBaseUrl = import.meta.env.VITE_API_BASE_URL
   if (envBaseUrl) {
-    return envBaseUrl.replace(/\/+$/, '')
+    return normalizeApiBaseUrl(envBaseUrl)
   }
 
-  if (typeof window !== 'undefined' && window.location.hostname.endsWith('tcloudbaseapp.com')) {
-    return CLOUD_PROD_API_BASE_URL
-  }
-
-  return '/api'
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : undefined
+  return normalizeApiBaseUrl(undefined, hostname)
 }
 
 const request = axios.create({
@@ -28,7 +24,7 @@ request.interceptors.request.use(
   (config) => {
     const authStore = useAuthStore()
     const requestUrl = config.url ?? ''
-    const shouldAttachToken = !!authStore.token && !requestUrl.includes('/auth/login')
+    const shouldAttachToken = shouldAttachAuthToken(authStore.token, requestUrl)
 
     if (shouldAttachToken) {
       config.headers = config.headers ?? {}

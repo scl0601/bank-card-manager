@@ -114,7 +114,13 @@ public class SecurityConfig {
         if (!allowedOrigins.isEmpty()) {
             config.setAllowedOrigins(allowedOrigins.stream().distinct().toList());
         }
-        config.setAllowedOriginPatterns(List.of("*"));
+        List<String> allowedOriginPatterns = cors.getAllowedOriginPatterns().stream()
+                .filter(pattern -> pattern != null && !pattern.isBlank())
+                .distinct()
+                .toList();
+        if (!allowedOriginPatterns.isEmpty()) {
+            config.setAllowedOriginPatterns(allowedOriginPatterns);
+        }
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

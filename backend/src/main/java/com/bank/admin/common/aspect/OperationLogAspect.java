@@ -45,7 +45,14 @@ public class OperationLogAspect {
             .registerModule(new JavaTimeModule())
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
-    private static final String[] SENSITIVE_FIELDS = {"password", "cvv"};
+    private static final String[] SENSITIVE_FIELDS = {
+            "password", "cvv",
+            "phone", "mobile", "tel", "telephone",
+            "idCard", "id_card", "identityNo", "identity_no", "certNo", "cert_no",
+            "cardNo", "card_no", "cardNumber", "card_number", "bankCardNo", "bank_card_no", "cardNoLast4", "card_no_last4",
+            "token", "accessToken", "access_token", "refreshToken", "refresh_token", "authorization",
+            "secret", "secretId", "secret_id", "secretKey", "secret_key", "apiKey", "api_key", "key"
+    };
 
     private final OperationLogService operationLogService;
 
@@ -179,7 +186,7 @@ public class OperationLogAspect {
                     safeArgs.add(sanitized);
                 }
             }
-            return maskSensitiveFields(MAPPER.writeValueAsString(safeArgs));
+            return maskSensitiveFieldsForLog(MAPPER.writeValueAsString(safeArgs));
         } catch (Exception e) {
             log.warn("Failed to serialize request params", e);
             return "[serialization error]";
@@ -249,14 +256,14 @@ public class OperationLogAspect {
         return fileInfo;
     }
 
-    private String maskSensitiveFields(String json) {
+    static String maskSensitiveFieldsForLog(String json) {
         if (json == null || json.isEmpty()) {
             return json;
         }
         String result = json;
         for (String field : SENSITIVE_FIELDS) {
             result = result.replaceAll(
-                    "(\\\"" + field + "\\\"\\s*:\\s*\\\")([^\\\"]*)(\\\")",
+                    "(?i)(\\\"" + Pattern.quote(field) + "\\\"\\s*:\\s*\\\")([^\\\"]*)(\\\")",
                     "$1****$3"
             );
         }

@@ -2,7 +2,7 @@
 
 ## 项目简介
 
-内部使用的银行卡管理系统，用于管理持卡人、银行卡、流水、账单等信息。
+内部使用的银行卡管理系统，用于管理持卡人、银行卡、流水、账单、收益统计、个人记账、日历计划、提醒、反馈、公告和操作日志等信息。
 
 ## 技术栈
 
@@ -56,7 +56,7 @@
 - **字符集**: utf8mb4
 - **排序规则**: utf8mb4_unicode_ci
 
-### 数据表清单（共 10 张）
+### 主要数据表清单
 
 | 表名 | 说明 | 状态 |
 |------|------|------|
@@ -65,11 +65,23 @@
 | bank_card | 银行卡表 | ✅ |
 | card_transaction | 流水记录表 | ✅ |
 | card_bill | 账单表 | ✅ |
+| bill_detail | 账单明细表 | ✅ |
 | reminder_task | 提醒任务表 | ✅ |
 | operation_log | 操作日志表 | ✅ |
 | book_category | 记账分类表 | ✅ |
+| book_account | 记账账户表 | ✅ |
+| book_budget | 记账预算表 | ✅ |
 | personal_book | 个人记账表 | ✅ |
 | calendar_event | 日程事项表 | ✅ |
+| user_feedback | 用户反馈主表 | ✅ |
+| user_feedback_attachment | 反馈附件表 | ✅ |
+| user_feedback_process_log | 反馈处理轨迹表 | ✅ |
+| system_announcement | 系统公告表 | ✅ |
+| system_announcement_user_state | 公告用户状态表 | ✅ |
+| special_user_config | 特殊通道用户配置表 | ✅ |
+| special_bank_card | 特殊通道银行卡表 | ✅ |
+| special_card_bill | 特殊通道账单表 | ✅ |
+| schema_patch_history | 数据库补丁执行记录表 | ✅ |
 
 
 ## CloudBase 控制台入口
@@ -86,7 +98,7 @@
 
 ### 生产安全配置
 
-生产环境必须显式配置 `JWT_SECRET`、`SPRING_DATASOURCE_URL`、`SPRING_DATASOURCE_USERNAME`、`SPRING_DATASOURCE_PASSWORD`。默认生产配置不会自动执行数据库结构补丁，也不会创建或重置内置测试账号。
+生产环境必须显式配置 `JWT_SECRET`、`SPRING_DATASOURCE_URL`、`SPRING_DATASOURCE_USERNAME`、`SPRING_DATASOURCE_PASSWORD`。如果开启 `cloudbase.ai.enabled=true`，还必须配置真实的 `AI_SECRET_ID` / `AI_SECRET_KEY` 或 `TENCENT_SECRET_ID` / `TENCENT_SECRET_KEY`。默认生产配置不会自动执行数据库结构补丁，也不会创建或重置内置测试账号。
 
 ```text
 APP_SCHEMA_PATCH_ENABLED=false
@@ -95,6 +107,7 @@ APP_CORS_ALLOWED_ORIGINS=https://dev-4g1sv3870175b971-1411764939.tcloudbaseapp.c
 ```
 
 仅在受控维护窗口内临时打开 `APP_SCHEMA_PATCH_ENABLED`。`APP_BOOTSTRAP_USERS_ENABLED` 只建议用于本地开发或测试环境。
+数据库性能索引补丁位于 `backend/src/main/resources/sql/patch-performance-indexes.sql`，只建议在维护窗口手工执行，并在执行前确认已备份数据库。
 
 ### 前端
 ```bash
@@ -124,6 +137,7 @@ reset-db.bat
 ### 测试
 ```bash
 cd frontend
+npm run test
 npm run build
 
 cd ../backend
