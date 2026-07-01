@@ -268,7 +268,10 @@
 
                   <div class="li-right card-info-right">
                     <div class="amt">
-                      <span class="amt-label">卡片额度</span>
+                      <span class="amt-label">
+                        <span v-if="hasCardRemark(c)" class="card-remark-dot" aria-label="有备注"></span>
+                        <span>卡片额度</span>
+                      </span>
                       <span class="amt-value font-mono">{{ formatMoneySafe(cardDisplayAmount(c)) }}</span>
                     </div>
                     <div class="li-actions">
@@ -1099,6 +1102,10 @@ function sumCardQuota(cards: any[]) {
 
 function cardDisplayAmount(card: any) {
   return cardQuotaValue(card)
+}
+
+function hasCardRemark(card: any) {
+  return String(card?.remark || '').trim().length > 0
 }
 
 const baseStats = computed(() => {
@@ -4204,7 +4211,26 @@ $shadow-sm:     0 10px 22px rgba(15,23,42,.05);
   min-width: 88px;
 }
 
-.amt-label { font-size: 11px; color: $ink2; font-weight: 800; }
+.amt-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  font-size: 11px;
+  color: $ink2;
+  font-weight: 800;
+}
+
+.card-remark-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: $primary;
+  border: 1px solid rgba(255,255,255,.95);
+  box-shadow: 0 0 0 2px rgba($primary, .14), 0 2px 6px rgba($primary, .22);
+  flex: 0 0 auto;
+}
+
 .amt-value { font-size: 14px; font-weight: 800; color: $ink; letter-spacing: 0; }
 
 .li-actions { display: flex; align-items: center; gap: 6px; }

@@ -12,7 +12,7 @@ import java.math.BigDecimal;
 @Schema(description = "月度收益统计")
 public class MonthlyProfitVO {
 
-    @Schema(description = "账单月份")
+    @Schema(description = "统计归属月份（还款月份，yyyy-MM）")
     private String billMonth;
 
     @Schema(description = "用户数")

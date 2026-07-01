@@ -18,6 +18,7 @@ public class UserProfitVO {
     @Schema(description = "一级用户名称")
     private String userName;
 
+    @Schema(description = "统计归属月份（还款月份，yyyy-MM）")
     private String billMonth;
 
     @Schema(description = "银行卡数量")
@@ -26,7 +27,7 @@ public class UserProfitVO {
     @Schema(description = "账单数量")
     private Long billCount;
 
-    @Schema(description = "账单月份数量")
+    @Schema(description = "还款月份数量")
     private Long billMonthCount;
 
     @Schema(description = "代还总金额")

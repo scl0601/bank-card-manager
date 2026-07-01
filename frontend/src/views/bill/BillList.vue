@@ -3989,6 +3989,10 @@ watch(
   min-height: 24px;
 }
 
+.detail-lite-head > div {
+  text-align: center;
+}
+
 .detail-lite-row + .detail-lite-row {
   border-top: 1px solid #f0f3f7;
 }
@@ -4008,17 +4012,20 @@ watch(
 
 .detail-date-col {
   color: #526074;
+  text-align: center;
   white-space: nowrap;
 }
 
 .detail-amount-col {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
+  text-align: center;
   white-space: nowrap;
 }
 
 .detail-note-col {
   min-width: 0;
+  text-align: center;
 }
 
 .detail-action-col {
@@ -4098,7 +4105,9 @@ watch(
 .detail-note-cell {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 1px;
+  text-align: center;
 }
 
 .detail-note-main {

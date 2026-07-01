@@ -47,7 +47,7 @@
           v-model="query.month"
           class="app-search-item profit-filter-item"
           :options="monthFilterOptions"
-          placeholder="全部月份"
+          placeholder="全部还款月"
           clearable
           filterable
           :height="240"
@@ -131,7 +131,7 @@
               <span class="single-line card-scope-cell">{{ row.cardInfoLabel }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="月份" width="44" align="center" header-align="center">
+          <el-table-column label="还款月" width="56" align="center" header-align="center">
             <template #default="{ row }">
               <span class="single-line">{{ row.monthLabel }}</span>
             </template>
@@ -453,8 +453,8 @@ const currentMonth = new Date().getMonth() + 1
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1)
 const monthFilterOptions: FilterOption[] = MONTH_OPTIONS.map((month) => ({ label: `${month}月`, value: month }))
 const viewFilterOptions: FilterOption[] = [
-  { label: '每个用户12个月', value: 'userMonths' },
-  { label: '每月所有用户', value: 'monthUsers' }
+  { label: '每个用户12个还款月', value: 'userMonths' },
+  { label: '每个还款月所有用户', value: 'monthUsers' }
 ]
 const PAYMENT_METHOD_OPTIONS = [
   { label: '微信', value: 'wechat' },
@@ -573,16 +573,16 @@ const cardFilterOptions = computed<FilterOption[]>(() => filteredCardOptions.val
 })))
 
 const selectedMonths = computed(() => appliedQuery.month ? [appliedQuery.month] : MONTH_OPTIONS)
-const currentScopeLabel = computed(() => appliedQuery.month ? `${appliedQuery.year}年${appliedQuery.month}月` : `${appliedQuery.year}年全年`)
+const currentScopeLabel = computed(() => appliedQuery.month ? `${appliedQuery.year}年${appliedQuery.month}月还款` : `${appliedQuery.year}年还款`)
 const activeViewTitle = computed(() => {
-  if (appliedTab.value === 'cardMonths') return '每张卡的12个月'
-  if (appliedTab.value === 'monthUsers') return '每个月的所有用户'
-  return '每个用户的12个月'
+  if (appliedTab.value === 'cardMonths') return '每张卡的12个还款月'
+  if (appliedTab.value === 'monthUsers') return '每个还款月的所有用户'
+  return '每个用户的12个还款月'
 })
 const activeViewDesc = computed(() => {
-  if (appliedTab.value === 'cardMonths') return '按银行卡逐月查看账单金额、手续费、成本和净利润'
-  if (appliedTab.value === 'monthUsers') return '按月份展开每个用户当月收益'
-  return '按用户逐月查看12个月收益'
+  if (appliedTab.value === 'cardMonths') return '按银行卡逐个还款月查看账单金额、手续费、成本和净利润'
+  if (appliedTab.value === 'monthUsers') return '按还款月展开每个用户当月收益'
+  return '按用户逐个还款月查看12个月收益'
 })
 const tableRows = computed(() => {
   if (appliedTab.value === 'cardMonths') return buildCardMonthRows()
@@ -1222,10 +1222,13 @@ function buildProfitQueryParams(snapshot: ProfitQuery) {
 
 function buildBillQueryParams(snapshot: ProfitQuery) {
   const params: Record<string, any> = {
-    year: snapshot.year,
+    repayYear: snapshot.year,
     sortMode: 'monthAsc'
   }
-  if (snapshot.month) params.billMonth = buildBillMonth(snapshot.year, snapshot.month)
+  if (snapshot.month) {
+    params.repayMonth = buildBillMonth(snapshot.year, snapshot.month)
+    delete params.repayYear
+  }
   if (snapshot.userId) params.ownerId = snapshot.userId
   if (snapshot.cardId) params.cardId = snapshot.cardId
   return params
@@ -1328,7 +1331,7 @@ function resetQuery() {
 async function openProfitEditor(row: ProfitDetailRow) {
   if (!row.billCount) return
   profitEditorScopeRow.value = row
-  profitEditorBaseTitle.value = `${row.userName} · ${row.monthLabel} · 统一收款`
+  profitEditorBaseTitle.value = `${row.userName} · ${row.monthLabel}还款 · 统一收款`
   profitEditorRows.value = []
   profitEditorVisible.value = true
   profitEditorLoading.value = true
@@ -1345,16 +1348,17 @@ async function openProfitEditor(row: ProfitDetailRow) {
 }
 
 async function resolveProfitEditorRows(row: ProfitDetailRow) {
+  const rowRepayMonth = row.billMonth
   const localRows = billRows.value.filter((bill) => {
     return Number(topUserForBill(bill)?.id || 0) === Number(row.userId)
-      && bill.billMonth === row.billMonth
+      && billRepayMonth(bill) === rowRepayMonth
   })
   if (!appliedQuery.cardId && localRows.length >= row.billCount) {
     return localRows
   }
   const params: Record<string, any> = {
     ownerId: row.userId,
-    billMonth: row.billMonth,
+    repayMonth: rowRepayMonth,
     sortMode: 'monthAsc'
   }
   if (row.cardId) params.cardId = row.cardId
@@ -1645,6 +1649,11 @@ function monthNumber(billMonth: string) {
 function monthLabel(billMonth: string) {
   const month = monthNumber(billMonth)
   return month ? `${month}月` : '-'
+}
+
+function billRepayMonth(row: BillRow | null | undefined) {
+  const match = String(row?.repayDate || '').match(/^(\d{4})-(\d{2})-/)
+  return match ? `${match[1]}-${match[2]}` : String(row?.billMonth || '')
 }
 
 function cardLabel(item: CardOption) {

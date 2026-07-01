@@ -10,13 +10,15 @@
         LEFT JOIN card_user top_user ON top_user.id = IFNULL(owner_user.parent_id, owner_user.id) AND top_user.is_deleted = 0
     </sql>
 
+    <sql id="profitMonthExpr">COALESCE(DATE_FORMAT(cb.repay_date, '%Y-%m'), cb.bill_month)</sql>
+
     <sql id="profitWhere">
         WHERE cb.is_deleted = 0
         <if test="query.year != null">
-            AND cb.bill_month LIKE CONCAT(#{query.year}, '-%')
+            AND COALESCE(DATE_FORMAT(cb.repay_date, '%Y-%m'), cb.bill_month) LIKE CONCAT(#{query.year}, '-%')
         </if>
         <if test="query.month != null and query.year != null">
-            AND cb.bill_month = CONCAT(#{query.year}, '-', LPAD(#{query.month}, 2, '0'))
+            AND COALESCE(DATE_FORMAT(cb.repay_date, '%Y-%m'), cb.bill_month) = CONCAT(#{query.year}, '-', LPAD(#{query.month}, 2, '0'))
         </if>
         <if test="query.cardId != null">
             AND cb.card_id = #{query.cardId}
@@ -68,7 +70,7 @@
             IFNULL(top_user.name, owner_user.name) AS user_name,
             COUNT(DISTINCT cb.card_id) AS card_count,
             COUNT(*) AS bill_count,
-            COUNT(DISTINCT cb.bill_month) AS bill_month_count,
+            COUNT(DISTINCT COALESCE(DATE_FORMAT(cb.repay_date, '%Y-%m'), cb.bill_month)) AS bill_month_count,
             COALESCE(SUM(cb.bill_amount), 0) AS total_bill_amount,
             COALESCE(AVG(cb.fee_rate), 0) AS avg_fee_rate,
             COALESCE(SUM(cb.fee_amount), 0) AS total_fee_amount,
@@ -139,10 +141,10 @@
         SELECT
             IFNULL(top_user.id, owner_user.id) AS user_id,
             IFNULL(top_user.name, owner_user.name) AS user_name,
-            cb.bill_month,
+            COALESCE(DATE_FORMAT(cb.repay_date, '%Y-%m'), cb.bill_month) AS bill_month,
             COUNT(DISTINCT cb.card_id) AS card_count,
             COUNT(*) AS bill_count,
-            COUNT(DISTINCT cb.bill_month) AS bill_month_count,
+            COUNT(DISTINCT COALESCE(DATE_FORMAT(cb.repay_date, '%Y-%m'), cb.bill_month)) AS bill_month_count,
             COALESCE(SUM(cb.bill_amount), 0) AS total_bill_amount,
             COALESCE(AVG(cb.fee_rate), 0) AS avg_fee_rate,
             COALESCE(SUM(cb.fee_amount), 0) AS total_fee_amount,
@@ -164,8 +166,8 @@
             COALESCE(SUM(cb.net_profit), 0) AS total_net_profit
         <include refid="profitBaseJoin"/>
         <include refid="profitWhere"/>
-        GROUP BY IFNULL(top_user.id, owner_user.id), IFNULL(top_user.name, owner_user.name), cb.bill_month
-        ORDER BY cb.bill_month ASC, user_id ASC
+        GROUP BY IFNULL(top_user.id, owner_user.id), IFNULL(top_user.name, owner_user.name), COALESCE(DATE_FORMAT(cb.repay_date, '%Y-%m'), cb.bill_month)
+        ORDER BY COALESCE(DATE_FORMAT(cb.repay_date, '%Y-%m'), cb.bill_month) ASC, user_id ASC
     </select>
 
     <select id="selectCardMonthProfit" resultType="com.bank.admin.module.profit.vo.CardProfitVO">
@@ -177,7 +179,7 @@
             owner_user.name AS owner_name,
             bc.bank_name,
             bc.card_no_last4,
-            cb.bill_month,
+            COALESCE(DATE_FORMAT(cb.repay_date, '%Y-%m'), cb.bill_month) AS bill_month,
             COUNT(*) AS bill_count,
             COALESCE(SUM(cb.bill_amount), 0) AS total_bill_amount,
             COALESCE(AVG(cb.fee_rate), 0) AS avg_fee_rate,
@@ -207,13 +209,13 @@
                  owner_user.name,
                  bc.bank_name,
                  bc.card_no_last4,
-                 cb.bill_month
-        ORDER BY cb.bill_month ASC, cb.card_id DESC
+                 COALESCE(DATE_FORMAT(cb.repay_date, '%Y-%m'), cb.bill_month)
+        ORDER BY COALESCE(DATE_FORMAT(cb.repay_date, '%Y-%m'), cb.bill_month) ASC, cb.card_id DESC
     </select>
 
     <select id="selectMonthlyProfit" resultType="com.bank.admin.module.profit.vo.MonthlyProfitVO">
         SELECT
-            cb.bill_month,
+            COALESCE(DATE_FORMAT(cb.repay_date, '%Y-%m'), cb.bill_month) AS bill_month,
             COUNT(DISTINCT IFNULL(top_user.id, owner_user.id)) AS user_count,
             COUNT(DISTINCT cb.card_id) AS card_count,
             COUNT(*) AS bill_count,
@@ -227,8 +229,8 @@
             COALESCE(SUM(cb.net_profit), 0) AS total_net_profit
         <include refid="profitBaseJoin"/>
         <include refid="profitWhere"/>
-        GROUP BY cb.bill_month
-        ORDER BY cb.bill_month ASC
+        GROUP BY COALESCE(DATE_FORMAT(cb.repay_date, '%Y-%m'), cb.bill_month)
+        ORDER BY COALESCE(DATE_FORMAT(cb.repay_date, '%Y-%m'), cb.bill_month) ASC
     </select>
 
 </mapper>

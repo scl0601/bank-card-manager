@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vue-tsc && vite build",
-    "preview": "vite preview"
+    "dev": "node scripts/use-node22.mjs vite",
+    "build": "node scripts/use-node22.mjs vue-tsc && node scripts/use-node22.mjs vite build",
+    "preview": "node scripts/use-node22.mjs vite preview"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",

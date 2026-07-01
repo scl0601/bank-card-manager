@@ -33,6 +33,7 @@ public class CardProfitVO {
     @Schema(description = "卡号后四位")
     private String cardNoLast4;
 
+    @Schema(description = "统计归属月份（还款月份，yyyy-MM）")
     private String billMonth;
 
     @Schema(description = "账单数量")
